@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111816">
+  <title>Bid Euchre</title>
+  <link rel="stylesheet" href="/styles.css?v=2">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <button class="brand" data-view="lobby" aria-label="Bid Euchre home">
+        <span class="brand-mark">B<span>♠</span></span>
+        <span><strong>Bid Euchre</strong><small>Table & engine room</small></span>
+      </button>
+      <nav>
+        <button class="nav-item active" data-view="lobby"><span>⌂</span> Tables</button>
+        <button class="nav-item" data-view="engines"><span>⌁</span> Engines</button>
+        <button class="nav-item" data-view="rules"><span>≡</span> Rules</button>
+      </nav>
+      <div class="sidebar-foot">
+        <span class="status-dot"></span>
+        <span>Local game server</span>
+      </div>
+    </aside>
+
+    <main>
+      <section id="lobby-view" class="view active">
+        <header class="page-header">
+          <div>
+            <p class="eyebrow">Game room</p>
+            <h1>Choose your table.</h1>
+            <p>Create a hot-seat game, fill empty chairs with bots, or watch four engines play.</p>
+          </div>
+          <button id="new-table-button" class="button primary">New table</button>
+        </header>
+
+        <div id="session-list" class="session-grid"></div>
+
+        <section id="create-panel" class="panel create-panel hidden">
+          <div class="panel-heading">
+            <div><p class="eyebrow">New session</p><h2>Set the four seats</h2></div>
+            <button id="close-create" class="icon-button" aria-label="Close">×</button>
+          </div>
+          <form id="create-session-form">
+            <div class="session-options">
+              <label class="field table-name"><span>Table name</span><input id="table-name" value="Friday Table" maxlength="40"></label>
+              <label class="field"><span>Bot pace</span><select id="bot-delay"><option value="1500">Relaxed · 1.5 sec</option><option value="1000" selected>Normal · 1 sec</option><option value="600">Quick · 0.6 sec</option></select></label>
+            </div>
+            <div id="seat-editor" class="seat-editor"></div>
+            <div class="form-actions">
+              <span class="hint">Partners are seats 1 + 3 and seats 2 + 4.</span>
+              <button class="button primary" type="submit">Create session</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section id="game-view" class="view">
+        <header class="game-header">
+          <button id="back-to-tables" class="button quiet">← Tables</button>
+          <div class="game-title"><p class="eyebrow">Live session</p><h2 id="game-name">Table</h2></div>
+          <label class="viewer-select"><span>View hand</span><select id="viewer-seat"></select></label>
+          <button id="start-game" class="button primary">Start game</button>
+        </header>
+
+        <div id="game-error" class="alert hidden"></div>
+        <div class="score-ribbon">
+          <div class="team-score"><span>Team 1</span><strong id="team-zero-score">0</strong><small>Seats 1 + 3</small></div>
+          <div class="hand-status"><span id="phase-label">Waiting to start</span><strong id="contract-label">No contract</strong><small id="dealer-label">Dealer not chosen</small></div>
+          <div class="team-score amber"><span>Team 2</span><strong id="team-one-score">0</strong><small>Seats 2 + 4</small></div>
+        </div>
+
+        <div class="game-layout">
+          <section class="table-wrap">
+            <div class="felt-table">
+              <div id="seat-2" class="player-position north"></div>
+              <div id="seat-1" class="player-position west"></div>
+              <div id="seat-3" class="player-position east"></div>
+              <div id="seat-0" class="player-position south"></div>
+              <div id="trick-area" class="trick-area"><span class="empty-trick">Cards played here</span></div>
+            </div>
+          </section>
+
+          <aside class="game-rail">
+            <section class="panel action-panel">
+              <p class="eyebrow">Your move</p>
+              <h3 id="action-title">Waiting for the game</h3>
+              <p id="action-help">Start the session when every seat is ready.</p>
+              <div id="action-buttons" class="action-buttons"></div>
+            </section>
+            <section class="panel event-panel">
+              <div class="panel-heading"><h3>Table log</h3><span id="trick-count">0 / 6 tricks</span></div>
+              <ol id="event-list" class="event-list"></ol>
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section id="engines-view" class="view">
+        <header class="page-header">
+          <div><p class="eyebrow">Bot workshop</p><h1>Engine lab.</h1><p>Load any process that implements the BEUCI text protocol.</p></div>
+        </header>
+        <div class="two-column">
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">Engine catalog</p><h2>Available bots</h2></div></div>
+            <div id="engine-list" class="engine-list"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-heading"><div><p class="eyebrow">External process</p><h2>Load an engine</h2></div></div>
+            <form id="load-engine-form" class="stack-form">
+              <label class="field"><span>Executable</span><input id="engine-executable" placeholder="/usr/bin/dotnet" required></label>
+              <label class="field"><span>Arguments</span><input id="engine-arguments" placeholder="/path/to/MyBot.dll"></label>
+              <p class="hint">The process is started once now for a BEUCI handshake and once per occupied bot seat when a game begins.</p>
+              <button class="button primary" type="submit">Handshake & load</button>
+            </form>
+            <div id="protocol-help" class="protocol-sample">
+              <span>Minimal handshake</span>
+              <code>← beuci<br>→ id name "My Bot"<br>→ id author "Your Name"<br>→ protocol bideuchre 1<br>→ beuciok</code>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="rules-view" class="view">
+        <header class="page-header"><div><p class="eyebrow">Reference</p><h1>Rules of play.</h1><p>The same specification used by the game engine.</p></div></header>
+        <article id="rules-content" class="panel rules-content">Loading rules…</article>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="/app.js?v=2" defer></script>
+</body>
+</html>

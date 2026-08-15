@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BidEuchre.App/BidEuchre.App.csproj" />
+    <Project Path="src/BidEuchre.Core/BidEuchre.Core.csproj" />
+    <Project Path="src/BidEuchre.Desktop/BidEuchre.Desktop.csproj" />
+    <Project Path="src/BidEuchre.Protocol/BidEuchre.Protocol.csproj" />
+    <Project Path="src/BidEuchre.SampleBot/BidEuchre.SampleBot.csproj" />
+    <Project Path="src/BidEuchre.Server/BidEuchre.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BidEuchre.Tests/BidEuchre.Tests.csproj" />
+  </Folder>
+</Solution>

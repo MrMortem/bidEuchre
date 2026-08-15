@@ -1,0 +1,20 @@
+.dotnet/
+.dotnet-home/
+**/bin/
+**/obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.log
+dist/
+
+# Python CFR engine
+.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+engines/python-cfr/state/
+
+# Native C++ heuristic engine
+engines/cpp-heuristic/build/
