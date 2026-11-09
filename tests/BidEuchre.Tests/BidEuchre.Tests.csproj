@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../src/BidEuchre.Arena/BidEuchre.Arena.csproj" />
     <ProjectReference Include="../../src/BidEuchre.Protocol/BidEuchre.Protocol.csproj" />
     <ProjectReference Include="../../src/BidEuchre.App/BidEuchre.App.csproj" />
   </ItemGroup>

@@ -2,8 +2,23 @@ using BidEuchre.Core;
 using BidEuchre.Protocol;
 using BidEuchre.App;
 
+if (args.Length >= 2 && args[0] == "--arena-test-child")
+{
+    await ArenaTestChild.RunAsync(args[1]);
+    return;
+}
+
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("MatchRunsToForty", ArenaTests.MatchRunsToForty),
+    ("OnlyActorReceivesPrivateHand", ArenaTests.OnlyActorReceivesPrivateHand),
+    ("ArenaCancellationIsInterrupted", ArenaTests.CancellationIsInterrupted),
+    ("ArenaProcessesFailClosed", ArenaProcessTests.FailClosed),
+    ("ArenaProcessCannotReuseTimedOutStream", ArenaProcessTests.CannotReuseTimedOutStream),
+    ("ArenaFixturesReplay", ArenaTests.FixturesReplay),
+    ("ArenaActionMappingRejectsInvalidBoundaries", () => Run(ArenaTests.ActionMappingRejectsInvalidBoundaries)),
+    ("ArenaStderrIsDrainedAndBounded", ArenaProcessTests.StderrIsDrainedAndBounded),
+    ("ArenaProcessLivePartnersBestHistory", ArenaProcessTests.LivePartnersBestHistory),
     ("DealSerialSurvivesRedeal", () => Run(HybridFixtureTests.DealSerialSurvivesRedeal)),
     ("LegacyViewHasUnknownSerial", () => Run(HybridFixtureTests.LegacyViewHasUnknownSerial)),
     ("DealSerialRoundTrips", () => Run(HybridFixtureTests.DealSerialRoundTrips)),
@@ -86,6 +101,9 @@ if (!string.IsNullOrWhiteSpace(cppStrengthEngine))
 }
 
 var failures = new List<string>();
+if (args.Length == 2 && args[0] == "--filter")
+    tests = tests.Where(test => test.Name.Contains(args[1], StringComparison.OrdinalIgnoreCase)).ToList();
+
 foreach (var test in tests)
 {
     try

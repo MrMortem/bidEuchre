@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/BidEuchre.Arena/BidEuchre.Arena.csproj" />
     <Project Path="src/BidEuchre.App/BidEuchre.App.csproj" />
     <Project Path="src/BidEuchre.Core/BidEuchre.Core.csproj" />
     <Project Path="src/BidEuchre.Desktop/BidEuchre.Desktop.csproj" />
