@@ -1,0 +1,29 @@
+cmake_minimum_required(VERSION 3.20)
+project(BidEuchreHybrid VERSION 1.0.0 LANGUAGES CXX)
+include(CTest)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# Reuse the baseline library without changing its strategy or sources.
+add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../cpp-heuristic" "${CMAKE_CURRENT_BINARY_DIR}/heuristic" EXCLUDE_FROM_ALL)
+add_custom_target(hybrid-schema-check
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_schema.py" --check
+    VERBATIM)
+add_library(bideuchre_hybrid_lib native/src/actions.cpp native/src/json_io.cpp)
+target_include_directories(bideuchre_hybrid_lib PUBLIC native/include)
+target_compile_features(bideuchre_hybrid_lib PUBLIC cxx_std_20)
+target_link_libraries(bideuchre_hybrid_lib PUBLIC bideuchre_heuristic_lib)
+add_dependencies(bideuchre_hybrid_lib hybrid-schema-check)
+if(MSVC)
+    target_compile_options(bideuchre_hybrid_lib PRIVATE /W4 /permissive-)
+else()
+    target_compile_options(bideuchre_hybrid_lib PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+if(BUILD_TESTING)
+    add_executable(hybrid-tests native/tests/test_main.cpp native/tests/test_schema.cpp)
+    target_link_libraries(hybrid-tests PRIVATE bideuchre_hybrid_lib)
+    target_compile_definitions(hybrid-tests PRIVATE HYBRID_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/hybrid/authority-v1.jsonl")
+    add_test(NAME hybrid-native COMMAND hybrid-tests)
+    add_test(NAME hybrid-schema-check COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_schema.py" --check)
+    add_test(NAME hybrid-python-schema COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/python" -p test_schema.py)
+endif()
