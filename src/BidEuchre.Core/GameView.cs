@@ -25,4 +25,7 @@ public sealed record GameView(
     int[] TricksByTeam,
     int? GameWinner,
     LegalActionView LegalActions,
-    IReadOnlyList<string> Events);
+    IReadOnlyList<string> Events)
+{
+    public long? DealSerial { get; init; }
+}

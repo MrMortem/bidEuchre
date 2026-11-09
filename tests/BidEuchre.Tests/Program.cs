@@ -4,6 +4,17 @@ using BidEuchre.App;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("DealSerialSurvivesRedeal", () => Run(HybridFixtureTests.DealSerialSurvivesRedeal)),
+    ("LegacyViewHasUnknownSerial", () => Run(HybridFixtureTests.LegacyViewHasUnknownSerial)),
+    ("DealSerialRoundTrips", () => Run(HybridFixtureTests.DealSerialRoundTrips)),
+    ("FixtureRejectsDuplicateCards", () => Run(HybridFixtureTests.FixtureRejectsDuplicateCards)),
+    ("FixtureCopiesInputs", () => Run(HybridFixtureTests.FixtureCopiesInputs)),
+    ("FixtureRequiresFourSixCardHands", () => Run(HybridFixtureTests.FixtureRequiresFourSixCardHands)),
+    ("FixtureRejectsInvalidCards", () => Run(HybridFixtureTests.FixtureRejectsInvalidCards)),
+    ("FixtureValidatesNamesAndDealer", () => Run(HybridFixtureTests.FixtureValidatesNamesAndDealer)),
+    ("FixtureValidatesScoresAndIdentity", () => Run(HybridFixtureTests.FixtureValidatesScoresAndIdentity)),
+    ("FixtureStartsAtLegalBiddingBoundary", () => Run(HybridFixtureTests.FixtureStartsAtLegalBiddingBoundary)),
+    ("FixtureNearFortyCompletesGame", () => Run(HybridFixtureTests.FixtureNearFortyCompletesGame)),
     ("Only new high bids announce during the auction", () => Run(TableMotionTests.HighestBidOnly)),
     ("Stale work cannot unlock a different private hand", () => Run(TableInputTests.StaleWorkCannotUnlockNewView)),
     ("Motion preferences persist and tolerate corrupt storage", () => Run(GamePreferencesTests.PersistMotion)),

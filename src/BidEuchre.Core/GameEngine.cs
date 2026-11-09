@@ -1,6 +1,6 @@
 namespace BidEuchre.Core;
 
-public sealed class GameEngine
+public sealed partial class GameEngine
 {
     private readonly string[] _playerNames;
     private readonly List<Card>[] _hands = [[], [], [], []];
@@ -33,6 +33,7 @@ public sealed class GameEngine
 
     public GamePhase Phase { get; private set; } = GamePhase.NotStarted;
     public int HandNumber { get; private set; }
+    public long DealSerial { get; private set; }
     public int Dealer { get; private set; }
     public int? CurrentSeat { get; private set; }
     public BidLevel? HighBid { get; private set; }
@@ -323,7 +324,10 @@ public sealed class GameEngine
                 modes,
                 suits,
                 cards),
-            _events.ToArray());
+            _events.ToArray())
+        {
+            DealSerial = DealSerial
+        };
     }
 
     private IReadOnlyList<ContractMode> GetContractModes()
@@ -339,6 +343,7 @@ public sealed class GameEngine
     private void DealHand()
     {
         HandNumber++;
+        DealSerial++;
         HighBid = null;
         Bidder = null;
         Contract = null;
