@@ -29,7 +29,10 @@ if [[ "$go_error" != 'error a position must be supplied before go' ]]; then
 fi
 
 playing_payload='eyJzZWF0IjoxLCJnYW1lIjp7InBoYXNlIjoiUGxheWluZyIsImhhbmROdW1iZXIiOjEsImRlYWxlciI6MCwiY3VycmVudFNlYXQiOjEsInNjb3JlcyI6WzAsMF0sInBsYXllcnMiOlt7InNlYXQiOjAsImNhcmRDb3VudCI6MCwiY2FyZHMiOm51bGwsImlzU2l0dGluZ091dCI6ZmFsc2V9LHsic2VhdCI6MSwiY2FyZENvdW50IjoxLCJjYXJkcyI6W3siY29kZSI6IkFTIn1dLCJpc1NpdHRpbmdPdXQiOmZhbHNlfSx7InNlYXQiOjIsImNhcmRDb3VudCI6MCwiY2FyZHMiOm51bGwsImlzU2l0dGluZ091dCI6ZmFsc2V9LHsic2VhdCI6MywiY2FyZENvdW50IjowLCJjYXJkcyI6bnVsbCwiaXNTaXR0aW5nT3V0IjpmYWxzZX1dLCJhdWN0aW9uIjpbXSwiaGlnaEJpZCI6IlRocmVlIiwiYmlkZGVyIjoxLCJjb250cmFjdCI6eyJiaWQiOiJUaHJlZSIsIm1vZGUiOiJUcnVtcCIsInRydW1wIjoiU3BhZGVzIn0sImN1cnJlbnRUcmljayI6W10sImNvbXBsZXRlZFRyaWNrcyI6W3sid2lubmVyIjoxLCJwbGF5cyI6W3sic2VhdCI6MSwiY2FyZCI6eyJjb2RlIjoiOUMifX1dfV0sInRyaWNrc0J5VGVhbSI6WzAsNV0sImxlZ2FsQWN0aW9ucyI6eyJjYW5QYXNzIjpmYWxzZSwiYmlkcyI6W10sImNvbnRyYWN0TW9kZXMiOltdLCJ0cnVtcFN1aXRzIjpbXSwiY2FyZHMiOlt7ImNvZGUiOiJBUyJ9XX19fQ'
-mapfile -t recovery_lines < <(
+recovery_lines=()
+while IFS= read -r recovery_line; do
+    recovery_lines+=("$recovery_line")
+done < <(
     printf 'position invalid!\ngo\nposition %s\ngo\nquit\n' "$playing_payload" | "$engine_dir/run.sh"
 )
 
