@@ -23,6 +23,7 @@ internal static class ArenaResumeTests
             var initial = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromMilliseconds(25), default);
             Assert.False(initial.Complete);
             Assert.False(initial.CanPromote);
+            Assert.Equal(initial.Attempts, Directory.GetFiles(Path.Combine(path, "started-attempts"), "*.json").Length);
             using (var store = RunStore.Open(path, manifest))
                 Assert.True(store.ReadAttempts().Any(a => a.Result.Status == MatchStatus.Interrupted));
             var resumed = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromSeconds(15), default);
@@ -75,6 +76,61 @@ internal static class ArenaResumeTests
             cancelled.Cancel();
             var report = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromSeconds(1), cancelled.Token);
             Assert.True(report.GateErrors.Any(e => e.Contains("StopMs")));
+        }
+        finally { Directory.Delete(path, true); }
+    }
+
+    public static async Task StartedAttemptCrashRetainsLateEvidence()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "arena-started-crash-" + Guid.NewGuid().ToString("N"));
+        var manifest = LiveManifest();
+        try
+        {
+            using (RunStore.Open(path, manifest))
+            {
+                // Simulate a terminated arena: durable start and trace, with no terminal attempt record.
+                var trace = Path.Combine(path, "traces", "synthetic-crash-latency-fixture.jsonl");
+                Directory.CreateDirectory(Path.Combine(path, "started-attempts"));
+                File.WriteAllText(Path.Combine(path, "started-attempts", "synthetic-crashed-start.json"),
+                    JsonSerializer.Serialize(new { Spec = manifest.Legs[0], TracePath = trace, StartedAt = DateTimeOffset.UtcNow }));
+                File.WriteAllText(trace, "{\"kind\":\"action\",\"elapsedDecisionMs\":3501}\n");
+            }
+            using var cancelled = new CancellationTokenSource();
+            cancelled.Cancel();
+            var report = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromSeconds(1), cancelled.Token);
+            Assert.True(report.GateErrors.Any(e => e.Contains("StopMs")), "A crashed attempt's late trace must permanently taint the gate.");
+            Assert.Equal(1, report.Attempts);
+            using (var store = RunStore.Open(path, manifest))
+            {
+                var recovered = store.ReadAttempts().Single();
+                Assert.Equal(MatchStatus.Failed, recovered.Result.Status);
+                Assert.Equal(manifest.Legs[0].Seed, recovered.Result.Spec.Seed);
+                Assert.True(recovered.Result.Winner is null);
+            }
+            var again = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromSeconds(1), cancelled.Token);
+            Assert.Equal(report.Attempts, again.Attempts);
+            Assert.True(again.GateErrors.Any(e => e.Contains("StopMs")));
+            Assert.False(again.CanPromote);
+        }
+        finally { Directory.Delete(path, true); }
+        path += "-clean";
+        try
+        {
+            using (var store = RunStore.Open(path, manifest))
+            {
+                var trace = Path.Combine(path, "traces", "synthetic-clean-crash-fixture.jsonl");
+                store.StartAttempt(manifest.Legs[0], trace);
+                File.WriteAllText(trace, "{\"kind\":\"action\",\"elapsedDecisionMs\":10}\n");
+            }
+            var resumed = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromSeconds(15), default);
+            Assert.True(resumed.Complete);
+            Assert.Equal(0, resumed.GateErrors.Length);
+            Assert.Equal(5, resumed.Attempts);
+            using var storeAfterResume = RunStore.Open(path, manifest);
+            Assert.Equal(0, storeAfterResume.ReadUnfinishedAttempts().Count);
+            var interrupted = storeAfterResume.ReadAttempts().Single(a => a.Result.Status == MatchStatus.Interrupted);
+            Assert.Equal(manifest.Legs[0].Seed, interrupted.Result.Spec.Seed);
+            Assert.Equal(manifest.Legs[0].Dealer, interrupted.Result.Spec.Dealer);
         }
         finally { Directory.Delete(path, true); }
     }

@@ -18,6 +18,21 @@ public static class TournamentRunner
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(maxDuration);
         var attempts = store.ReadAttempts().ToList();
+        // A process crash may leave only a durable start and a partial trace. Audit it before allowing a retry.
+        foreach (var unfinished in store.ReadUnfinishedAttempts())
+        {
+            var recovered = new MatchResult(unfinished.Spec, MatchStatus.Interrupted, null, [0, 0], 0,
+                "Recovered unfinished attempt after arena interruption.", unfinished.TracePath);
+            try
+            {
+                if (File.Exists(recovered.TracePath)) ReadTimings(recovered, requireDecisions: false);
+            }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException)
+            { recovered = recovered with { Status = MatchStatus.Failed, Error = exception.Message }; }
+            // Elapsed compute time is unknown after a crash; do not count downtime as engine work.
+            store.RecordAttempt(recovered);
+            attempts.Add(new(recovered, 0, DateTimeOffset.UtcNow));
+        }
         // A crash after recording a complete attempt but before publishing its result must not replay that leg.
         foreach (var attempt in attempts.Where(a => TournamentStatistics.IsComplete(a.Result)))
             store.Commit(attempt.Result);
@@ -27,6 +42,7 @@ public static class TournamentRunner
             if (attempts.Any(a => a.Result.Spec.BlockId == spec.BlockId && a.Result.Spec.LegId == spec.LegId && a.Result.Status == MatchStatus.Failed)) continue;
             if (deadline.IsCancellationRequested) break;
             string trace = Path.GetFullPath(Path.Combine(directory, "traces", Guid.NewGuid().ToString("N") + ".jsonl"));
+            store.StartAttempt(spec, trace);
             var started = Stopwatch.GetTimestamp();
             MatchResult result;
             try
