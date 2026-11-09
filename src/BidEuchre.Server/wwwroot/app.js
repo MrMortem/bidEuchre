@@ -1,4 +1,7 @@
+const tableMotion = new TableMotion();
 const model = {
+  motionEnabled: true,
+  motionCue: null,
   engines: [],
   sessions: [],
   session: null,
@@ -17,6 +20,7 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
 document.addEventListener('DOMContentLoaded', async () => {
+  configureMotion();
   bindNavigation();
   bindForms();
   buildSeatEditor();
@@ -29,10 +33,8 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
-  $('#viewer-seat').addEventListener('change', async event => {
-    model.viewerSeat = event.target.value === '' ? null : Number(event.target.value);
-    await refreshGame();
-  });
+  $('#viewer-seat').addEventListener('change', event =>
+    selectViewerSeat(event.target.value === '' ? null : Number(event.target.value)));
 }
 
 function bindForms() {
@@ -41,6 +43,7 @@ function bindForms() {
 }
 
 function showView(name) {
+  if (name !== 'game') cancelTableMotion();
   document.body.classList.toggle('at-table', name === 'game');
   $$('.view').forEach(view => view.classList.toggle('active', view.id === `${name}-view`));
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
@@ -180,6 +183,8 @@ async function createSession(event) {
 }
 
 async function openSession(id) {
+  cancelTableMotion();
+  tableMotion.reset();
   stopPolling();
   model.sessionId = id;
   model.session = null;
@@ -259,6 +264,8 @@ function renderGame() {
     startButton.textContent = 'Start game';
   }
 
+  model.motionCue = tableMotion.update(session.game, `${session.id}:${model.viewerSeat}`);
+
   if (!session.started || !session.game) {
     resetBoard();
     return;
@@ -280,6 +287,7 @@ function renderGame() {
   game.players.forEach(player => renderPlayer(player, game));
   renderTrick(game);
   renderActions(game);
+  animateTableCues();
   const eventList = $('#event-list');
   const eventKey = JSON.stringify(game.events);
   if (eventList.dataset.renderKey !== eventKey) {
@@ -345,6 +353,11 @@ function renderPlayer(player, game) {
     </div>
     <div class="card-row">${cards}</div>`;
   position.dataset.renderKey = renderKey;
+  if (model.motionCue?.deal) {
+    position.querySelectorAll('.card-row > *').forEach((card, index) => runMotion(card,
+      [{ translate:'0 22px' }, { translate:'0 -3px', offset:.8 }, { translate:'0 0' }],
+      { duration:260, delay:index * 32 + player.seat * 15 }));
+  }
   if (player.cards && current) {
     position.querySelectorAll('.playing-card.legal').forEach(button =>
       button.addEventListener('click', () => playOrExchange(button.dataset.card)));
@@ -373,8 +386,37 @@ function renderTrick(game) {
     completed?.winner ?? null
   ]);
   if (area.dataset.renderKey === renderKey) return;
-  area.innerHTML = plays.map(play => `<div class="trick-card seat-${play.seat}">${cardHtml(play.card, false)}</div>`).join('') +
-    (completed ? `<span class="trick-result">${escapeHtml(game.players[completed.winner].name)} won trick ${completed.number}</span>` : '');
+  // Keep existing card nodes: the next play must not restart a card in flight.
+  const keys = new Set(plays.map(play => `${play.seat}:${cardCode(play.card)}`));
+  [...area.children].forEach(node => { if (!keys.has(node.dataset.playKey)) node.remove(); });
+  plays.forEach(play => {
+    const key = `${play.seat}:${cardCode(play.card)}`;
+    let node = [...area.children].find(child => child.dataset.playKey === key);
+    if (!node) {
+      node = document.createElement('div');
+      node.className = `trick-card seat-${play.seat}`;
+      node.dataset.playKey = key;
+      node.innerHTML = cardHtml(play.card, false);
+      area.append(node);
+      if (model.motionCue?.addedPlays.has(key)) {
+        const [x, y] = [[0,85],[-95,0],[0,-85],[95,0]][play.seat];
+        runMotion(node, [
+          { translate:`${x}px ${y}px`, rotate:`${play.seat % 2 ? 8 : -6}deg`, opacity:.5 },
+          { translate:`${-x * .035}px ${-y * .035}px`, rotate:'0deg', opacity:1, offset:.8 },
+          { translate:'0 0', rotate:'0deg', opacity:1 }
+        ], { duration:300 });
+      }
+    }
+    node.classList.toggle('winning-card', completed?.winner === play.seat);
+  });
+  if (completed) {
+    const result = document.createElement('span');
+    result.className = 'trick-result';
+    result.textContent = `${game.players[completed.winner].name} won trick ${completed.number}`;
+    area.append(result);
+    if (model.motionCue?.winnerSeat != null) runMotion(result,
+      [{ translate:'0 6px', opacity:0 }, { translate:'0 0', opacity:1 }], { duration:220 });
+  }
   area.dataset.renderKey = renderKey;
 }
 
@@ -497,6 +539,7 @@ async function nextHand() {
 }
 
 async function selectViewerSeat(seat) {
+  cancelTableMotion();
   model.viewerSeat = seat;
   $('#viewer-seat').value = String(seat);
   await refreshGame();
@@ -624,4 +667,45 @@ function toast(message, error = false) {
   element.className = `toast show ${error ? 'error' : ''}`;
   clearTimeout(element.timer);
   element.timer = setTimeout(() => element.className = 'toast', 3500);
+}
+
+
+function configureMotion() {
+  const preference = matchMedia('(prefers-reduced-motion: reduce)');
+  const button = $('#motion-toggle');
+  const update = enabled => {
+    model.motionEnabled = enabled;
+    document.body.classList.toggle('motion-off', !enabled);
+    button.textContent = `Motion: ${enabled ? 'On' : 'Off'}`;
+    button.setAttribute('aria-pressed', String(enabled));
+    if (!enabled) cancelTableMotion();
+  };
+  update(!preference.matches);
+  button.addEventListener('click', () => update(!model.motionEnabled));
+  preference.addEventListener('change', event => { if (event.matches) update(false); });
+}
+
+function runMotion(element, keyframes, options = {}) {
+  if (!element || !model.motionEnabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  element.getAnimations().forEach(animation => animation.cancel());
+  element.animate(keyframes, { duration:260, easing:'cubic-bezier(.2,.75,.25,1)', ...options });
+}
+
+function animateTableCues() {
+  const cue = model.motionCue;
+  if (!cue) return;
+  if (cue.turnSeat != null) runMotion($(`#seat-${cue.turnSeat} .player-tag`),
+    [{ translate:'0 0' }, { translate:'0 -4px', offset:.45 }, { translate:'0 0' }], { duration:260 });
+  if (cue.winnerSeat != null) {
+    runMotion($(`#seat-${cue.winnerSeat} .portrait`),
+      [{ scale:'1' }, { scale:'1.12', offset:.45 }, { scale:'1' }], { duration:380 });
+    const winner = $('#trick-area .winning-card .playing-card');
+    runMotion(winner, [{ scale:'1' }, { scale:'1.065', offset:.45 }, { scale:'1' }], { duration:380 });
+  }
+  for (const team of cue.scoreTeams) runMotion($(team === 0 ? '#team-zero-score' : '#team-one-score'),
+    [{ scale:'1' }, { scale:'1.2', color:'#ffdb62', offset:.4 }, { scale:'1' }], { duration:420 });
+}
+
+function cancelTableMotion() {
+  $('#game-view')?.getAnimations({ subtree:true }).forEach(animation => animation.cancel());
 }

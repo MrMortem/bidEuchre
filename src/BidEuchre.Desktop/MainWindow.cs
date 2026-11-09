@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -63,6 +65,9 @@ public sealed class MainWindow : Window
     private bool _tableTransitioning;
     private long _sessionGeneration;
     private string? _renderKey;
+    private readonly TableMotionTracker _motionTracker = new();
+    private readonly PixelMotion _motion = new();
+    private TableMotionCue _motionCue = TableMotionCue.None;
 
     public MainWindow()
     {
@@ -127,6 +132,7 @@ public sealed class MainWindow : Window
         Closed += async (_, _) =>
         {
             _refreshTimer.Stop();
+            _motion.Cancel();
             var session = DetachSession();
             if (session is not null)
             {
@@ -226,7 +232,7 @@ public sealed class MainWindow : Window
         var back = QuietButton("← New table");
         back.Click += async (_, _) => await LeaveTableAsync(back);
 
-        var header = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto,Auto"), ColumnSpacing = 12 };
+        var header = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto,Auto,Auto"), ColumnSpacing = 12 };
         header.Children.Add(back);
         header.Children.Add(Place(new StackPanel
         {
@@ -238,7 +244,17 @@ public sealed class MainWindow : Window
             }
         }, column: 1));
         header.Children.Add(Place(Field("View hand", _viewerSeat), column: 2));
-        header.Children.Add(Place(_startButton, column: 3));
+        var motionButton = QuietButton($"Motion: {(_motion.Enabled ? "On" : "Off")}");
+        motionButton.FontSize = 10;
+        motionButton.Click += async (_, _) =>
+        {
+            _motion.SetEnabled(!_motion.Enabled);
+            motionButton.Content = $"Motion: {(_motion.Enabled ? "On" : "Off")}";
+            _renderKey = null;
+            await RefreshGameAsync();
+        };
+        header.Children.Add(Place(motionButton, column: 3));
+        header.Children.Add(Place(_startButton, column: 4));
 
         var score = new StackPanel
         {
@@ -552,6 +568,7 @@ public sealed class MainWindow : Window
                     return;
                 }
                 _renderKey = "waiting";
+                _motionTracker.Update(null, $"{session.Id}:{viewer}");
                 RenderWaitingTable();
                 return;
             }
@@ -562,6 +579,7 @@ public sealed class MainWindow : Window
                 return;
             }
             _renderKey = renderKey;
+            _motionCue = _motionTracker.Update(view, $"{session.Id}:{viewer}");
 
             _startButton.IsVisible = false;
             _teamZeroScore.Text = view.Scores[0].ToString();
@@ -571,6 +589,7 @@ public sealed class MainWindow : Window
             _dealerText.Text = $"Seat {view.Dealer + 1} deals · {view.TricksByTeam[0]}–{view.TricksByTeam[1]} tricks";
             _sessionError.Text = session.LastError ?? string.Empty;
             _tableHost.Content = BuildTable(view);
+            foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             RenderEvents(view.Events);
         }
@@ -640,6 +659,8 @@ public sealed class MainWindow : Window
             } }
             }
         };
+        if (_motionCue.WinnerSeat == player.Seat) _motion.Pulse(tag);
+        else if (_motionCue.TurnSeat == player.Seat) _motion.Nudge(tag);
         var cards = new WrapPanel
         {
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -649,15 +670,19 @@ public sealed class MainWindow : Window
         {
             for (var index = 0; index < player.CardCount; index++)
             {
-                cards.Children.Add(CardBack());
+                var back = CardBack();
+                cards.Children.Add(_motionCue.Deal ? _motion.Arrive(back, 0, index * 32) : back);
             }
         }
         else
         {
+            var index = 0;
             foreach (var card in player.Cards)
             {
                 var legal = current && view.LegalActions.Cards.Contains(card);
-                cards.Children.Add(CardButton(card, legal, view));
+                var button = CardButton(card, legal, view);
+                cards.Children.Add(_motionCue.Deal ? _motion.Arrive(button, 0, index * 32) : button);
+                index++;
             }
         }
 
@@ -688,7 +713,21 @@ public sealed class MainWindow : Window
             var card = CardFace(play.Card);
             card.HorizontalAlignment = play.Seat switch { 1 => HorizontalAlignment.Left, 3 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center };
             card.VerticalAlignment = play.Seat switch { 2 => VerticalAlignment.Top, 0 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center };
-            cards.Children.Add(card);
+            if (completed?.Winner == play.Seat)
+            {
+                card.BorderBrush = Gold;
+                card.BorderThickness = new Thickness(3);
+                if (_motionCue.WinnerSeat is not null) _motion.Pulse(card, 1.065);
+            }
+            if (_motionCue.AddedPlays.Contains($"{play.Seat}:{play.Card.Code}"))
+            {
+                // Keep the seat alignment on the wrapper, not its child.
+                var animated = _motion.Arrive(card, play.Seat);
+                animated.HorizontalAlignment = card.HorizontalAlignment;
+                animated.VerticalAlignment = card.VerticalAlignment;
+                cards.Children.Add(animated);
+            }
+            else cards.Children.Add(card);
         }
 
         var label = new TextBlock
@@ -980,13 +1019,17 @@ public sealed class MainWindow : Window
         if (legal)
         {
             button.Cursor = new Cursor(StandardCursorType.Hand);
-            button.PointerEntered += (_, _) => button.RenderTransform = new TranslateTransform(0, -6);
-            button.PointerExited += (_, _) =>
+            var lift = new TranslateTransform();
+            if (_motion.Enabled) lift.Transitions = new Transitions
             {
-                if (!button.IsFocused) button.RenderTransform = null;
+                new DoubleTransition { Property = TranslateTransform.YProperty,
+                    Duration = TimeSpan.FromMilliseconds(120), Easing = new CubicEaseOut() }
             };
-            button.GotFocus += (_, _) => button.RenderTransform = new TranslateTransform(0, -6);
-            button.LostFocus += (_, _) => button.RenderTransform = null;
+            button.RenderTransform = lift;
+            button.PointerEntered += (_, _) => lift.Y = -6;
+            button.PointerExited += (_, _) => { if (!button.IsFocused) lift.Y = 0; };
+            button.GotFocus += (_, _) => lift.Y = -6;
+            button.LostFocus += (_, _) => lift.Y = 0;
             button.Click += async (_, _) =>
             {
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";

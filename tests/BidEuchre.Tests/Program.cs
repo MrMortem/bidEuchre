@@ -4,6 +4,8 @@ using BidEuchre.App;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Motion cues only describe new public events", () => Run(TableMotionTests.EventsOnly)),
+    ("Motion distinguishes starting from reconnecting", () => Run(TableMotionTests.StartAndReconnect)),
     ("Deck contains 24 unique cards", () => Run(GameRuleTests.DeckIsCorrect)),
     ("Card notation round-trips", () => Run(GameRuleTests.CardNotationRoundTrips)),
     ("Card display ranks use familiar labels", () => Run(GameRuleTests.CardDisplayRanksAreCorrect)),

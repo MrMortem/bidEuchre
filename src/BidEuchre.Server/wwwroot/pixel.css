@@ -59,3 +59,19 @@ nav .active, .nav-item:hover { background:#143b8f; border-color:#69c9ff; }
 }
 .player-name { white-space:normal; overflow-wrap:anywhere; }
 .player-tag.current .tricks { color:var(--amber); }
+
+/* Motion is brief and event-driven; transforms on the fan and hover remain independent. */
+.game-header { grid-template-columns:auto minmax(0,1fr) auto auto auto; }
+#motion-toggle { font-size:10px; white-space:nowrap; }
+.player-tag { transition:border-color 140ms ease-out, background-color 140ms ease-out, box-shadow 140ms ease-out; }
+.playing-card { transition:transform 120ms cubic-bezier(.2,.75,.25,1), box-shadow 120ms ease-out, outline-color 120ms ease-out; }
+.trick-card { z-index:1; }
+.trick-card.winning-card { z-index:2; }
+.trick-card.winning-card .playing-card { border-color:#ffdf69; box-shadow:0 0 0 2px #ffcf45,0 0 16px #ffc64266,3px 4px 0 #090419; }
+.action-button:active:not(:disabled),.button:active:not(:disabled) { transform:translateY(2px); box-shadow:1px 2px 0 #050311; }
+.motion-off *, .motion-off *::before, .motion-off *::after { animation:none !important; transition:none !important; }
+@media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+@media (max-width:760px) {
+  .game-header { grid-template-columns:auto minmax(0,1fr); }
+  #motion-toggle { grid-column:1 / -1; justify-self:end; }
+}

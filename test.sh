@@ -14,6 +14,12 @@ export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 
 mkdir -p "$DOTNET_CLI_HOME"
 
+if command -v node >/dev/null 2>&1; then
+    node --test "$project_dir"/tests/web/*.test.cjs
+else
+    echo "SKIP  Browser motion tests (Node.js is not installed)"
+fi
+
 prolog_engine_path=""
 if command -v swipl >/dev/null 2>&1; then
     prolog_engine_path="$project_dir/engines/prolog/run.sh"
