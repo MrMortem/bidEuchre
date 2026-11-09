@@ -27,5 +27,7 @@ inline Json load_case(std::string_view name) {
     throw std::runtime_error("fixture not found: " + std::string(name));
 }
 void test_schema();
+void test_match();
+void test_parity();
 }
 #define CHECK(name, condition) ::hybrid::test::check(name, (condition))

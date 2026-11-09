@@ -80,7 +80,21 @@ internal static class ArenaTests
         {
             await FixtureExporter.ExportAsync(path, default);
             var fixtures = File.ReadLines(path).Select(line => JsonDocument.Parse(line)).ToList();
-            Assert.True(fixtures.Count >= 12);
+            Assert.True(fixtures.Count >= 58, "Include 32 bounded fixed-seed randomized authority traces.");
+            var randomized = fixtures.Where(f => f.RootElement.GetProperty("id").GetString()!.StartsWith("random-")).ToArray();
+            Assert.Equal(32, randomized.Length);
+            Assert.Equal(32, randomized.Select(f => f.RootElement.GetProperty("seed").GetInt32()).Distinct().Count());
+            Assert.True(randomized.All(f => f.RootElement.GetProperty("steps").GetArrayLength() <= 31));
+            var secondPath = path + ".second";
+            try
+            {
+                await FixtureExporter.ExportAsync(secondPath, default);
+                var repeated = File.ReadLines(secondPath).Select(line => JsonDocument.Parse(line)).ToArray();
+                var repeatedRandom = repeated.Where(f => f.RootElement.GetProperty("id").GetString()!.StartsWith("random-")).ToArray();
+                Assert.True(randomized.Select(f => f.RootElement.GetRawText()).SequenceEqual(repeatedRandom.Select(f => f.RootElement.GetRawText())), "Fixed seeds must reproduce complete randomized authority snapshots.");
+                foreach (var fixture in repeated) fixture.Dispose();
+            }
+            finally { File.Delete(secondPath); }
             foreach (var fixture in fixtures)
             {
                 FixtureExporter.Verify(fixture.RootElement);
@@ -95,6 +109,8 @@ internal static class ArenaTests
                 .Select(step => step.GetProperty("expected").GetProperty("state").GetProperty("completedTricks"))
                 .First(tricks => tricks.GetArrayLength() > 0)[0].GetProperty("winner").GetInt32();
             Assert.False(FirstWinner(high) == FirstWinner(low), "High/Low fixtures must exercise contested rank ordering.");
+            foreach (var name in new[] { "both-over-forty-zero", "both-over-forty-one", "partners-best-success", "alone-sitting-lead" })
+                Assert.True(fixtures.Any(f => f.RootElement.GetProperty("id").GetString() == name), $"Missing authority boundary {name}.");
             foreach (var fixture in fixtures) fixture.Dispose();
         }
         finally { File.Delete(path); }

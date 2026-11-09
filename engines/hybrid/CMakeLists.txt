@@ -8,7 +8,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../cpp-heuristic" "${CMAKE_CURRENT
 add_custom_target(hybrid-schema-check
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_schema.py" --check
     VERBATIM)
-add_library(bideuchre_hybrid_lib native/src/actions.cpp native/src/json_io.cpp)
+add_library(bideuchre_hybrid_lib native/src/actions.cpp native/src/json_io.cpp native/src/match.cpp)
 target_include_directories(bideuchre_hybrid_lib PUBLIC native/include)
 target_compile_features(bideuchre_hybrid_lib PUBLIC cxx_std_20)
 target_link_libraries(bideuchre_hybrid_lib PUBLIC bideuchre_heuristic_lib)
@@ -19,11 +19,17 @@ else()
     target_compile_options(bideuchre_hybrid_lib PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
+add_executable(bideuchre-hybrid-replay native/src/replay_main.cpp)
+target_link_libraries(bideuchre-hybrid-replay PRIVATE bideuchre_hybrid_lib)
+
 if(BUILD_TESTING)
-    add_executable(hybrid-tests native/tests/test_main.cpp native/tests/test_schema.cpp)
+    add_executable(hybrid-tests native/tests/test_main.cpp native/tests/test_schema.cpp native/tests/test_match.cpp native/tests/test_parity.cpp native/src/replay_main.cpp)
     target_link_libraries(hybrid-tests PRIVATE bideuchre_hybrid_lib)
-    target_compile_definitions(hybrid-tests PRIVATE HYBRID_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/hybrid/authority-v1.jsonl")
+    target_compile_definitions(hybrid-tests PRIVATE HYBRID_REPLAY_LIBRARY HYBRID_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/hybrid/authority-v1.jsonl")
     add_test(NAME hybrid-native COMMAND hybrid-tests)
+    foreach(group rare random)
+        add_test(NAME hybrid-parity-${group} COMMAND bideuchre-hybrid-replay --fixtures "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/hybrid/authority-v1.jsonl" --group ${group})
+    endforeach()
     add_test(NAME hybrid-schema-check COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_schema.py" --check)
     add_test(NAME hybrid-python-schema COMMAND "${Python3_EXECUTABLE}" -m unittest discover -s "${CMAKE_CURRENT_SOURCE_DIR}/tests/python" -p test_schema.py)
 endif()

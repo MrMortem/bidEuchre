@@ -144,6 +144,12 @@ public static class FixtureExporter
             if (scores[0].GetInt32() == 3 && scores[1].GetInt32() == 3) tiedHands = hands;
         }
         if (tiedHands is null) throw new InvalidOperationException("Could not generate tied-threshold fixture.");
+        fixtures.Add(Build("both-over-forty-zero", BidLevel.Three, ContractMode.Trump, Suit.Clubs, scores: [39, 38], hands: tiedHands));
+        fixtures.Add(Build("both-over-forty-one", BidLevel.Three, ContractMode.Trump, Suit.Clubs, scores: [38, 39], hands: tiedHands));
+        var sweepHands = SuitHands();
+        (sweepHands[0][0], sweepHands[3][2]) = (sweepHands[3][2], sweepHands[0][0]);
+        fixtures.Add(Build("partners-best-success", BidLevel.PartnersBest, ContractMode.Trump, Suit.Clubs, hands: sweepHands, firstPlay: Card.Parse("JC")));
+        fixtures.Add(Build("alone-sitting-lead", BidLevel.Alone, ContractMode.High, bidderTurn: 2));
         fixtures.Add(Build("tied-threshold", BidLevel.Three, ContractMode.Trump, Suit.Clubs, scores: [37, 37], hands: tiedHands));
         fixtures.Add(Build("tied-threshold-continues", BidLevel.Three, ContractMode.Trump, Suit.Clubs, scores: [40, 40], hands: tiedHands));
         fixtures.Add(Build("redeal-auction", BidLevel.Three, ContractMode.Trump, Suit.Clubs, redealPhase: GamePhase.Bidding));
@@ -157,6 +163,8 @@ public static class FixtureExporter
         fixtures.Add(Build("bower-printed-suit-void", BidLevel.Three, ContractMode.Trump, Suit.Clubs, hands: bowerHands, firstPlay: Card.Parse("9S")));
         fixtures.Add(Build("bower-draw-left", BidLevel.Three, ContractMode.Trump, Suit.Clubs, firstPlay: Card.Parse("JC")));
         fixtures.Add(Build("forced-dealer", BidLevel.Three, ContractMode.Trump, Suit.Diamonds, forcedDealer: true));
+        // Bounded, reproducible legal-action fuzzing; expected states always come from Core.
+        for (var index = 0; index < 32; index++) fixtures.Add(BuildRandom(7100 + index));
         foreach (var fixture in fixtures)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -166,11 +174,35 @@ public static class FixtureExporter
         }
     }
 
+    private static object BuildRandom(int seed)
+    {
+        var game = new GameEngine(Names, seed);
+        game.StartGame(seed % 4);
+        var random = new Random(seed ^ 0x5eed);
+        var initial = Deal(game);
+        var expectedInitial = Snapshot(game);
+        var steps = new List<object>();
+        var deliveries = new List<object>();
+        while (game.Phase is not GamePhase.HandComplete and not GamePhase.GameComplete)
+        {
+            if (steps.Count >= 31) throw new InvalidOperationException("Random fixture exceeded one-hand bound.");
+            var seat = game.CurrentSeat!.Value;
+            deliveries.Add(new { afterStep = steps.Count - 1, kind = "decision", seat, view = Project(game, seat) });
+            var legal = LegalActionIds(game.CreateView(seat));
+            var action = legal[random.Next(legal.Length)];
+            ActionApplier.Apply(game, seat, ActionFromId(action));
+            steps.Add(new { kind = "action", seat, id = action, expected = Snapshot(game) });
+        }
+        for (var seat = 0; seat < 4; seat++)
+            deliveries.Add(new { afterStep = steps.Count - 1, kind = "terminal", seat, view = Project(game, seat) });
+        return new { schema = "fixture-v1", id = $"random-{seed}", seed, initial, expectedInitial, steps, deliveries };
+    }
+
     private static Card[][] SuitHands() => GameRules.CreateDeck().Chunk(6).Select(hand => hand.ToArray()).ToArray();
 
     private static object Build(string id, BidLevel bid, ContractMode mode, Suit? trump = null,
         int[]? scores = null, Card[][]? hands = null, bool returnSame = true, Card? firstPlay = null,
-        GamePhase? redealPhase = null, int? penaltyTeam = null, bool forcedDealer = false)
+        GamePhase? redealPhase = null, int? penaltyTeam = null, bool forcedDealer = false, int bidderTurn = 0)
     {
         var game = GameEngine.CreateFixture(new FixtureStart(Names, hands ?? SuitHands(), 3, scores ?? [0, 0]));
         var initial = Deal(game);
@@ -203,7 +235,7 @@ public static class FixtureExporter
             }
             BotAction action = game.Phase switch
             {
-                GamePhase.Bidding => game.Auction.Count == (forcedDealer ? 3 : 0)
+                GamePhase.Bidding => game.Auction.Count == (forcedDealer ? 3 : bidderTurn)
                     ? new BotAction.Bid(bid) : new BotAction.Pass(),
                 GamePhase.ChoosingContract => new BotAction.ChooseContract(mode, trump),
                 GamePhase.ExchangingBidderCard => new BotAction.Exchange(game.GetLegalCards(seat)[0]),
