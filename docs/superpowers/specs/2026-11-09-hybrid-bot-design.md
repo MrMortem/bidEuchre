@@ -1,6 +1,6 @@
 # Bid Euchre hybrid bot design
 
-Status: hybrid approach approved on November 9, 2026; detailed design awaiting approval.
+Status: hybrid approach and detailed design approved by the user on November 9, 2026.
 
 Builder review: completed November 9, 2026, with no material planning questions remaining.
 
