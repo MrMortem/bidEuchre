@@ -41,6 +41,7 @@ function bindForms() {
 }
 
 function showView(name) {
+  document.body.classList.toggle('at-table', name === 'game');
   $$('.view').forEach(view => view.classList.toggle('active', view.id === `${name}-view`));
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   if (name !== 'game') stopPolling();
@@ -264,6 +265,8 @@ function renderGame() {
   }
 
   const game = session.game;
+  $('#team-zero-label').textContent = model.viewerSeat == null ? 'Team 1' : (model.viewerSeat % 2 === 0 ? 'You & partner' : 'Opponents');
+  $('#team-one-label').textContent = model.viewerSeat == null ? 'Team 2' : (model.viewerSeat % 2 === 1 ? 'You & partner' : 'Opponents');
   model.renderMode = 'game';
   $('#team-zero-score').textContent = game.scores[0];
   $('#team-one-score').textContent = game.scores[1];
@@ -296,7 +299,7 @@ function resetBoard() {
   model.session.seats.forEach(seat => {
     const position = $(`#seat-${seat.seat}`);
     position.removeAttribute('data-render-key');
-    position.innerHTML = `<div class="player-tag"><span>${escapeHtml(seat.name)}</span><span>${seat.kind === 'Bot' ? '⚙ Bot' : '● Human'}</span></div><div class="card-row">${backs(6)}</div>`;
+    position.innerHTML = `<div class="player-tag">${portraitHtml(seat.seat)}<span>${escapeHtml(seat.name)}</span><span>${seat.kind === 'Bot' ? '⚙ Bot' : '● Human'}</span></div><div class="card-row">${backs(6)}</div>`;
   });
   $('#trick-area').innerHTML = '<span class="empty-trick">Cards played here</span>';
   $('#trick-area').removeAttribute('data-render-key');
@@ -334,10 +337,11 @@ function renderPlayer(player, game) {
   position.classList.toggle('sitting-out', player.isSittingOut);
   position.innerHTML = `
     <div class="player-tag ${current ? 'current' : ''}">
+      ${portraitHtml(player.seat)}
       <span class="player-name">${seatConfig?.kind === 'Bot' ? '⚙' : '●'} ${escapeHtml(player.name)}</span>
       ${game.dealer === player.seat ? '<span class="dealer">D</span>' : ''}
       ${player.isSittingOut ? '<span>Sitting out</span>' : ''}
-      <span class="tricks">${game.tricksByTeam[player.team]} tricks</span>
+      <span class="tricks">Team · ${game.tricksByTeam[player.team]}</span>
     </div>
     <div class="card-row">${cards}</div>`;
   position.dataset.renderKey = renderKey;
@@ -555,7 +559,11 @@ function cardHtml(card, legal) {
   const rank = cardRank(card);
   const code = cardCode(card);
   const label = `${rank} of ${card.suit}`;
-  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><strong>${rank}</strong><span class="suit" aria-hidden="true">${suit}</span></button>`;
+  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-corner" aria-hidden="true"><strong>${rank}</strong><span>${suit}</span></span>${["J", "Q", "K"].includes(rank) ? `<span class="court court-${rank}" aria-hidden="true"></span>` : `<span class="card-pip" aria-hidden="true">${suit}</span>`}<span class="card-corner inverted" aria-hidden="true"><strong>${rank}</strong><span>${suit}</span></span></button>`;
+}
+
+function portraitHtml(seat) {
+  return `<span class="portrait portrait-${seat}" aria-hidden="true"></span>`;
 }
 
 function backs(count) { return Array.from({ length: count }, () => '<span class="card-back"></span>').join(''); }

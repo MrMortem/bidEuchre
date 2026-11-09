@@ -1,6 +1,6 @@
 # Bid Euchre pixel-art redesign
 
-Status: proposed for user review.
+Status: approved by the user; implemented on feat/pixel-art.
 
 ## Intent
 

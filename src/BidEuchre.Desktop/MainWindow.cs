@@ -13,19 +13,19 @@ namespace BidEuchre.Desktop;
 
 public sealed class MainWindow : Window
 {
-    private static readonly IBrush Paper = Brush.Parse("#0A0F0E");
-    private static readonly IBrush Panel = Brush.Parse("#111816");
-    private static readonly IBrush PanelRaised = Brush.Parse("#17211E");
-    private static readonly IBrush Ink = Brush.Parse("#F1F7F4");
-    private static readonly IBrush Muted = Brush.Parse("#A8B9B2");
-    private static readonly IBrush Green = Brush.Parse("#62D0A2");
-    private static readonly IBrush GreenDark = Brush.Parse("#0C2A20");
-    private static readonly IBrush Felt = Brush.Parse("#0F3A2D");
-    private static readonly IBrush Amber = Brush.Parse("#E7B563");
-    private static readonly IBrush Gold = Brush.Parse("#F1C76F");
-    private static readonly IBrush Line = Brush.Parse("#2B3D37");
-    private static readonly IBrush Red = Brush.Parse("#FF837A");
-    private static readonly IBrush Walnut = Brush.Parse("#456154");
+    private static readonly IBrush Paper = Brush.Parse("#0B0720");
+    private static readonly IBrush Panel = Brush.Parse("#100B28");
+    private static readonly IBrush PanelRaised = Brush.Parse("#191039");
+    private static readonly IBrush Ink = Brush.Parse("#FFF5DC");
+    private static readonly IBrush Muted = Brush.Parse("#C0B6DD");
+    private static readonly IBrush Green = Brush.Parse("#55BCFF");
+    private static readonly IBrush GreenDark = Brush.Parse("#103480");
+    private static readonly IBrush Felt = Brush.Parse("#100B28");
+    private static readonly IBrush Amber = Brush.Parse("#FF617B");
+    private static readonly IBrush Gold = Brush.Parse("#FFDB62");
+    private static readonly IBrush Line = Brush.Parse("#8D54B1");
+    private static readonly IBrush Red = Brush.Parse("#FF617B");
+    private static readonly IBrush Walnut = Brush.Parse("#8D54B1");
     private static readonly IBrush CardPaper = Brush.Parse("#FFF9ED");
     private static readonly IBrush CardInk = Brush.Parse("#17201D");
     private static readonly IBrush CardRed = Brush.Parse("#B63D3D");
@@ -44,13 +44,13 @@ public sealed class MainWindow : Window
     private readonly StackPanel _engineList = new() { Spacing = 8 };
     private readonly TextBlock _teamZeroScore = ScoreText();
     private readonly TextBlock _teamOneScore = ScoreText();
-    private readonly TextBlock _phaseText = new() { Foreground = Amber, FontWeight = FontWeight.Bold, FontSize = 12 };
-    private readonly TextBlock _contractText = new() { Foreground = Ink, FontSize = 19, FontFamily = new FontFamily("Georgia") };
-    private readonly TextBlock _dealerText = new() { Foreground = Muted, FontSize = 12 };
+    private readonly TextBlock _phaseText = new() { TextWrapping = TextWrapping.Wrap, Foreground = Amber, FontWeight = FontWeight.Bold, FontSize = 12 };
+    private readonly TextBlock _contractText = new() { TextWrapping = TextWrapping.Wrap, Foreground = Ink, FontSize = 19, FontFamily = PixelArt.Font };
+    private readonly TextBlock _dealerText = new() { TextWrapping = TextWrapping.Wrap, Foreground = Muted, FontSize = 12 };
     private readonly ComboBox _viewerSeat = new() { MinWidth = 180 };
     private readonly Button _startButton = PrimaryButton("Start session");
     private readonly ContentControl _tableHost = new();
-    private readonly TextBlock _actionTitle = new() { Foreground = Ink, FontSize = 21, FontFamily = new FontFamily("Georgia") };
+    private readonly TextBlock _actionTitle = new() { TextWrapping = TextWrapping.Wrap, Foreground = Ink, FontSize = 21, FontFamily = PixelArt.Font };
     private readonly TextBlock _actionHelp = new() { Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _actionButtons = new() { ItemWidth = double.NaN, ItemHeight = double.NaN };
     private readonly StackPanel _eventList = new() { Spacing = 1 };
@@ -72,6 +72,8 @@ public sealed class MainWindow : Window
         MinWidth = 980;
         MinHeight = 680;
         Background = Paper;
+        FontFamily = PixelArt.Font;
+        RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
 
         StyleInput(_tableName);
@@ -232,26 +234,33 @@ public sealed class MainWindow : Window
             Children =
             {
                 Eyebrow("LIVE SESSION"),
-                new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", FontSize = 26, FontFamily = new FontFamily("Georgia"), Foreground = Ink }
+                new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", FontSize = 26, FontFamily = PixelArt.Font, Foreground = Ink }
             }
         }, column: 1));
         header.Children.Add(Place(Field("View hand", _viewerSeat), column: 2));
         header.Children.Add(Place(_startButton, column: 3));
 
-        var score = new Grid
+        var score = new StackPanel
         {
-            ColumnDefinitions = ColumnDefinitions.Parse("*,1.4*,*"),
-            ColumnSpacing = 12,
+            Spacing = 10,
             Children =
             {
-                ScorePanel("TEAM 1 · SEATS 1 + 3", _teamZeroScore, Green),
-                Place(CardPanel(new StackPanel
+                Eyebrow("TEAMS · TO 40"),
+                ScorePanel("TEAM 1 · 1 + 3", _teamZeroScore, Green),
+                ScorePanel("TEAM 2 · 2 + 4", _teamOneScore, Amber),
+                CardPanel(new StackPanel { Spacing = 8, Children = { _phaseText, _contractText, _dealerText } }, 12),
+                CardPanel(new StackPanel
                 {
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Spacing = 2,
-                    Children = { _phaseText, _contractText, _dealerText }
-                }, 13), column: 1),
-                Place(ScorePanel("TEAM 2 · SEATS 2 + 4", _teamOneScore, Amber), column: 2)
+                    Spacing = 12,
+                    Children =
+                    {
+                        Eyebrow("CONTRACT GUIDE"),
+                        GuideLine("HIGH", "Highest wins"), GuideLine("LOW", "Lowest wins"),
+                        GuideLine("TRUMP", "Follow suit. Trump wins."),
+                        GuideLine("PARTNER’S BEST", "3 players · exchange 1 card"),
+                        GuideLine("ALONE", "3 players · no partner")
+                    }
+                }, 12)
             }
         };
 
@@ -267,10 +276,10 @@ public sealed class MainWindow : Window
                 _sessionError
             }
         });
-        actionPanel.MinHeight = 220;
+        actionPanel.MinHeight = 160;
         var logScroll = new ScrollViewer
         {
-            MaxHeight = 380,
+            MaxHeight = 150,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             Content = _eventList
         };
@@ -279,28 +288,19 @@ public sealed class MainWindow : Window
             Spacing = 10,
             Children = { Eyebrow("TABLE LOG · EVERY CARD"), logScroll }
         });
-        var rightRail = new StackPanel { Spacing = 12, Children = { actionPanel, logPanel } };
-
-        var gameGrid = new Grid
-        {
-            ColumnDefinitions = ColumnDefinitions.Parse("*,310"),
-            ColumnSpacing = 14,
-            MinWidth = 884
-        };
-        gameGrid.Children.Add(_tableHost);
-        gameGrid.Children.Add(Place(rightRail, column: 1));
-
+        var bottomRail = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,*"), ColumnSpacing = 12 };
+        bottomRail.Children.Add(actionPanel);
+        bottomRail.Children.Add(Place(logPanel, column: 1));
+        var stage = new Grid { RowDefinitions = RowDefinitions.Parse("*,Auto"), RowSpacing = 12 };
+        stage.Children.Add(_tableHost);
+        stage.Children.Add(Place(bottomRail, row: 1));
+        var gameGrid = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("230,*"), ColumnSpacing = 14, MinWidth = 900 };
+        gameGrid.Children.Add(score);
+        gameGrid.Children.Add(Place(stage, column: 1));
         var page = new Grid
         {
-            Margin = new Thickness(18),
-            RowDefinitions = RowDefinitions.Parse("Auto,Auto,*"),
-            RowSpacing = 12,
-            Children =
-            {
-                header,
-                Place(score, row: 1),
-                Place(gameGrid, row: 2)
-            }
+            Margin = new Thickness(16), RowDefinitions = RowDefinitions.Parse("Auto,*"), RowSpacing = 12,
+            Children = { header, Place(gameGrid, row: 1) }
         };
         return new ScrollViewer
         {
@@ -338,7 +338,7 @@ public sealed class MainWindow : Window
             Children =
             {
                 Eyebrow("EXTERNAL PROCESS"),
-                new TextBlock { Text = "Load a BEUCI engine", FontSize = 25, FontFamily = new FontFamily("Georgia") },
+                new TextBlock { Text = "Load a BEUCI engine", FontSize = 25, FontFamily = PixelArt.Font },
                 Field("Executable", pathRow),
                 Field("Arguments", _engineArguments),
                 new TextBlock
@@ -358,7 +358,7 @@ public sealed class MainWindow : Window
             Children =
             {
                 Eyebrow("ENGINE CATALOG"),
-                new TextBlock { Text = "Available bots", FontSize = 25, FontFamily = new FontFamily("Georgia") },
+                new TextBlock { Text = "Available bots", FontSize = 25, FontFamily = PixelArt.Font },
                 _engineList
             }
         });
@@ -590,33 +590,31 @@ public sealed class MainWindow : Window
 
     private Control BuildTable(GameView view)
     {
-        var grid = new Grid
-        {
-            RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"),
-            ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto"),
-            MinHeight = 510,
-            Background = Felt
-        };
-        grid.Children.Add(Place(PlayerPanel(view.Players[2], view), row: 0, column: 1));
-        grid.Children.Add(Place(PlayerPanel(view.Players[1], view), row: 1, column: 0));
-        grid.Children.Add(Place(PlayerPanel(view.Players[3], view), row: 1, column: 2));
-        grid.Children.Add(Place(PlayerPanel(view.Players[0], view), row: 2, column: 1));
-        grid.Children.Add(Place(TrickPanel(view), row: 1, column: 1));
+        return PixelTable(view.Players.Select(player => PlayerPanel(player, view)).ToArray(), TrickPanel(view));
+    }
 
+    // A fixed logical table scales as one unit, so the four seats never push
+    // the trick or action controls out of place at the minimum window size.
+    private static Control PixelTable(Control[] players, Control center)
+    {
+        var canvas = new Canvas { Width = 900, Height = 600 };
+        for (var seat = 0; seat < 4; seat++)
+        {
+            var panel = players[seat];
+            panel.Width = seat is 1 or 3 ? 190 : 410;
+            Canvas.SetLeft(panel, seat switch { 1 => 0, 3 => 710, _ => 245 });
+            Canvas.SetTop(panel, seat switch { 2 => 4, 0 => 438, _ => 175 });
+            canvas.Children.Add(panel);
+        }
+        center.Width = 220;
+        Canvas.SetLeft(center, 340);
+        Canvas.SetTop(center, 175);
+        canvas.Children.Add(center);
         return new Border
         {
-            CornerRadius = new CornerRadius(76),
-            Background = Brush.Parse("#0B1311"),
-            Padding = new Thickness(8),
-            Child = new Border
-            {
-                CornerRadius = new CornerRadius(68),
-                BorderBrush = Walnut,
-                BorderThickness = new Thickness(2),
-                Background = Felt,
-                Padding = new Thickness(18),
-                Child = grid
-            }
+            Background = PixelArt.Table, BorderBrush = Line, BorderThickness = new Thickness(3),
+            Padding = new Thickness(6),
+            Child = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = canvas }
         };
     }
 
@@ -625,22 +623,27 @@ public sealed class MainWindow : Window
         var current = view.CurrentSeat == player.Seat;
         var tag = new Border
         {
-            CornerRadius = new CornerRadius(14),
-            Background = current ? Gold : GreenDark,
+            CornerRadius = new CornerRadius(2),
+            Background = current ? Gold : player.Team == 0 ? GreenDark : Brush.Parse("#740D2D"),
             Padding = new Thickness(10, 5),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Child = new TextBlock
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal, Spacing = 8,
+                Children = { PixelArt.Portrait(player.Seat), new TextBlock
             {
                 Text = $"{(current ? "▶ " : string.Empty)}{player.Name}{(view.Dealer == player.Seat ? "  D" : string.Empty)}{(player.IsSittingOut ? "  · sitting out" : string.Empty)}",
                 Foreground = current ? Paper : Ink,
-                FontSize = 11,
+                MaxWidth = 130, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 10,
                 FontWeight = FontWeight.Bold
+            } }
             }
         };
         var cards = new WrapPanel
         {
             HorizontalAlignment = HorizontalAlignment.Center,
-            MaxWidth = player.Seat is 1 or 3 ? 120 : 430
+            MaxWidth = player.Seat is 1 or 3 ? 140 : 410
         };
         if (player.Cards is null)
         {
@@ -660,7 +663,7 @@ public sealed class MainWindow : Window
 
         return new StackPanel
         {
-            Margin = new Thickness(8),
+            Margin = new Thickness(4),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Spacing = 5,
@@ -679,19 +682,13 @@ public sealed class MainWindow : Window
             plays = completed.Plays;
         }
 
-        var cards = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center };
+        var cards = new Grid { Width = 188, Height = 234 };
         foreach (var play in plays)
         {
-            cards.Children.Add(new StackPanel
-            {
-                Margin = new Thickness(3),
-                Spacing = 2,
-                Children =
-                {
-                    new TextBlock { Text = $"Seat {play.Seat + 1}", Foreground = Brush.Parse("#C8D6C5"), FontSize = 9, HorizontalAlignment = HorizontalAlignment.Center },
-                    CardFace(play.Card)
-                }
-            });
+            var card = CardFace(play.Card);
+            card.HorizontalAlignment = play.Seat switch { 1 => HorizontalAlignment.Left, 3 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center };
+            card.VerticalAlignment = play.Seat switch { 2 => VerticalAlignment.Top, 0 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center };
+            cards.Children.Add(card);
         }
 
         var label = new TextBlock
@@ -706,11 +703,11 @@ public sealed class MainWindow : Window
         };
         return new Border
         {
-            MinWidth = 280,
+            MinWidth = 190,
             MinHeight = 170,
             Padding = new Thickness(10),
-            Background = Brush.Parse("#0B2A21"),
-            BorderBrush = Brush.Parse("#34745C"),
+            Background = Brushes.Transparent,
+            BorderBrush = Brushes.Transparent,
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(18),
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -944,7 +941,7 @@ public sealed class MainWindow : Window
             {
                 BorderBrush = Line,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(7),
+                CornerRadius = new CornerRadius(2),
                 Padding = new Thickness(12),
                 Child = row
             });
@@ -963,25 +960,33 @@ public sealed class MainWindow : Window
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         var button = new Button
         {
-            Width = 52,
-            Height = 72,
+            Width = 62,
+            Height = 88,
             Margin = new Thickness(2),
             Padding = new Thickness(3),
             Background = CardPaper,
             Foreground = red ? CardRed : CardInk,
             BorderBrush = legal ? Gold : Brush.Parse("#D8CDB9"),
             BorderThickness = new Thickness(legal ? 3 : 1),
-            CornerRadius = new CornerRadius(6),
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
+            CornerRadius = new CornerRadius(2),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Stretch,
             IsHitTestVisible = legal,
             Focusable = legal,
             Opacity = 1,
-            Content = CardLabel(card, red ? CardRed : CardInk)
+            Content = PixelArt.CardContent(card)
         };
+        Avalonia.Automation.AutomationProperties.SetName(button, $"{RankText(card.Rank)} of {card.Suit}");
         if (legal)
         {
             button.Cursor = new Cursor(StandardCursorType.Hand);
+            button.PointerEntered += (_, _) => button.RenderTransform = new TranslateTransform(0, -6);
+            button.PointerExited += (_, _) =>
+            {
+                if (!button.IsFocused) button.RenderTransform = null;
+            };
+            button.GotFocus += (_, _) => button.RenderTransform = new TranslateTransform(0, -6);
+            button.LostFocus += (_, _) => button.RenderTransform = null;
             button.Click += async (_, _) =>
             {
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";
@@ -996,40 +1001,22 @@ public sealed class MainWindow : Window
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         return new Border
         {
-            Width = 52,
-            Height = 72,
+            Width = 62,
+            Height = 88,
             Margin = new Thickness(2),
             Padding = new Thickness(3),
-            CornerRadius = new CornerRadius(6),
+            CornerRadius = new CornerRadius(2),
             BorderBrush = Brush.Parse("#D8CDB9"),
             BorderThickness = new Thickness(1),
             Background = CardPaper,
-            Child = CardLabel(card, red ? CardRed : CardInk)
+            Child = PixelArt.CardContent(card)
         };
     }
 
-    private static TextBlock CardLabel(Card card, IBrush? foreground = null) => new()
-    {
-        Text = $"{RankText(card.Rank)}\n{SuitSymbol(card.Suit)}",
-        Foreground = foreground,
-        TextAlignment = TextAlignment.Center,
-        FontFamily = new FontFamily("Georgia"),
-        FontSize = 19,
-        FontWeight = FontWeight.Bold,
-        LineHeight = 24,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center
-    };
-
     private static Border CardBack() => new()
     {
-        Width = 34,
-        Height = 50,
-        Margin = new Thickness(1),
-        CornerRadius = new CornerRadius(4),
-        BorderBrush = Brush.Parse("#6BE0AF"),
-        BorderThickness = new Thickness(2),
-        Background = Brush.Parse("#173F33")
+        Margin = new Thickness(1), BorderBrush = CardPaper, BorderThickness = new Thickness(2),
+        Child = PixelArt.Back()
     };
 
     private void ShowSetup()
@@ -1079,52 +1066,29 @@ public sealed class MainWindow : Window
 
     private Control BuildWaitingTable(IReadOnlyList<PlayerView> players)
     {
-        var grid = new Grid
-        {
-            RowDefinitions = RowDefinitions.Parse("Auto,*,Auto"),
-            ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto"),
-            MinHeight = 510,
-            Background = Felt
-        };
+        var panels = new Control[4];
         for (var seat = 0; seat < 4; seat++)
         {
-            var panel = new StackPanel
+            panels[seat] = new StackPanel
             {
-                Margin = new Thickness(8),
-                Spacing = 6,
+                Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center,
                 Children =
                 {
-                    new TextBlock { Text = players[seat].Name, Foreground = Brushes.White, FontWeight = FontWeight.Bold, HorizontalAlignment = HorizontalAlignment.Center },
-                    new WrapPanel { Children = { CardBack(), CardBack(), CardBack(), CardBack(), CardBack(), CardBack() } }
+                    PixelArt.Portrait(seat),
+                    new TextBlock { Text = players[seat].Name, Foreground = Ink, FontSize = 11,
+                        HorizontalAlignment = HorizontalAlignment.Center },
+                    new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center,
+                        MaxWidth = seat is 1 or 3 ? 140 : 350,
+                        Children = { CardBack(), CardBack(), CardBack(), CardBack(), CardBack(), CardBack() } }
                 }
             };
-            var (row, column) = seat switch { 0 => (2, 1), 1 => (1, 0), 2 => (0, 1), _ => (1, 2) };
-            grid.Children.Add(Place(panel, row, column));
         }
-        grid.Children.Add(Place(new TextBlock
+        return PixelTable(panels, new TextBlock
         {
-            Text = "Press Start session",
-            Foreground = Brush.Parse("#C8D6C5"),
-            FontSize = 18,
-            FontFamily = new FontFamily("Georgia"),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
-        }, 1, 1));
-        return new Border
-        {
-            CornerRadius = new CornerRadius(76),
-            Background = Brush.Parse("#0B1311"),
-            Padding = new Thickness(8),
-            Child = new Border
-            {
-                CornerRadius = new CornerRadius(68),
-                BorderBrush = Walnut,
-                BorderThickness = new Thickness(2),
-                Background = Felt,
-                Padding = new Thickness(18),
-                Child = grid
-            }
-        };
+            Text = "Press Start session", Foreground = Gold, FontSize = 13,
+            TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
+            Margin = new Thickness(0, 95, 0, 0)
+        });
     }
 
     private void AddAction(string label, Func<Task> action)
@@ -1138,7 +1102,7 @@ public sealed class MainWindow : Window
     {
         Margin = new Thickness(0, 2, 0, 5),
         Padding = new Thickness(11, 8),
-        CornerRadius = new CornerRadius(7),
+        CornerRadius = new CornerRadius(2),
         Background = GreenDark,
         BorderBrush = Brush.Parse("#315E4D"),
         BorderThickness = new Thickness(1),
@@ -1157,7 +1121,7 @@ public sealed class MainWindow : Window
         input.Foreground = Ink;
         input.BorderBrush = Line;
         input.BorderThickness = new Thickness(1);
-        input.CornerRadius = new CornerRadius(7);
+        input.CornerRadius = new CornerRadius(2);
         input.Padding = new Thickness(10, 7);
         input.MinHeight = 38;
     }
@@ -1168,7 +1132,7 @@ public sealed class MainWindow : Window
         input.Foreground = Ink;
         input.BorderBrush = Line;
         input.BorderThickness = new Thickness(1);
-        input.CornerRadius = new CornerRadius(7);
+        input.CornerRadius = new CornerRadius(2);
         input.Padding = new Thickness(10, 7);
         input.MinHeight = 38;
     }
@@ -1191,7 +1155,7 @@ public sealed class MainWindow : Window
         Background = PanelRaised,
         BorderBrush = Line,
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(12),
+        CornerRadius = new CornerRadius(2),
         Padding = new Thickness(padding),
         Child = child
     };
@@ -1202,8 +1166,18 @@ public sealed class MainWindow : Window
         Children =
         {
             Eyebrow("BID EUCHRE"),
-            new TextBlock { Text = title, Foreground = Ink, FontSize = 43, FontFamily = new FontFamily("Georgia") },
+            new TextBlock { Text = title, Foreground = Ink, FontSize = 43, FontFamily = PixelArt.Font },
             new TextBlock { Text = subtitle, Foreground = Muted, FontSize = 14 }
+        }
+    };
+
+    private static Control GuideLine(string title, string detail) => new StackPanel
+    {
+        Spacing = 3,
+        Children =
+        {
+            new TextBlock { Text = title, Foreground = Gold, FontSize = 11 },
+            new TextBlock { Text = detail, Foreground = Ink, FontSize = 11, TextWrapping = TextWrapping.Wrap }
         }
     };
 
@@ -1222,7 +1196,7 @@ public sealed class MainWindow : Window
         Text = "0",
         Foreground = Ink,
         FontSize = 32,
-        FontFamily = new FontFamily("Georgia")
+        FontFamily = PixelArt.Font
     };
 
     private static TextBlock Eyebrow(string text) => new()
@@ -1239,7 +1213,7 @@ public sealed class MainWindow : Window
         Background = Green,
         Foreground = Paper,
         Padding = new Thickness(16, 9),
-        CornerRadius = new CornerRadius(8),
+        CornerRadius = new CornerRadius(2),
         BorderThickness = new Thickness(0),
         FontWeight = FontWeight.Bold
     };
@@ -1252,7 +1226,7 @@ public sealed class MainWindow : Window
         BorderBrush = Line,
         BorderThickness = new Thickness(1),
         Padding = new Thickness(13, 8),
-        CornerRadius = new CornerRadius(8)
+        CornerRadius = new CornerRadius(2)
     };
 
     private static Button ActionButton(string text) => new()
@@ -1260,11 +1234,11 @@ public sealed class MainWindow : Window
         Content = text,
         Margin = new Thickness(0, 0, 7, 7),
         Padding = new Thickness(12, 8),
-        Background = Brush.Parse("#153128"),
-        Foreground = Brush.Parse("#C7F5E1"),
-        BorderBrush = Brush.Parse("#38715C"),
+        Background = Brush.Parse("#143480"),
+        Foreground = Brush.Parse("#FFF5DC"),
+        BorderBrush = Brush.Parse("#65BFFF"),
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(7),
+        CornerRadius = new CornerRadius(2),
         FontWeight = FontWeight.Bold,
         FontSize = 12
     };
