@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b0720">
   <title>Bid Euchre</title>
   <link rel="stylesheet" href="/styles.css?v=3">
-  <link rel="stylesheet" href="/pixel.css?v=4">
+  <link rel="stylesheet" href="/pixel.css?v=5">
 </head>
 <body>
   <div class="app-shell">
@@ -67,6 +67,10 @@
           <button id="start-game" class="button primary">Start game</button>
         </header>
 
+        <div id="connection-status" class="connection-status hidden" role="status" aria-live="polite">
+          <span id="connection-message"></span>
+          <button id="retry-connection" class="button quiet">Retry now</button>
+        </div>
         <div id="game-error" class="alert hidden"></div>
         <div class="game-layout">
           <aside class="table-info">
@@ -92,7 +96,7 @@
           <aside class="game-rail">
             <section class="panel action-panel">
               <p class="eyebrow">Your move</p>
-              <h3 id="action-title">Waiting for the game</h3>
+              <h3 id="action-title" aria-live="polite" aria-atomic="true">Waiting for the game</h3>
               <p id="action-help">Start the session when every seat is ready.</p>
               <div id="action-buttons" class="action-buttons"></div>
             </section>
@@ -138,6 +142,6 @@
 
   <div id="toast" class="toast" role="status"></div>
   <script src="/table-motion.js?v=1" defer></script>
-  <script src="/app.js?v=4" defer></script>
+  <script src="/app.js?v=5" defer></script>
 </body>
 </html>

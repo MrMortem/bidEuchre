@@ -1,6 +1,10 @@
 const tableMotion = new TableMotion();
 const model = {
   motionEnabled: true,
+  viewGeneration: 0,
+  viewLoading: false,
+  connectionLost: false,
+  sessionUnavailable: false,
   motionCue: null,
   engines: [],
   sessions: [],
@@ -21,6 +25,7 @@ const $$ = selector => [...document.querySelectorAll(selector)];
 
 document.addEventListener('DOMContentLoaded', async () => {
   configureMotion();
+  configurePageLifecycle();
   bindNavigation();
   bindForms();
   buildSeatEditor();
@@ -33,6 +38,7 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
+  $('#retry-connection').addEventListener('click', () => refreshGame({notify:false}));
   $('#viewer-seat').addEventListener('change', event =>
     selectViewerSeat(event.target.value === '' ? null : Number(event.target.value)));
 }
@@ -43,7 +49,7 @@ function bindForms() {
 }
 
 function showView(name) {
-  if (name !== 'game') cancelTableMotion();
+  if (name !== 'game') { cancelTableMotion(); model.viewGeneration += 1; }
   document.body.classList.toggle('at-table', name === 'game');
   $$('.view').forEach(view => view.classList.toggle('active', view.id === `${name}-view`));
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
@@ -78,14 +84,25 @@ function updateSeatEditor() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
-  });
-  const contentType = response.headers.get('content-type') || '';
-  const body = contentType.includes('json') ? await response.json() : await response.text();
-  if (!response.ok) throw new Error(body?.error || body || `Request failed (${response.status})`);
-  return body;
+  // Only reads time out automatically. A submitted move is never retried.
+  const read = !options.method || options.method === 'GET';
+  const controller = read ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
+  try {
+    const response = await fetch(path, {
+      ...options,
+      signal:options.signal ?? controller?.signal,
+      headers:{ 'Content-Type':'application/json', ...(options.headers || {}) }
+    });
+    const contentType = response.headers.get('content-type') || '';
+    const body = contentType.includes('json') ? await response.json() : await response.text();
+    if (!response.ok) {
+      const error = new Error(body?.error || body || `Request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
+    return body;
+  } finally { if (timer) clearTimeout(timer); }
 }
 
 async function loadEngines() {
@@ -183,7 +200,7 @@ async function createSession(event) {
 }
 
 async function openSession(id) {
-  cancelTableMotion();
+  beginViewChange();
   tableMotion.reset();
   stopPolling();
   model.sessionId = id;
@@ -192,12 +209,14 @@ async function openSession(id) {
   const summary = model.sessions.find(session => session.id === id);
   model.viewerSeat = summary?.seats.find(seat => seat.kind === 'Human')?.seat ?? null;
   showView('game');
+  const generation = model.viewGeneration;
   await refreshGame();
-  startPolling();
+  if (generation === model.viewGeneration && !model.sessionUnavailable) startPolling();
 }
 
 async function startCurrentSession() {
-  if (model.startPending) return;
+  if (model.startPending || inputLocked()) return;
+  const generation = model.viewGeneration;
   const button = $('#start-game');
   model.startPending = true;
   button.disabled = true;
@@ -205,38 +224,42 @@ async function startCurrentSession() {
   button.textContent = 'Starting bots…';
   try {
     await api(`/api/sessions/${model.sessionId}/start`, { method: 'POST', body: '{}' });
-    await refreshGame();
-  } catch (error) { toast(error.message, true); }
+    if (generation === model.viewGeneration) await refreshGame();
+  } catch (error) { if (generation === model.viewGeneration) toast(error.message, true); }
   finally {
+    if (generation !== model.viewGeneration) return;
     model.startPending = false;
     button.disabled = false;
     button.removeAttribute('aria-busy');
     button.textContent = 'Start game';
+    syncInputState();
   }
 }
 
 function refreshGame({ notify = true } = {}) {
+  const sessionId = model.sessionId;
+  const viewerSeat = model.viewerSeat;
+  const generation = model.viewGeneration;
+  const current = () => generation === model.viewGeneration && sessionId === model.sessionId && viewerSeat === model.viewerSeat;
   const operation = async () => {
-    const sessionId = model.sessionId;
-    const viewerSeat = model.viewerSeat;
-    if (!sessionId) return;
-
+    if (!sessionId || !current()) return;
     try {
       const query = viewerSeat === null ? '' : `?seat=${viewerSeat}`;
       const session = await api(`/api/sessions/${sessionId}${query}`);
-
-      // A slow response for a table or hand we have already left must not repaint the UI.
-      if (sessionId !== model.sessionId || viewerSeat !== model.viewerSeat) return;
+      if (!current()) return;
+      if (model.connectionLost) tableMotion.reset();
       model.session = session;
+      model.viewLoading = false;
+      setConnectionState(false);
       renderGame();
+      syncInputState();
     } catch (error) {
-      if (notify && sessionId === model.sessionId && viewerSeat === model.viewerSeat) {
-        toast(error.message, true);
-      }
+      if (!current()) return;
+      model.viewLoading = false;
+      setConnectionState(true, error.status === 404);
+      if (notify && error.status !== 404) toast('Could not refresh the table. Reconnecting…', true);
     }
   };
-
-  // Serialize manual refreshes and polling so responses can never arrive out of order.
   const queued = model.refreshQueue.then(operation, operation);
   model.refreshQueue = queued.catch(() => {});
   return queued;
@@ -288,6 +311,7 @@ function renderGame() {
   renderTrick(game);
   renderActions(game);
   animateTableCues();
+  syncInputState();
   const eventList = $('#event-list');
   const eventKey = JSON.stringify(game.events);
   if (eventList.dataset.renderKey !== eventKey) {
@@ -307,6 +331,7 @@ function resetBoard() {
   model.session.seats.forEach(seat => {
     const position = $(`#seat-${seat.seat}`);
     position.removeAttribute('data-render-key');
+    position.classList.remove('sitting-out');
     position.innerHTML = `<div class="player-tag">${portraitHtml(seat.seat)}<span>${escapeHtml(seat.name)}</span><span>${seat.kind === 'Bot' ? '⚙ Bot' : '● Human'}</span></div><div class="card-row">${backs(6)}</div>`;
   });
   $('#trick-area').innerHTML = '<span class="empty-trick">Cards played here</span>';
@@ -381,6 +406,7 @@ function renderTrick(game) {
     return;
   }
   const renderKey = JSON.stringify([
+    model.sessionId, game.handNumber,
     plays.map(play => [play.seat, cardCode(play.card)]),
     completed?.number ?? null,
     completed?.winner ?? null
@@ -510,16 +536,27 @@ function addActionButton(label, handler, quiet = false) {
   $('#action-buttons').append(button);
 }
 
-async function sendAction(action) {
-  if (model.actionPending) return;
+async function submitGameRequest(path, body) {
+  if (inputLocked()) return;
+  const generation = model.viewGeneration;
   setActionBusy(true);
   try {
-    await api(`/api/sessions/${model.sessionId}/actions`, {
-      method: 'POST', body: JSON.stringify({ seat: model.viewerSeat, ...action })
-    });
-    await refreshGame();
-  } catch (error) { toast(error.message, true); }
-  finally { setActionBusy(false); }
+    await api(path, {method:'POST', body:JSON.stringify(body)});
+    if (generation === model.viewGeneration) await refreshGame();
+  } catch (error) {
+    if (generation === model.viewGeneration) {
+      toast(error.message, true);
+      // A lost response can still mean the server accepted the move. Read the
+      // authoritative state before releasing input; never repeat the POST.
+      await refreshGame({notify:false});
+    }
+  } finally {
+    if (generation === model.viewGeneration) setActionBusy(false);
+  }
+}
+
+async function sendAction(action) {
+  return submitGameRequest(`/api/sessions/${model.sessionId}/actions`, {seat:model.viewerSeat, ...action});
 }
 
 function playOrExchange(card) {
@@ -529,28 +566,59 @@ function playOrExchange(card) {
 }
 
 async function nextHand() {
-  if (model.actionPending) return;
-  setActionBusy(true);
-  try {
-    await api(`/api/sessions/${model.sessionId}/next-hand`, { method: 'POST', body: '{}' });
-    await refreshGame();
-  } catch (error) { toast(error.message, true); }
-  finally { setActionBusy(false); }
+  return submitGameRequest(`/api/sessions/${model.sessionId}/next-hand`, {});
 }
 
 async function selectViewerSeat(seat) {
-  cancelTableMotion();
+  beginViewChange();
   model.viewerSeat = seat;
-  $('#viewer-seat').value = String(seat);
+  $('#viewer-seat').value = seat === null ? '' : String(seat);
   await refreshGame();
 }
 
-function setActionBusy(busy) {
-  model.actionPending = busy;
+function inputLocked() { return model.actionPending || model.viewLoading || model.connectionLost; }
+
+function syncInputState() {
+  const locked = inputLocked();
   const actions = $('#action-buttons');
-  actions.setAttribute('aria-busy', String(busy));
-  actions.querySelectorAll('button').forEach(button => button.disabled = busy);
-  $$('.playing-card.legal').forEach(button => button.disabled = busy);
+  actions.setAttribute('aria-busy', String(model.actionPending || model.viewLoading));
+  actions.querySelectorAll('button').forEach(button => button.disabled = locked);
+  $$('.playing-card.legal').forEach(button => button.disabled = locked);
+  $('#start-game').disabled = model.startPending || locked;
+  $('#viewer-seat').disabled = model.viewLoading || model.actionPending || !model.session?.seats.some(seat => seat.kind === 'Human');
+}
+
+function setActionBusy(busy) { model.actionPending = busy; syncInputState(); }
+
+function beginViewChange() {
+  cancelTableMotion();
+  model.viewGeneration += 1;
+  model.viewLoading = true;
+  model.actionPending = false;
+  model.startPending = false;
+  setConnectionState(false);
+  $$('.player-position .card-row').forEach(row => {
+    if (row.querySelector('.playing-card')) {
+      row.replaceChildren();
+      row.parentElement.removeAttribute('data-render-key');
+    }
+  });
+  $('#action-title').textContent = 'Loading hand…';
+  $('#action-help').textContent = 'Your hand will appear when the table is ready.';
+  syncInputState();
+}
+
+function setConnectionState(lost, unavailable = false) {
+  if (lost && !model.connectionLost) { cancelTableMotion(); tableMotion.reset(); }
+  model.connectionLost = lost;
+  model.sessionUnavailable = unavailable;
+  $('#connection-status').classList.toggle('hidden', !lost);
+  const message = unavailable ? 'This table is no longer available. Return to Tables to start a new game.'
+    : 'Connection lost. Reconnecting… Your last table state is shown.';
+  if ($('#connection-message').textContent !== message) $('#connection-message').textContent = message;
+  $('#retry-connection').classList.toggle('hidden', unavailable);
+  if (unavailable) stopPolling();
+  syncInputState();
 }
 
 async function loadRules() {
@@ -649,7 +717,7 @@ function startPolling() {
   const token = model.pollToken;
   const poll = async () => {
     await refreshGame({ notify: false });
-    if (token !== model.pollToken) return;
+    if (token !== model.pollToken || model.sessionUnavailable || document.hidden) return;
     model.pollTimer = window.setTimeout(poll, document.hidden ? 1500 : 500);
   };
   model.pollTimer = window.setTimeout(poll, 500);
@@ -673,20 +741,42 @@ function toast(message, error = false) {
 function configureMotion() {
   const preference = matchMedia('(prefers-reduced-motion: reduce)');
   const button = $('#motion-toggle');
-  const update = enabled => {
-    model.motionEnabled = enabled;
-    document.body.classList.toggle('motion-off', !enabled);
-    button.textContent = `Motion: ${enabled ? 'On' : 'Off'}`;
-    button.setAttribute('aria-pressed', String(enabled));
-    if (!enabled) cancelTableMotion();
+  let requested = true;
+  try { requested = localStorage.getItem('bideuchre.motion') !== 'off'; } catch { }
+  const update = () => {
+    const supported = typeof button.animate === 'function';
+    model.motionEnabled = requested && !preference.matches && supported;
+    document.body.classList.toggle('motion-off', !model.motionEnabled);
+    button.textContent = `Motion: ${model.motionEnabled ? 'On' : 'Off'}`;
+    button.setAttribute('aria-pressed', String(model.motionEnabled));
+    button.disabled = preference.matches || !supported;
+    button.title = preference.matches ? 'Your system reduced-motion setting is enabled.' : 'Turn table animations on or off.';
+    if (!model.motionEnabled) cancelTableMotion();
   };
-  update(!preference.matches);
-  button.addEventListener('click', () => update(!model.motionEnabled));
-  preference.addEventListener('change', event => { if (event.matches) update(false); });
+  update();
+  button.addEventListener('click', () => {
+    requested = !requested;
+    try { localStorage.setItem('bideuchre.motion', requested ? 'on' : 'off'); } catch { }
+    update();
+  });
+  preference.addEventListener('change', update);
+}
+
+function configurePageLifecycle() {
+  document.addEventListener('visibilitychange', async () => {
+    cancelTableMotion();
+    tableMotion.reset();
+    stopPolling();
+    if (document.hidden || !$('#game-view').classList.contains('active')) return;
+    beginViewChange();
+    const generation = model.viewGeneration;
+    await refreshGame({notify:false});
+    if (generation === model.viewGeneration && !document.hidden && !model.sessionUnavailable) startPolling();
+  });
 }
 
 function runMotion(element, keyframes, options = {}) {
-  if (!element || !model.motionEnabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (!element || document.hidden || !model.motionEnabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   element.getAnimations().forEach(animation => animation.cancel());
   element.animate(keyframes, { duration:260, easing:'cubic-bezier(.2,.75,.25,1)', ...options });
 }

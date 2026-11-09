@@ -75,3 +75,8 @@ nav .active, .nav-item:hover { background:#143b8f; border-color:#69c9ff; }
   .game-header { grid-template-columns:auto minmax(0,1fr); }
   #motion-toggle { grid-column:1 / -1; justify-self:end; }
 }
+
+.connection-status { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; margin-bottom:16px; border:2px solid var(--amber); background:#211536; color:var(--ink); font:14px/1.5 system-ui,sans-serif; }
+.connection-status .button { flex-shrink:0; font-family:Pixel,monospace; font-size:10px; }
+#action-buttons[aria-busy="true"] { opacity:.65; }
+@media (max-width:760px) { .connection-status { align-items:stretch; flex-direction:column; } }

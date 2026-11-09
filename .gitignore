@@ -18,3 +18,6 @@ engines/python-cfr/state/
 
 # Native C++ heuristic engine
 engines/cpp-heuristic/build/
+
+# macOS Finder metadata
+.DS_Store

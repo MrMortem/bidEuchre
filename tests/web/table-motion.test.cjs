@@ -7,6 +7,7 @@ const scope = vm.createContext({});
 const source = path.join(__dirname, '../../src/BidEuchre.Server/wwwroot/table-motion.js');
 if (fs.existsSync(source)) vm.runInContext(fs.readFileSync(source, 'utf8'), scope);
 const factory = () => { assert.equal(typeof scope.TableMotion, 'function', 'Motion tracker must exist'); return new scope.TableMotion(); };
+const domElement = () => ({getAnimations:()=>[],querySelectorAll:()=>[],setAttribute(){},classList:{toggle(){}},value:'',textContent:''});
 const game = () => ({handNumber:1,currentSeat:0,scores:[0,0],currentTrick:[],completedTricks:[]});
 const play = {seat:0,card:{code:'AH'}};
 
@@ -45,7 +46,7 @@ test('start deals once; new hands and real score changes get separate cues', () 
 });
 
 test('reopening the same table establishes a fresh baseline', async () => {
-  const local=vm.createContext({document:{addEventListener(){},querySelector(){return {getAnimations(){return []}}}}});
+  const local=vm.createContext({document:{addEventListener(){},querySelectorAll(){return []},querySelector(){return domElement()}}});
   vm.runInContext(fs.readFileSync(source,'utf8'),local);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/BidEuchre.Server/wwwroot/app.js'),'utf8'),local);
   await vm.runInContext(`(async () => {
@@ -62,8 +63,8 @@ test('reopening the same table establishes a fresh baseline', async () => {
 
 test('switching viewer cancels running effects before fetching another hand', async () => {
   let cancelled=false;
-  const element={getAnimations:()=>[{cancel(){cancelled=true}}]};
-  const local=vm.createContext({document:{addEventListener(){},querySelector(){return element}}});
+  const element={...domElement(),getAnimations:()=>[{cancel(){cancelled=true}}]};
+  const local=vm.createContext({document:{addEventListener(){},querySelectorAll(){return []},querySelector(){return element}}});
   vm.runInContext(fs.readFileSync(source,'utf8'),local);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/BidEuchre.Server/wwwroot/app.js'),'utf8'),local);
   local.checkCancelled=()=>assert.equal(cancelled,true,'Effects must stop before the next fetch');

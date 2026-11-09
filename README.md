@@ -69,6 +69,16 @@ runtime:
 ./package.sh linux-x64
 ```
 
+Without an argument, `./package.sh` detects the current Mac or Linux runtime.
+On an Apple Silicon Mac, it also creates `dist/osx-arm64/Bid Euchre.app`:
+open that app in Finder to play without installing .NET. Rules, pixel artwork,
+font, and font license travel with the package. This is a local unsigned build;
+external macOS distribution still requires signing and notarization.
+
+Motion preferences are saved between launches. The native Play screen keeps
+scores and actions beside the table; expand **Table log** or **Contract guide**
+for more detail. The web client also honors the system reduced-motion setting.
+
 The executable is written to `dist/linux-x64/BidEuchre`. The packaging script
 also accepts .NET runtime identifiers such as `win-x64`, `osx-x64`, or
 `osx-arm64`; packaging another platform may download its runtime pack.
@@ -168,6 +178,10 @@ tuning, and tests.
 ```bash
 ./test.sh
 ```
+
+The script runs browser interaction/motion regressions when Node.js is available,
+and Mac bundle checks on macOS. Optional engine tests are explicitly skipped
+when their Python 3.10+, PyTorch, C++, or SWI-Prolog prerequisites are missing.
 
 The test executable has no external test-framework dependency. It returns a
 nonzero exit code on failure and covers deck/rank rules, bowers, trick winners,

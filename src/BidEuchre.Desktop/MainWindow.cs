@@ -52,8 +52,8 @@ public sealed class MainWindow : Window
     private readonly ComboBox _viewerSeat = new() { MinWidth = 180 };
     private readonly Button _startButton = PrimaryButton("Start session");
     private readonly ContentControl _tableHost = new();
-    private readonly TextBlock _actionTitle = new() { TextWrapping = TextWrapping.Wrap, Foreground = Ink, FontSize = 21, FontFamily = PixelArt.Font };
-    private readonly TextBlock _actionHelp = new() { Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _actionTitle = new() { TextWrapping = TextWrapping.Wrap, Foreground = Ink, FontSize = 18, FontFamily = PixelArt.Font };
+    private readonly TextBlock _actionHelp = new() { FontFamily = FontFamily.Default, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _actionButtons = new() { ItemWidth = double.NaN, ItemHeight = double.NaN };
     private readonly StackPanel _eventList = new() { Spacing = 1 };
     private readonly TextBlock _sessionError = new() { Foreground = Red, FontSize = 12, TextWrapping = TextWrapping.Wrap };
@@ -67,6 +67,9 @@ public sealed class MainWindow : Window
     private string? _renderKey;
     private readonly TableMotionTracker _motionTracker = new();
     private readonly PixelMotion _motion = new();
+    private readonly TableInputState _input = new();
+    private readonly string _preferencesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BidEuchre", "preferences.json");
+    private GamePreferences _preferences = new();
     private TableMotionCue _motionCue = TableMotionCue.None;
 
     public MainWindow()
@@ -80,6 +83,8 @@ public sealed class MainWindow : Window
         FontFamily = PixelArt.Font;
         RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        _preferences = GamePreferences.Load(_preferencesPath);
+        _motion.SetEnabled(_preferences.MotionEnabled);
 
         StyleInput(_tableName);
         StyleInput(_pace);
@@ -92,6 +97,9 @@ public sealed class MainWindow : Window
         {
             if (_viewerSeat.SelectedItem is ViewerOption option)
             {
+                _input.BeginViewChange();
+                _motion.Cancel();
+                SyncNativeInput();
                 _viewer = option.Seat;
                 _renderKey = null;
                 await RefreshGameAsync();
@@ -240,7 +248,7 @@ public sealed class MainWindow : Window
             Children =
             {
                 Eyebrow("LIVE SESSION"),
-                new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", FontSize = 26, FontFamily = PixelArt.Font, Foreground = Ink }
+                new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 22, FontFamily = PixelArt.Font, Foreground = Ink }
             }
         }, column: 1));
         header.Children.Add(Place(Field("View hand", _viewerSeat), column: 2));
@@ -249,6 +257,8 @@ public sealed class MainWindow : Window
         motionButton.Click += async (_, _) =>
         {
             _motion.SetEnabled(!_motion.Enabled);
+            _preferences = _preferences with { MotionEnabled = _motion.Enabled };
+            if (!_preferences.Save(_preferencesPath)) ShowError("Motion changed for this session, but the preference could not be saved.");
             motionButton.Content = $"Motion: {(_motion.Enabled ? "On" : "Off")}";
             _renderKey = null;
             await RefreshGameAsync();
@@ -256,27 +266,26 @@ public sealed class MainWindow : Window
         header.Children.Add(Place(motionButton, column: 3));
         header.Children.Add(Place(_startButton, column: 4));
 
+        var handInfo = CardPanel(new StackPanel { Spacing = 8, Children = { _phaseText, _contractText, _dealerText } }, 12);
+        var guide = CardPanel(new StackPanel
+        {
+            Spacing = 12,
+            Children =
+            {
+                GuideLine("HIGH", "Highest wins"), GuideLine("LOW", "Lowest wins"),
+                GuideLine("TRUMP", "Follow suit. Trump wins."),
+                GuideLine("PARTNER’S BEST", "3 players · exchange 1 card"),
+                GuideLine("ALONE", "3 players · no partner")
+            }
+        }, 12);
         var score = new StackPanel
         {
-            Spacing = 10,
+            Spacing = 8,
             Children =
             {
                 Eyebrow("TEAMS · TO 40"),
                 ScorePanel("TEAM 1 · 1 + 3", _teamZeroScore, Green),
-                ScorePanel("TEAM 2 · 2 + 4", _teamOneScore, Amber),
-                CardPanel(new StackPanel { Spacing = 8, Children = { _phaseText, _contractText, _dealerText } }, 12),
-                CardPanel(new StackPanel
-                {
-                    Spacing = 12,
-                    Children =
-                    {
-                        Eyebrow("CONTRACT GUIDE"),
-                        GuideLine("HIGH", "Highest wins"), GuideLine("LOW", "Lowest wins"),
-                        GuideLine("TRUMP", "Follow suit. Trump wins."),
-                        GuideLine("PARTNER’S BEST", "3 players · exchange 1 card"),
-                        GuideLine("ALONE", "3 players · no partner")
-                    }
-                }, 12)
+                ScorePanel("TEAM 2 · 2 + 4", _teamOneScore, Amber)
             }
         };
 
@@ -292,7 +301,7 @@ public sealed class MainWindow : Window
                 _sessionError
             }
         });
-        actionPanel.MinHeight = 160;
+        actionPanel.Padding = new Thickness(14);
         var logScroll = new ScrollViewer
         {
             MaxHeight = 150,
@@ -304,25 +313,30 @@ public sealed class MainWindow : Window
             Spacing = 10,
             Children = { Eyebrow("TABLE LOG · EVERY CARD"), logScroll }
         });
-        var bottomRail = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,*"), ColumnSpacing = 12 };
-        bottomRail.Children.Add(actionPanel);
-        bottomRail.Children.Add(Place(logPanel, column: 1));
-        var stage = new Grid { RowDefinitions = RowDefinitions.Parse("*,Auto"), RowSpacing = 12 };
-        stage.Children.Add(_tableHost);
-        stage.Children.Add(Place(bottomRail, row: 1));
-        var gameGrid = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("230,*"), ColumnSpacing = 14, MinWidth = 900 };
-        gameGrid.Children.Add(score);
-        gameGrid.Children.Add(Place(stage, column: 1));
-        var page = new Grid
+        var rail = new StackPanel
+        {
+            Spacing = 12,
+            Children =
+            {
+                score, actionPanel, handInfo,
+                new Expander { Header = "CONTRACT GUIDE", Foreground = Ink, FontSize = 11, Content = guide },
+                new Expander { Header = "TABLE LOG", Foreground = Ink, FontSize = 11, Content = logPanel }
+            }
+        };
+        var gameGrid = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("260,*"), ColumnSpacing = 14 };
+        gameGrid.Children.Add(new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = rail
+        });
+        gameGrid.Children.Add(Place(_tableHost, column: 1));
+        // Keep a finite viewport: the board scales to the window instead of forcing
+        // the primary action controls below a full-height, scrollable table.
+        return new Grid
         {
             Margin = new Thickness(16), RowDefinitions = RowDefinitions.Parse("Auto,*"), RowSpacing = 12,
             Children = { header, Place(gameGrid, row: 1) }
-        };
-        return new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = page
         };
     }
 
@@ -547,6 +561,7 @@ public sealed class MainWindow : Window
         var session = _session;
         var generation = _sessionGeneration;
         var viewer = _viewer;
+        var revision = _input.Revision;
         if (_refreshing || session is null)
         {
             return;
@@ -556,7 +571,7 @@ public sealed class MainWindow : Window
         {
             var view = await session.GetViewAsync(viewer);
             if (generation != _sessionGeneration ||
-                viewer != _viewer ||
+                viewer != _viewer || revision != _input.Revision ||
                 !ReferenceEquals(session, _session))
             {
                 return;
@@ -570,6 +585,8 @@ public sealed class MainWindow : Window
                 _renderKey = "waiting";
                 _motionTracker.Update(null, $"{session.Id}:{viewer}");
                 RenderWaitingTable();
+                _input.CompleteView(revision);
+                SyncNativeInput();
                 return;
             }
 
@@ -592,6 +609,8 @@ public sealed class MainWindow : Window
             foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             RenderEvents(view.Events);
+            _input.CompleteView(revision);
+            SyncNativeInput();
         }
         catch (ObjectDisposedException)
         {
@@ -605,6 +624,14 @@ public sealed class MainWindow : Window
         {
             _refreshing = false;
         }
+    }
+
+    private void SyncNativeInput()
+    {
+        _tableHost.IsVisible = !_input.Loading;
+        _tableHost.IsEnabled = !_input.Locked;
+        _actionButtons.IsEnabled = !_input.Locked;
+        _viewerSeat.IsEnabled = !_input.Locked;
     }
 
     private Control BuildTable(GameView view)
@@ -860,7 +887,7 @@ public sealed class MainWindow : Window
                 BorderBrush = Line,
                 BorderThickness = new Thickness(0, 0, 0, 1),
                 Padding = new Thickness(2, 7),
-                Child = new TextBlock { Text = item, Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap }
+                Child = new TextBlock { Text = item, Foreground = Muted, FontFamily = FontFamily.Default, FontSize = 12, TextWrapping = TextWrapping.Wrap }
             });
         }
     }
@@ -869,10 +896,8 @@ public sealed class MainWindow : Window
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null)
-        {
-            return;
-        }
+        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        SyncNativeInput();
         ClearStatus();
         try
         {
@@ -887,19 +912,18 @@ public sealed class MainWindow : Window
             if (generation == _sessionGeneration && ReferenceEquals(session, _session))
             {
                 ShowError(exception.Message);
+                await RefreshGameAsync();
             }
         }
+        finally { _input.CompleteAction(revision); SyncNativeInput(); }
     }
 
     private async Task StartNextHandAsync(Button button)
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null)
-        {
-            return;
-        }
-
+        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        SyncNativeInput();
         button.IsEnabled = false;
         ClearStatus();
         try
@@ -916,9 +940,11 @@ public sealed class MainWindow : Window
             if (generation == _sessionGeneration && ReferenceEquals(session, _session))
             {
                 ShowError(exception.Message);
+                await RefreshGameAsync();
                 button.IsEnabled = true;
             }
         }
+        finally { _input.CompleteAction(revision); SyncNativeInput(); }
     }
 
     private async Task LoadEngineAsync(Button button)
@@ -1075,6 +1101,8 @@ public sealed class MainWindow : Window
 
     private GameSession? DetachSession()
     {
+        _input.BeginViewChange();
+        _motion.Cancel();
         var session = _session;
         if (session is not null)
         {

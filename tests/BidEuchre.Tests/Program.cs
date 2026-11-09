@@ -4,6 +4,8 @@ using BidEuchre.App;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Stale work cannot unlock a different private hand", () => Run(TableInputTests.StaleWorkCannotUnlockNewView)),
+    ("Motion preferences persist and tolerate corrupt storage", () => Run(GamePreferencesTests.PersistMotion)),
     ("Motion cues only describe new public events", () => Run(TableMotionTests.EventsOnly)),
     ("Motion distinguishes starting from reconnecting", () => Run(TableMotionTests.StartAndReconnect)),
     ("Deck contains 24 unique cards", () => Run(GameRuleTests.DeckIsCorrect)),

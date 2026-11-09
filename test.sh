@@ -38,27 +38,29 @@ fi
 
 python_cfr_dir="$project_dir/engines/python-cfr"
 python_command=""
-if command -v python3 >/dev/null 2>&1; then
-    python_command="$(command -v python3)"
-elif command -v python >/dev/null 2>&1; then
-    python_command="$(command -v python)"
-fi
+for candidate in "$python_cfr_dir/.venv/bin/python" python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 &&
+       "$candidate" -c 'import sys; raise SystemExit(sys.version_info < (3, 10))' >/dev/null 2>&1; then
+        python_command="$candidate"
+        break
+    fi
+done
 
 if [[ -n "$python_command" ]]; then
     PYTHONDONTWRITEBYTECODE=1 \
         PYTHONPATH="$python_cfr_dir:$python_cfr_dir/tests" \
         "$python_command" -m unittest -v \
-        test_actions \
-        test_encoding \
-        test_simulator \
-        test_model_storage.StorageTests
+        test_actions test_encoding test_simulator test_model_storage.StorageTests
 else
-    echo "FAIL  Python CFR standard-library tests (Python 3 is not installed)"
-    exit 1
+    echo "SKIP  Python CFR standard-library tests (Python 3.10+ is not installed)"
+fi
+
+if [[ "$(uname -s)" == Darwin ]]; then
+    "$project_dir/tests/package-macos.sh"
 fi
 
 python_cfr_venv="${BIDEUCHRE_CFR_PYTHON:-$python_cfr_dir/.venv/bin/python}"
-if [[ -x "$python_cfr_venv" ]] && "$python_cfr_venv" -c 'import torch' >/dev/null 2>&1; then
+if [[ -x "$python_cfr_venv" ]] && "$python_cfr_venv" -c 'import sys; assert sys.version_info >= (3, 10); import torch' >/dev/null 2>&1; then
     PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$python_cfr_dir" "$python_cfr_venv" \
         -m unittest discover -s "$python_cfr_dir/tests" -v
     export BIDEUCHRE_PYTHON_CFR_ENGINE="$python_cfr_dir/run.sh"
@@ -66,7 +68,7 @@ if [[ -x "$python_cfr_venv" ]] && "$python_cfr_venv" -c 'import torch' >/dev/nul
     export BIDEUCHRE_CFR_STATE_DIR="$python_state_dir"
     trap 'rm -rf -- "$python_state_dir"' EXIT
 else
-    echo "SKIP  Python CFR PyTorch tests and process integration (engines/python-cfr/.venv with torch is not installed)"
+    echo "SKIP  Python CFR PyTorch tests and process integration (Python 3.10+ venv with torch is not installed)"
 fi
 
 "$dotnet_command" build "$project_dir/BidEuchre.slnx" --nologo -m:1
