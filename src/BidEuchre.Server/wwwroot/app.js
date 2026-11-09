@@ -6,6 +6,7 @@ const model = {
   connectionLost: false,
   sessionUnavailable: false,
   motionCue: null,
+  bidAnnouncement: null,
   engines: [],
   sessions: [],
   session: null,
@@ -302,6 +303,7 @@ function renderGame() {
   $('#team-one-score').textContent = game.scores[1];
   $('#phase-label').textContent = `${splitWords(game.phase)} · Hand ${game.handNumber}`;
   $('#contract-label').textContent = contractName(game);
+  renderBidDock(game);
   $('#dealer-label').textContent = `Seat ${game.dealer + 1} deals · ${game.tricksByTeam[0]}–${game.tricksByTeam[1]} tricks`;
   $('#trick-count').textContent = `${game.completedTricks.length} / 6 tricks`;
   $('#game-error').textContent = session.error || '';
@@ -311,6 +313,7 @@ function renderGame() {
   renderTrick(game);
   renderActions(game);
   animateTableCues();
+  if (model.motionCue.highBidChanged) announceHighestBid(game);
   syncInputState();
   const eventList = $('#event-list');
   const eventKey = JSON.stringify(game.events);
@@ -327,6 +330,9 @@ function resetBoard() {
   $('#team-one-score').textContent = '0';
   $('#phase-label').textContent = 'Waiting to start';
   $('#contract-label').textContent = 'No contract';
+  cancelBidAnnouncement();
+  $('#bid-dock').classList.add('hidden');
+  $('#contract-label').classList.remove('hidden');
   $('#dealer-label').textContent = 'Dealer not chosen';
   model.session.seats.forEach(seat => {
     const position = $(`#seat-${seat.seat}`);
@@ -760,6 +766,8 @@ function configureMotion() {
     update();
   });
   preference.addEventListener('change', update);
+  window.addEventListener('resize', cancelBidAnnouncement);
+  document.addEventListener('scroll', cancelBidAnnouncement, {capture:true,passive:true});
 }
 
 function configurePageLifecycle() {
@@ -778,7 +786,7 @@ function configurePageLifecycle() {
 function runMotion(element, keyframes, options = {}) {
   if (!element || document.hidden || !model.motionEnabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   element.getAnimations().forEach(animation => animation.cancel());
-  element.animate(keyframes, { duration:260, easing:'cubic-bezier(.2,.75,.25,1)', ...options });
+  return element.animate(keyframes, { duration:260, easing:'cubic-bezier(.2,.75,.25,1)', ...options });
 }
 
 function animateTableCues() {
@@ -797,5 +805,86 @@ function animateTableCues() {
 }
 
 function cancelTableMotion() {
+  cancelBidAnnouncement();
   $('#game-view')?.getAnimations({ subtree:true }).forEach(animation => animation.cancel());
+}
+
+
+function bidBadgeHtml(game) {
+  const player = game.players.find(player => player.seat === game.bidder);
+  return `<span class="bid-caption">Highest bid</span><strong class="bid-value">${escapeHtml(bidName(game.highBid))}</strong><span class="bid-player">${escapeHtml(player?.name ?? `Seat ${game.bidder + 1}`)}</span>`;
+}
+
+function renderBidDock(game) {
+  const dock = $('#bid-dock');
+  const visible = game.highBid != null && game.bidder != null && ['Bidding','ChoosingContract'].includes(game.phase);
+  dock.classList.toggle('hidden', !visible);
+  $('#contract-label').classList.toggle('hidden', visible);
+  if (!visible) { cancelBidAnnouncement(); delete dock.dataset.bidKey; return; }
+  const key = `${model.sessionId}:${game.handNumber}:${game.bidder}:${game.highBid}`;
+  if (dock.dataset.bidKey !== key) {
+    dock.innerHTML = bidBadgeHtml(game);
+    dock.dataset.bidKey = key;
+  }
+}
+
+function bidFlightGeometry(table, dock, width, height, viewportWidth, viewportHeight) {
+  const clamp = (value, size, viewport) => Math.max(size / 2 + 12, Math.min(viewport - size / 2 - 12, value));
+  const naturalY = table.top + table.height * .48;
+  const x = clamp(table.left + table.width / 2, width, viewportWidth);
+  const y = clamp(naturalY < 0 || naturalY > viewportHeight ? viewportHeight / 2 : naturalY, height, viewportHeight);
+  const dockVisible = dock.top >= 0 && dock.top + dock.height <= viewportHeight;
+  return {x, y, targetX:dockVisible ? dock.left + dock.width / 2 : -width / 2 - 16,
+    targetY:dockVisible ? dock.top + dock.height / 2 : y, scale:Math.min(1, dock.width / width)};
+}
+
+function announceHighestBid(game) {
+  cancelBidAnnouncement();
+  if (!model.motionEnabled || document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const dock = $('#bid-dock');
+  if (dock.classList.contains('hidden')) return;
+  const table = $('.felt-table').getBoundingClientRect();
+  const destination = dock.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.className = 'bid-badge bid-announcement';
+  overlay.setAttribute('aria-hidden','true');
+  overlay.innerHTML = bidBadgeHtml(game);
+  overlay.style.left = `${table.left + table.width / 2}px`;
+  overlay.style.top = `${table.top + table.height * .48}px`;
+  $('#game-view').append(overlay);
+  const bounds = overlay.getBoundingClientRect();
+  const flight = bidFlightGeometry(table, destination, bounds.width, bounds.height, window.innerWidth, window.innerHeight);
+  overlay.style.left = `${flight.x - bounds.width / 2}px`;
+  overlay.style.top = `${flight.y - bounds.height / 2}px`;
+  const x = flight.targetX - flight.x;
+  const y = flight.targetY - flight.y;
+  const scale = flight.scale;
+  const animation = runMotion(overlay, [
+    {opacity:0, scale:'.85', translate:'0 10px', offset:0},
+    {opacity:1, scale:'1.06', translate:'0 0', offset:.13},
+    {opacity:1, scale:'1', translate:'0 0', offset:.25},
+    {opacity:1, scale:'1', translate:'0 0', offset:.5},
+    {opacity:1, scale:String(scale), translate:`${x}px ${y}px`, offset:.97},
+    {opacity:0, scale:String(scale), translate:`${x}px ${y}px`, offset:1}
+  ], {duration:800});
+  if (!animation) { overlay.remove(); return; }
+  const active = {element:overlay,animation};
+  model.bidAnnouncement = active;
+  dock.classList.add('bid-in-flight');
+  const finish = () => {
+    overlay.remove();
+    if (model.bidAnnouncement === active) {
+      model.bidAnnouncement = null;
+      dock.classList.remove('bid-in-flight');
+    }
+  };
+  animation.finished.then(finish,finish);
+}
+
+function cancelBidAnnouncement() {
+  const active = model.bidAnnouncement;
+  model.bidAnnouncement = null;
+  active?.animation.cancel();
+  active?.element.remove();
+  $('#bid-dock')?.classList.remove('bid-in-flight');
 }

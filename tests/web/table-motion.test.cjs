@@ -7,7 +7,7 @@ const scope = vm.createContext({});
 const source = path.join(__dirname, '../../src/BidEuchre.Server/wwwroot/table-motion.js');
 if (fs.existsSync(source)) vm.runInContext(fs.readFileSync(source, 'utf8'), scope);
 const factory = () => { assert.equal(typeof scope.TableMotion, 'function', 'Motion tracker must exist'); return new scope.TableMotion(); };
-const domElement = () => ({getAnimations:()=>[],querySelectorAll:()=>[],setAttribute(){},classList:{toggle(){}},value:'',textContent:''});
+const domElement = () => ({getAnimations:()=>[],querySelectorAll:()=>[],setAttribute(){},classList:{toggle(){},add(){},remove(){}},value:'',textContent:''});
 const game = () => ({handNumber:1,currentSeat:0,scores:[0,0],currentTrick:[],completedTricks:[]});
 const play = {seat:0,card:{code:'AH'}};
 
@@ -69,4 +69,22 @@ test('switching viewer cancels running effects before fetching another hand', as
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../../src/BidEuchre.Server/wwwroot/app.js'),'utf8'),local);
   local.checkCancelled=()=>assert.equal(cancelled,true,'Effects must stop before the next fetch');
   await vm.runInContext(`refreshGame=async()=>checkCancelled(); selectViewerSeat(1)`,local);
+});
+
+test('only a new public highest bid triggers the center announcement',()=>{
+  const tracker=factory();
+  const frame={...game(),phase:'Bidding',highBid:null,bidder:null};
+  tracker.update(frame,'a:0');
+  frame.highBid='Three'; frame.bidder=0;
+  assert.equal(tracker.update(frame,'a:0').highBidChanged,true);
+  assert.equal(tracker.update(frame,'a:0').highBidChanged,false,'A poll must not repeat a bid');
+  frame.currentSeat=2;
+  assert.equal(tracker.update(frame,'a:0').highBidChanged,false,'Passing does not replace the high bid');
+  frame.highBid='PartnersBest'; frame.bidder=2;
+  assert.equal(tracker.update(frame,'a:0').highBidChanged,true);
+  assert.equal(tracker.update(frame,'a:1').highBidChanged,false,'Switching hand must show the bid directly in its dock');
+  frame.phase='ChoosingContract'; frame.highBid='Alone'; frame.bidder=3;
+  assert.equal(tracker.update(frame,'a:1').highBidChanged,true,'An auction-ending raise must still be announced');
+  frame.phase='Playing'; frame.highBid='Six';
+  assert.equal(tracker.update(frame,'a:1').highBidChanged,false,'Do not replay a missed bid during trick play');
 });

@@ -4,6 +4,7 @@ using BidEuchre.App;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Only new high bids announce during the auction", () => Run(TableMotionTests.HighestBidOnly)),
     ("Stale work cannot unlock a different private hand", () => Run(TableInputTests.StaleWorkCannotUnlockNewView)),
     ("Motion preferences persist and tolerate corrupt storage", () => Run(GamePreferencesTests.PersistMotion)),
     ("Motion cues only describe new public events", () => Run(TableMotionTests.EventsOnly)),

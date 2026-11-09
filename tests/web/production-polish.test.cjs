@@ -7,7 +7,7 @@ const path = require('node:path');
 function boot(savedMotion) {
   const elements = new Map();
   const make = () => ({disabled:false,textContent:'',value:'',dataset:{},events:{},attributes:{},
-    classList:{toggle(){},contains:()=>true},
+    classList:{toggle(){},add(){},remove(){},contains:()=>true},
     setAttribute(key,value){this.attributes[key]=value}, removeAttribute(key){delete this.attributes[key]},
     addEventListener(key,fn){this.events[key]=fn}, querySelectorAll(){return []},
     animate(){},getAnimations(){return []}});
@@ -24,7 +24,7 @@ function boot(savedMotion) {
     addEventListener(key,fn){visibility[key]=fn}};
   const scope=vm.createContext({document,matchMedia:()=>media,
     localStorage:{getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,value)},
-    window:{setTimeout,clearTimeout},setTimeout,clearTimeout,AbortController,console});
+    window:{setTimeout,clearTimeout,addEventListener(){}},setTimeout,clearTimeout,AbortController,console});
   const root=path.join(__dirname,'../../src/BidEuchre.Server/wwwroot');
   vm.runInContext(fs.readFileSync(path.join(root,'table-motion.js'),'utf8'),scope);
   vm.runInContext(fs.readFileSync(path.join(root,'app.js'),'utf8'),scope);
@@ -114,4 +114,14 @@ test('a lost move response is reconciled with a read before input is unlocked',a
   assert.equal(reads,1,'Fetch authoritative state after an uncertain move');
   assert.equal(env.run('model.actionPending'),false);
   assert.equal(env.run('model.session.game.phase'),'Playing');
+});
+
+test('bid stamps stay on screen when mobile bidding controls scroll the table away',()=>{
+  const env=boot();
+  const geometry=env.run(`bidFlightGeometry(
+    {left:0,top:-900,width:390,height:720},
+    {left:12,top:-1100,width:160,height:100},260,120,390,844)`);
+  assert.equal(geometry.x,195);
+  assert.equal(geometry.y,422);
+  assert.ok(geometry.targetX < 0,'An offscreen dock should slide out through the side');
 });

@@ -32,6 +32,25 @@ internal static class TableMotionTests
         Check(!tracker.Update(Frame(), "other:0").Deal, "Opening another table should not deal retroactively");
     }
 
+    public static void HighestBidOnly()
+    {
+        var tracker = new TableMotionTracker();
+        var game = Frame() with { Phase = GamePhase.Bidding };
+        tracker.Update(game, "a:0");
+        game = game with { HighBid = BidLevel.Three, Bidder = 0 };
+        Check(tracker.Update(game, "a:0").HighBidChanged, "First bid should be announced");
+        Check(!tracker.Update(game, "a:0").HighBidChanged, "Polling should not repeat bids");
+        game = game with { CurrentSeat = 2 };
+        Check(!tracker.Update(game, "a:0").HighBidChanged, "A pass must not announce another bid");
+        game = game with { HighBid = BidLevel.PartnersBest, Bidder = 2 };
+        Check(tracker.Update(game, "a:0").HighBidChanged, "A raise should replace the announcement");
+        Check(!tracker.Update(game, "a:1").HighBidChanged, "Viewer switches should not animate past bids");
+        game = game with { HighBid = BidLevel.Alone, Bidder = 3, Phase = GamePhase.ChoosingContract };
+        Check(tracker.Update(game, "a:1").HighBidChanged, "Auction-ending bids should animate");
+        game = game with { HighBid = BidLevel.Six, Phase = GamePhase.Playing };
+        Check(!tracker.Update(game, "a:1").HighBidChanged, "Do not replay bids during trick play");
+    }
+
     private static GameView Frame() => new(GamePhase.Playing, 1, 0, 0, new[] { 0, 0 },
         Array.Empty<PlayerView>(), Array.Empty<AuctionAction>(), null, null, null,
         Array.Empty<CardPlay>(), Array.Empty<CompletedTrick>(), new[] { 0, 0 }, null,

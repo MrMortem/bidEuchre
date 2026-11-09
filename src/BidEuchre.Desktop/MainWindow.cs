@@ -67,6 +67,7 @@ public sealed class MainWindow : Window
     private string? _renderKey;
     private readonly TableMotionTracker _motionTracker = new();
     private readonly PixelMotion _motion = new();
+    private BidAnnouncement? _bidAnnouncement;
     private readonly TableInputState _input = new();
     private readonly string _preferencesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BidEuchre", "preferences.json");
     private GamePreferences _preferences = new();
@@ -83,6 +84,7 @@ public sealed class MainWindow : Window
         FontFamily = PixelArt.Font;
         RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        SizeChanged += (_, _) => _bidAnnouncement?.Cancel();
         _preferences = GamePreferences.Load(_preferencesPath);
         _motion.SetEnabled(_preferences.MotionEnabled);
 
@@ -99,6 +101,7 @@ public sealed class MainWindow : Window
             {
                 _input.BeginViewChange();
                 _motion.Cancel();
+                _bidAnnouncement?.Cancel();
                 SyncNativeInput();
                 _viewer = option.Seat;
                 _renderKey = null;
@@ -118,6 +121,8 @@ public sealed class MainWindow : Window
                 new TabItem { Header = "Rules", Content = BuildRulesPage() }
             }
         };
+
+        _tabs.SelectionChanged += (_, _) => { if (_tabs.SelectedIndex != 0) _bidAnnouncement?.Cancel(); };
 
         Content = new Grid
         {
@@ -141,6 +146,7 @@ public sealed class MainWindow : Window
         {
             _refreshTimer.Stop();
             _motion.Cancel();
+            _bidAnnouncement?.Cancel();
             var session = DetachSession();
             if (session is not null)
             {
@@ -257,6 +263,7 @@ public sealed class MainWindow : Window
         motionButton.Click += async (_, _) =>
         {
             _motion.SetEnabled(!_motion.Enabled);
+            if (!_motion.Enabled) _bidAnnouncement?.Cancel();
             _preferences = _preferences with { MotionEnabled = _motion.Enabled };
             if (!_preferences.Save(_preferencesPath)) ShowError("Motion changed for this session, but the preference could not be saved.");
             motionButton.Content = $"Motion: {(_motion.Enabled ? "On" : "Off")}";
@@ -266,6 +273,10 @@ public sealed class MainWindow : Window
         header.Children.Add(Place(motionButton, column: 3));
         header.Children.Add(Place(_startButton, column: 4));
 
+        _bidAnnouncement?.Clear();
+        var bidDock = new ContentControl { IsVisible = false };
+        var bidOverlay = new Canvas { IsHitTestVisible = false };
+        _bidAnnouncement = new BidAnnouncement(bidOverlay, _tableHost, bidDock);
         var handInfo = CardPanel(new StackPanel { Spacing = 8, Children = { _phaseText, _contractText, _dealerText } }, 12);
         var guide = CardPanel(new StackPanel
         {
@@ -318,26 +329,32 @@ public sealed class MainWindow : Window
             Spacing = 12,
             Children =
             {
-                score, actionPanel, handInfo,
+                score, bidDock, actionPanel, handInfo,
                 new Expander { Header = "CONTRACT GUIDE", Foreground = Ink, FontSize = 11, Content = guide },
                 new Expander { Header = "TABLE LOG", Foreground = Ink, FontSize = 11, Content = logPanel }
             }
         };
         var gameGrid = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("260,*"), ColumnSpacing = 14 };
-        gameGrid.Children.Add(new ScrollViewer
+        var railScroll = new ScrollViewer
         {
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
             Content = rail
-        });
+        };
+        railScroll.ScrollChanged += (_, args) =>
+        {
+            if (args.OffsetDelta.X != 0 || args.OffsetDelta.Y != 0) _bidAnnouncement?.Cancel();
+        };
+        gameGrid.Children.Add(railScroll);
         gameGrid.Children.Add(Place(_tableHost, column: 1));
         // Keep a finite viewport: the board scales to the window instead of forcing
         // the primary action controls below a full-height, scrollable table.
-        return new Grid
+        var page = new Grid
         {
             Margin = new Thickness(16), RowDefinitions = RowDefinitions.Parse("Auto,*"), RowSpacing = 12,
             Children = { header, Place(gameGrid, row: 1) }
         };
+        return new Grid { Children = { page, bidOverlay } };
     }
 
     private Control BuildEnginePage()
@@ -584,6 +601,8 @@ public sealed class MainWindow : Window
                 }
                 _renderKey = "waiting";
                 _motionTracker.Update(null, $"{session.Id}:{viewer}");
+                _bidAnnouncement?.Clear();
+                _contractText.IsVisible = true;
                 RenderWaitingTable();
                 _input.CompleteView(revision);
                 SyncNativeInput();
@@ -609,6 +628,7 @@ public sealed class MainWindow : Window
             foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             RenderEvents(view.Events);
+            UpdateBidAnnouncement(view);
             _input.CompleteView(revision);
             SyncNativeInput();
         }
@@ -623,6 +643,22 @@ public sealed class MainWindow : Window
         finally
         {
             _refreshing = false;
+        }
+    }
+
+    private void UpdateBidAnnouncement(GameView view)
+    {
+        var auction = view.Phase is GamePhase.Bidding or GamePhase.ChoosingContract;
+        if (auction && view.HighBid is { } bid && view.Bidder is { } bidder)
+        {
+            _contractText.IsVisible = false;
+            var player = view.Players.FirstOrDefault(player => player.Seat == bidder)?.Name ?? $"Seat {bidder + 1}";
+            _bidAnnouncement?.Update(BidName(bid), player, _motionCue.HighBidChanged && _motion.Enabled);
+        }
+        else
+        {
+            _contractText.IsVisible = true;
+            _bidAnnouncement?.Clear();
         }
     }
 
@@ -1101,6 +1137,7 @@ public sealed class MainWindow : Window
 
     private GameSession? DetachSession()
     {
+        _bidAnnouncement?.Clear();
         _input.BeginViewChange();
         _motion.Cancel();
         var session = _session;
