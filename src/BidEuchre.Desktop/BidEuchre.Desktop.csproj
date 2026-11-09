@@ -20,6 +20,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <AvaloniaResource Include="../../assets/pixel/*.png" Link="Pixel/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../assets/pixel/Pixel.ttf" Link="Pixel/Pixel.ttf" />
+    <None Include="../../assets/pixel/FONT-LICENSE.txt" Link="Pixel/FONT-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="../../bid-euchre-final-rules.md" Link="bid-euchre-final-rules.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

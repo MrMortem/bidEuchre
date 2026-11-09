@@ -29,6 +29,16 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+// Linked shared art is copied beside the server for both dotnet run and publish.
+var pixelRoot = Path.Combine(AppContext.BaseDirectory, "wwwroot", "pixel");
+if (Directory.Exists(pixelRoot))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(pixelRoot),
+        RequestPath = "/pixel"
+    });
+}
 
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", product = "Bid Euchre" }));
 
