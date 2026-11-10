@@ -12,7 +12,7 @@ import subprocess
 import signal
 import time
 from . import schema
-from .registry import Registry, canonical, digest, file_hash, publish, read
+from .registry import Registry, canonical, digest, file_hash, publish, read, reject_test_provenance
 
 
 def integer(value, name, minimum=0, maximum=2**31-1):
@@ -194,16 +194,17 @@ def _verification(registry,candidate,descriptor,path):
     report=read(path)
     if descriptor['verification_sha256'] is None or file_hash(path)!=descriptor['verification_sha256']:
         raise ValueError('verification report was not frozen before evaluation')
+    reject_test_provenance(report)
     artifact=candidate['artifact']
     expected={'candidate_id':candidate['id'],'model_sha256':artifact['model_sha256'],
         'manifest_sha256':candidate['id'],'schema_sha256':schema.SCHEMA_SHA256,'rule_sha256':schema.RULE_SHA256,
         'source_sha256':artifact['source_sha256'],'native_source':registry.frozen['source'],
         'binary_sha256':candidate['engine']['ExecutableSha256'],'authority':registry.frozen['authority']}
-    if report.get('bindings')!=expected or report.get('test_only',False) is not False: raise ValueError('verification bindings mismatch')
+    if report.get('bindings')!=expected: raise ValueError('verification bindings mismatch')
     checks=report['checks']
     for name in ('privacy','simulator','export'):
         check=checks[name]
-        if check.get('passed') is not True or check.get('test_only',False) is not False or file_hash(check['path'])!=check['sha256']:
+        if check.get('passed') is not True or file_hash(check['path'])!=check['sha256']:
             raise ValueError(name+' verification failed or changed')
 
 

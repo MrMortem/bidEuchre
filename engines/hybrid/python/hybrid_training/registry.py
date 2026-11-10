@@ -26,25 +26,56 @@ def file_hash(path): return digest(Path(path).read_bytes())
 def read(path): return json.loads(Path(path).read_text())
 
 
+def sync_path(path):
+    """Persist either a closed copied file or a directory's current entries."""
+    fd=os.open(path,os.O_RDONLY)
+    try: os.fsync(fd)
+    finally: os.close(fd)
+
+
+def durable_directory(path):
+    path=Path(path)
+    if not path.exists():
+        durable_directory(path.parent)
+        path.mkdir(exist_ok=True)
+    sync_path(path)
+    sync_path(path.parent)
+
+
+def sync_candidate(path):
+    sync_path(path/'weights.bin')
+    sync_path(path/'manifest.json')
+    sync_path(path)
+    sync_path(path.parent)
+
+
+def reject_test_provenance(value):
+    if isinstance(value,dict):
+        for key,item in value.items():
+            if key in ('test_only','synthetic') and item is not False:
+                raise ValueError('test provenance is forbidden')
+            reject_test_provenance(item)
+    elif isinstance(value,list):
+        for item in value: reject_test_provenance(item)
+
+
 def publish(path, value):
     """Durable complete-file replacement. Failure leaves the old or new whole file."""
-    path=Path(path); path.parent.mkdir(parents=True,exist_ok=True)
+    path=Path(path); durable_directory(path.parent)
     temporary=path.with_name('.'+path.name+'-'+uuid.uuid4().hex)
     try:
         with temporary.open('xb') as stream:
             stream.write(canonical(value)); stream.flush(); os.fsync(stream.fileno())
         os.replace(temporary,path)
-        fd=os.open(path.parent,os.O_RDONLY)
-        try: os.fsync(fd)
-        finally: os.close(fd)
+        sync_path(path.parent)
     finally: temporary.unlink(missing_ok=True)
 
 
 class Registry:
     def __init__(self, root: Path):
-        self.root=Path(root).resolve(); self.root.mkdir(parents=True,exist_ok=True)
+        self.root=Path(root).resolve(); durable_directory(self.root)
         for name in ('candidates','history','evidence','evaluations','reservations'):
-            (self.root/name).mkdir(exist_ok=True)
+            durable_directory(self.root/name)
         if not (self.root/'frozen.json').exists():
             with self.lock():
                 if not (self.root/'frozen.json').exists(): self._initialize()
@@ -66,14 +97,16 @@ class Registry:
 
     def _initialize(self):
         config=read(self.root/'config.json')
+        sync_path(self.root/'config.json')
         if config.get('test_only'): raise ValueError('test provenance is forbidden')
         sources=config['baseline']['source_files']
         if not sources: raise ValueError('baseline sources must be declared')
         source={str(Path(p).resolve()):file_hash(p) for p in sources}
         for path,sha in source.items():
-            target=self.root/'sources'/sha; target.parent.mkdir(exist_ok=True)
+            target=self.root/'sources'/sha; durable_directory(target.parent)
             if not target.exists(): shutil.copyfile(path,target)
             if file_hash(target)!=sha: raise ValueError('frozen source corrupted')
+            sync_path(target); sync_path(target.parent)
         revision,diff,hybrid_source=_provenance()
         binaries={}
         for kind in ('baseline','hybrid'):
@@ -82,9 +115,10 @@ class Registry:
                 raise ValueError('engine arguments must be strings')
             if kind=='hybrid' and any(x=='--model' or x.startswith('--model=') for x in spec['arguments']):
                 raise ValueError('registry owns the frozen model argument')
-            target=self.root/'binaries'/sha/executable.name; target.parent.mkdir(parents=True,exist_ok=True)
+            target=self.root/'binaries'/sha/executable.name; durable_directory(target.parent)
             if not target.exists(): shutil.copy2(executable,target)
             if file_hash(target)!=sha: raise ValueError('frozen executable corrupted')
+            sync_path(target); sync_path(target.parent)
             binaries[kind]={'Executable':str(target),'Arguments':spec['arguments'],
                 'WorkingDirectory':str(target.parent),'ExecutableSha256':sha,'ModelSha256':None,'ExpectedBackend':None}
         arena=Path(config['arena']).resolve()
@@ -118,19 +152,19 @@ class Registry:
 
     def register_candidate(self, manifest: Path) -> str:
         artifact=validate_artifact(manifest)
-        # Test-only evidence may be used by unit tests but cannot enter production.
-        def test_flag(value):
-            return isinstance(value,dict) and any((k in ('test_only','synthetic') and v is not False) or test_flag(v) for k,v in value.items()) or isinstance(value,list) and any(test_flag(v) for v in value)
-        if test_flag(artifact): raise ValueError('test provenance is forbidden')
+        reject_test_provenance(artifact)
         identity=digest(canonical(artifact)); target=self.root/'candidates'/identity
         with self.lock():
-            if target.exists(): self.record(identity); return identity
+            if target.exists():
+                self.record(identity); sync_candidate(target); return identity
             temporary=Path(tempfile.mkdtemp(prefix='.candidate-',dir=self.root/'candidates'))
             try:
                 shutil.copyfile(Path(manifest).parent/'weights.bin',temporary/'weights.bin')
+                sync_path(temporary/'weights.bin')
                 publish(temporary/'manifest.json',artifact)
                 validate_artifact(temporary/'manifest.json')
                 temporary.rename(target)
+                sync_path(target.parent)
             finally:
                 if temporary.exists(): shutil.rmtree(temporary)
         return identity
@@ -139,7 +173,9 @@ class Registry:
         return self.record(read(self.root/'champion.json')['id'])
 
     def _point(self, identity, reason):
-        self.record(identity)
+        record=self.record(identity)
+        # Also cover a retry after directory publication succeeded but its fsync failed.
+        if record['kind']=='hybrid': sync_candidate(Path(record['manifest']).parent)
         event={'id':identity,'reason':reason,'previous':read(self.root/'champion.json')['id'] if (self.root/'champion.json').exists() else None}
         event_id=uuid.uuid4().hex
         publish(self.root/'history'/(event_id+'.json'),event)

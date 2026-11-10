@@ -47,7 +47,7 @@ class PromotionTests(test_registry.RegistryTests):
         self.assertEqual(original,self.registry.current()['id'])
         self.assertTrue(list((self.registry_root/'evidence').glob('*.json')))
 
-    def prepare_verified_trial(self):
+    def prepare_verified_trial(self, synthetic_at=None, run_seed=100):
         candidate=self.registry.record(self.candidate)
         artifact=candidate['artifact']
         bindings={'candidate_id':self.candidate,'model_sha256':artifact['model_sha256'],'manifest_sha256':self.candidate,
@@ -58,8 +58,11 @@ class PromotionTests(test_registry.RegistryTests):
         for name in ('privacy','simulator','export'):
             log=self.root/(name+'.log'); log.write_text('synthetic test-only verification fixture')
             checks[name]={'passed':True,'path':str(log),'sha256':file_hash(log)}
-        verification=self.root/'verification.json';publish(verification,{'bindings':bindings,'checks':checks})
-        source=self.seed_manifest('promotion'); seeds=read(source);seeds['verification_report']=str(verification);publish(source,seeds)
+        content={'bindings':bindings,'checks':checks}
+        if synthetic_at=='report':content['synthetic']=True
+        elif synthetic_at is not None:checks[synthetic_at]['synthetic']=True
+        verification=self.root/'verification.json';publish(verification,content)
+        source=self.seed_manifest('promotion'); seeds=read(source);seeds['run_seed']=run_seed;seeds['verification_report']=str(verification);publish(source,seeds)
         manifest=create_evaluation(self.candidate,self.registry.current()['id'],source,'promotion')
         report=manifest.parent/'run/report.json';report.parent.mkdir()
         publish(report,self.passing())
@@ -161,3 +164,15 @@ class PromotionTests(test_registry.RegistryTests):
         self.assertEqual(old,registry.current()['id'])
         self.assertTrue(child_pid.exists())
         with self.assertRaises(ProcessLookupError):os.kill(int(child_pid.read_text()),0)
+
+    def test_frozen_synthetic_report_and_each_check_are_rejected(self):
+        old=self.registry.current()['id']
+        for index,location in enumerate(('report','privacy','simulator','export')):
+            with self.subTest(location=location):
+                manifest,report,verification=self.prepare_verified_trial(location,100+index*2000)
+                descriptor=read(manifest.parent/'evaluation.json')
+                self.assertEqual(file_hash(verification),descriptor['verification_sha256'])
+                with patch('hybrid_training.promotion._arena',side_effect=AssertionError('synthetic verification reached authority audit')) as audit:
+                    with self.assertRaisesRegex(ValueError,'test provenance'):self.registry.promote(self.candidate,report,verification)
+                    audit.assert_not_called()
+                self.assertEqual(old,self.registry.current()['id'])

@@ -61,3 +61,71 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(original,self.registry.current()['id'])
         self.assertGreaterEqual(len(list((self.registry_root/'history').glob('*.json'))),3)
         with self.assertRaises(ValueError): self.registry.rollback('missing')
+
+    def test_references_publish_only_after_copied_files_and_directories_are_durable(self):
+        import os
+        other=(self.root/'durable-registry').resolve();other.mkdir()
+        (other/'config.json').write_bytes((self.registry_root/'config.json').read_bytes())
+        events=[]; real_fsync=os.fsync;real_replace=os.replace;real_rename=Path.rename
+        def synced(fd):
+            info=os.fstat(fd)
+            for path in [other,*other.rglob('*')]:
+                if path.exists() and (path.stat().st_dev,path.stat().st_ino)==(info.st_dev,info.st_ino):
+                    events.append(('sync',str(path.relative_to(other))));break
+            return real_fsync(fd)
+        def replaced(source,target):
+            events.append(('publish',str(Path(target).relative_to(other))))
+            return real_replace(source,target)
+        def renamed(source,target):
+            events.append(('rename',str(source.relative_to(other)),str(target.relative_to(other))))
+            return real_rename(source,target)
+        with patch('hybrid_training.registry.os.fsync',side_effect=synced), patch('hybrid_training.registry.os.replace',side_effect=replaced), patch.object(Path,'rename',renamed):
+            registry=Registry(other)
+            initial=list(events)
+            candidate=registry.register_candidate(self.artifact)
+            published=list(events)
+            registry._point(candidate,'test-only durability pointer')
+        freeze=initial.index(('publish','frozen.json'))
+        baseline=registry.frozen['baseline']
+        binary=Path(baseline['engine']['Executable']).relative_to(other)
+        self.assertIn(('sync',str(binary)),initial[:freeze])
+        self.assertIn(('sync',str(binary.parent)),initial[:freeze])
+        self.assertIn(('sync','binaries'),initial[:freeze])
+        for sha in baseline['source_files'].values(): self.assertIn(('sync','sources/'+sha),initial[:freeze])
+        self.assertIn(('sync','sources'),initial[:freeze])
+        rename=next(i for i,event in enumerate(published) if event[0]=='rename')
+        temporary=published[rename][1]
+        self.assertIn(('sync',temporary+'/weights.bin'),published[:rename])
+        self.assertIn(('sync',temporary),published[:rename])
+        self.assertIn(('sync','candidates'),published[rename+1:])
+        pointer=max(i for i,event in enumerate(events) if event==('publish','champion.json'))
+        self.assertLess(rename,pointer)
+        self.assertIn(('sync','candidates'),events[rename+1:pointer])
+
+    def test_failed_artifact_sync_cannot_publish_and_retry_finishes_durability(self):
+        import os
+        real_fsync=os.fsync
+        candidate_root=self.registry_root/'candidates'
+        artifact=export_model(HybridNet(),BoundaryNet(),{'purpose':'durability crash test'},self.root/'crash-model')
+        identity=digest(canonical(json.loads(artifact.read_text())))
+        old=self.registry.current()['id']
+        def fail_weights(fd):
+            info=os.fstat(fd)
+            if any(path.stat().st_ino==info.st_ino for path in candidate_root.glob('.candidate-*/weights.bin')):
+                raise OSError('injected weights sync failure')
+            real_fsync(fd)
+        with patch('hybrid_training.registry.os.fsync',side_effect=fail_weights):
+            with self.assertRaisesRegex(OSError,'weights sync'):self.registry.register_candidate(artifact)
+        self.assertFalse((candidate_root/identity).exists());self.assertEqual(old,self.registry.current()['id'])
+        def fail_rename_commit(fd):
+            if (candidate_root/identity).exists() and os.fstat(fd).st_ino==candidate_root.stat().st_ino:
+                raise OSError('injected directory sync failure')
+            real_fsync(fd)
+        with patch('hybrid_training.registry.os.fsync',side_effect=fail_rename_commit):
+            with self.assertRaisesRegex(OSError,'directory sync'):self.registry.register_candidate(artifact)
+        self.assertEqual(old,self.registry.current()['id'])
+        # A retry must sync a complete-but-not-yet-durable existing directory too.
+        with patch('hybrid_training.registry.os.fsync',side_effect=fail_rename_commit):
+            with self.assertRaisesRegex(OSError,'directory sync'):self.registry.register_candidate(artifact)
+        self.assertEqual(identity,self.registry.register_candidate(artifact))
+        self.assertEqual(old,self.registry.current()['id'])
