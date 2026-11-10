@@ -19,7 +19,7 @@ def make_ablation_manifests(base_manifest: dict, output: Path) -> list[Path]:
     artifact=validate_artifact(artifact_path)
     if any(type(base_manifest[k]) is not int or base_manifest[k]<0 for k in ('seed','decision_ms','stop_ms','max_simulations')):
         raise ValueError('invalid fixed budget/seed')
-    if not 20<base_manifest['decision_ms']<=base_manifest['stop_ms']<=3500: raise ValueError('invalid decision budget')
+    if not (20<base_manifest['decision_ms']<=3000 and base_manifest['decision_ms']<=base_manifest['stop_ms']<=3500): raise ValueError('invalid decision budget')
     output=Path(output).resolve();output.mkdir(parents=True,exist_ok=False)
     arms=[('baseline',{}),('uniform-beliefs',{'belief_mode':'uniform'}),
           ('uniform-continuations',{'continuation_mode':'uniform'}),('score-value',{'value_mode':'score'}),

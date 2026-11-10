@@ -16,6 +16,6 @@ void test_model() {
     CHECK("masked probability",p.policy[1]==.5f && p.policy[4]==.5f);
     CHECK("stable sigmoid",p.win==1);
     raw.policy_logits[0]=std::numeric_limits<float>::quiet_NaN();
-    CHECK("invalid logits fail for caller fallback",rejects([&]{normalize_output(raw,mask);}));
+    CHECK("invalid logits fail for caller fallback",rejects([&]{(void)normalize_output(raw,mask);}));
 }
 }

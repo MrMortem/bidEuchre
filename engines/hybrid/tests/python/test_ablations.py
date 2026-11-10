@@ -24,3 +24,11 @@ class AblationTests(unittest.TestCase):
     self.assertEqual('runtime',a['ablation_kind']);self.assertFalse(a['can_promote'])
     self.assertIn(a['search_mode'],('root','information-tree'));self.assertIn(a['leaf_mode'],('policy','double-dummy'))
    with self.assertRaises(FileExistsError):make_ablation_manifests(base,Path(d)/'arms')
+
+ def test_rejects_budget_above_native_cap(self):
+  with tempfile.TemporaryDirectory() as d:
+   artifact=export_model(HybridNet(),BoundaryNet(),{},Path(d)/'model')
+   with self.assertRaisesRegex(ValueError,'decision budget'):
+    make_ablation_manifests({'artifact':str(artifact),'seed':1,'decision_ms':3001,
+                            'stop_ms':3500,'max_simulations':7},Path(d)/'arms')
+   self.assertFalse((Path(d)/'arms').exists())
