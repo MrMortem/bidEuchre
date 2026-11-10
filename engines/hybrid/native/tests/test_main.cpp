@@ -1,8 +1,9 @@
 #include "test_support.hpp"
 #include <iostream>
-namespace hybrid::test { void test_observation(); }
+namespace hybrid::test { void test_observation(); void test_model(); }
 int main() {
     try {
+        hybrid::test::test_model();
         hybrid::test::test_observation();
         hybrid::test::test_schema();
         hybrid::test::test_match();

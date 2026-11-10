@@ -27,3 +27,4 @@ engines/hybrid/build/
 engines/hybrid/state/
 engines/hybrid/data/
 engines/hybrid/.venv/
+engines/hybrid/python/*.egg-info/
