@@ -8,6 +8,24 @@ internal static class ArenaProcessTests
         ["--arena-test-child", mode], AppContext.BaseDirectory, "", null);
     private static readonly BudgetSpec Budget = new(100, 150, 300, 3000);
 
+    public static async Task BackendDiagnostics()
+    {
+        foreach (var backend in new[] { "hybrid", "hybrid-policy", "baseline", "immediate", "missing", "wronghash" })
+        {
+            var engine = Child("backend-" + backend) with { ExpectedBackend = "hybrid", ModelSha256 = new string('a', 64) };
+            await using var driver = new ArenaProcessDriver(engine, new());
+            await driver.StartAsync();
+            var game = new GameEngine(["a", "b", "c", "d"], 1); game.StartGame(0);
+            if (backend is "hybrid" or "hybrid-policy")
+            {
+                await driver.ChooseActionAsync(game.CreateView(1), 1);
+                Assert.Equal(backend, driver.LastBackend!);
+                Assert.Equal(new string('a', 64), driver.LastModelSha256!);
+            }
+            else await Assert.ThrowsAsync<Exception>(async () => await driver.ChooseActionAsync(game.CreateView(1), 1));
+        }
+    }
+
     public static async Task FailClosed()
     {
         foreach (var mode in new[] { "info", "stderr", "exit", "illegal", "late", "longline", "startup" })

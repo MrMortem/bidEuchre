@@ -11,6 +11,7 @@ public static class MatchRunner
         string tracePath, CancellationToken cancellationToken)
     {
         var drivers = new List<IBotDriver>();
+        var backends = new HashSet<string>();
         GameEngine? game = null;
         StreamWriter? trace = null;
         MatchStatus status = MatchStatus.Failed;
@@ -48,8 +49,13 @@ public static class MatchRunner
                 var decisionStarted = Stopwatch.GetTimestamp();
                 var action = await drivers[seat].ChooseActionAsync(view, seat, cancellationToken);
                 var elapsedDecisionMs = Stopwatch.GetElapsedTime(decisionStarted).TotalMilliseconds;
+                var processDriver = drivers[seat] as ArenaProcessDriver;
+                var backend = processDriver?.LastBackend;
+                var modelSha256 = processDriver?.LastModelSha256;
+                ArenaProcessDriver.ValidateDiagnostics(spec.Seats[seat], backend, modelSha256);
+                if (backend is not null) backends.Add(backend);
                 ActionApplier.Apply(game, seat, action);
-                await Write(new { kind = "action", seat, action = FixtureExporter.ActionId(action), elapsedDecisionMs, state = FixtureExporter.Project(game, null, true) });
+                await Write(new { kind = "action", seat, action = FixtureExporter.ActionId(action), elapsedDecisionMs, backend, modelSha256, state = FixtureExporter.Project(game, null, true) });
                 if (game.Phase is GamePhase.HandComplete or GamePhase.GameComplete)
                 {
                     for (var observer = 0; observer < 4; observer++)
@@ -84,7 +90,7 @@ public static class MatchRunner
             }
         }
         return new MatchResult(spec, status, status == MatchStatus.Complete ? game?.GameWinner : null,
-            game?.Scores.ToArray() ?? [0, 0], game?.HandHistory.Count ?? 0, error, tracePath);
+            game?.Scores.ToArray() ?? [0, 0], game?.HandHistory.Count ?? 0, error, tracePath) { EffectiveBackends = backends.Order().ToArray() };
 
         async Task Write(object value) => await trace!.WriteLineAsync(JsonSerializer.Serialize(value).AsMemory(), cancellationToken);
     }

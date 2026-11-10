@@ -65,6 +65,8 @@ class ExportTests(unittest.TestCase):
             ('rules',lambda m:m.__setitem__('rule_sha256','0'*64)),
             ('hash',lambda m:m.__setitem__('model_sha256','0'*64)),
             ('byte order',lambda m:m.__setitem__('byte_order','big')),
+            ('boolean tensor offset',lambda m:m['tensors'][0].__setitem__('offset',False)),
+            ('boolean tensor shape',lambda m:m['tensors'][6].__setitem__('shape',[True,128])),
             ('shape',lambda m:m['tensors'][0].__setitem__('shape',[256,1187])),
             ('offset',lambda m:m['tensors'][1].__setitem__('offset',0)),
             ('activation',lambda m:m['tensors'][0].__setitem__('activation','sigmoid')),

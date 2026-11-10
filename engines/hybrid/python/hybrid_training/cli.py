@@ -1,4 +1,4 @@
-"""Bounded local generation/training commands. No promotion or live champion swap."""
+"""Bounded local training and frozen full-match evaluation/registry commands."""
 import argparse
 from dataclasses import asdict, replace
 import json
@@ -26,25 +26,56 @@ def parser():
              ('checkpoint-seconds',float,300),('learning-rate',float,.0003),('batch-size',int,64),
              ('max-updates',int,1000),('generation-matches',int,1),('execution-mode',str,'seeded_timed')]:
             command.add_argument('--'+key,type=kind,default=default)
+    for name in ('register','current','promote','rollback'):
+        command=commands.add_parser(name)
+        command.add_argument('--registry',type=Path,required=True)
+        if name=='register': command.add_argument('--manifest',type=Path,required=True)
+        if name in ('promote','rollback'): command.add_argument('--candidate',required=True)
+        if name=='promote':
+            command.add_argument('--gate-report',type=Path,required=True)
+            command.add_argument('--verification-report',type=Path,required=True)
+    command=commands.add_parser('create-evaluation')
+    command.add_argument('--candidate',required=True); command.add_argument('--incumbent',required=True)
+    command.add_argument('--seed-manifest',type=Path,required=True)
+    command.add_argument('--mode',choices=('screening','promotion'),required=True)
+    command=commands.add_parser('evaluate')
+    command.add_argument('--manifest',type=Path,required=True); command.add_argument('--arena',type=Path,required=True)
+    command.add_argument('--duration-seconds',type=int,default=1800)
     return result
+
+
+def _registry_command(args):
+    from .registry import Registry
+    from .promotion import create_evaluation, evaluate_and_report
+    if args.command=='create-evaluation':
+        return {'manifest':str(create_evaluation(args.candidate,args.incumbent,args.seed_manifest,args.mode))}
+    if args.command=='evaluate':
+        return {'report':str(evaluate_and_report(args.manifest,args.arena,args.duration_seconds))}
+    registry=Registry(args.registry)
+    if args.command=='register': return {'candidate':registry.register_candidate(args.manifest)}
+    if args.command=='promote': registry.promote(args.candidate,args.gate_report,args.verification_report)
+    if args.command=='rollback': registry.rollback(args.candidate)
+    return registry.current()
 
 
 def main(argv=None):
     args=parser().parse_args(argv)
     signal.signal(signal.SIGTERM,lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
-    fields=TrainConfig.__dataclass_fields__
-    config=TrainConfig(**{key:getattr(args,key) for key in fields if hasattr(args,key)})
-    output=args.output.resolve(); started=time.monotonic()
-    if args.command=='resume':
-        state=load_checkpoint(output/'checkpoint.pt')
-        # Restore semantic controls from the checkpoint. CLI resume overrides only
-        # invocation budgets, never batch partitions, population or device/RNG.
-        config=TrainConfig(**dict(state['config'],duration_seconds=args.duration_seconds,max_updates=args.max_updates,
-                                  max_memory_bytes=args.max_memory_bytes,max_disk_bytes=args.max_disk_bytes,
-                                  checkpoint_seconds=args.checkpoint_seconds))
-    replay_path=args.replay or (Path(state['replay_root']) if args.command=='resume' and state.get('replay_root') else output/'replay')
-    replay=ReplayStore(replay_path,config.max_disk_bytes)
     try:
+        if args.command in ('register','current','promote','rollback','create-evaluation','evaluate'):
+            print(json.dumps(_registry_command(args),sort_keys=True)); return 0
+        fields=TrainConfig.__dataclass_fields__
+        config=TrainConfig(**{key:getattr(args,key) for key in fields if hasattr(args,key)})
+        output=args.output.resolve(); started=time.monotonic()
+        if args.command=='resume':
+            state=load_checkpoint(output/'checkpoint.pt')
+            # Restore semantic controls from the checkpoint. CLI resume overrides only
+            # invocation budgets, never batch partitions, population or device/RNG.
+            config=TrainConfig(**dict(state['config'],duration_seconds=args.duration_seconds,max_updates=args.max_updates,
+                                      max_memory_bytes=args.max_memory_bytes,max_disk_bytes=args.max_disk_bytes,
+                                      checkpoint_seconds=args.checkpoint_seconds))
+        replay_path=args.replay or (Path(state['replay_root']) if args.command=='resume' and state.get('replay_root') else output/'replay')
+        replay=ReplayStore(replay_path,config.max_disk_bytes)
         if not _capacity(config,replay,output):
             result={'status':'capacity','export_manifest':None,'rows_seen':0,'updates':0}
         elif args.command=='benchmark-device':
@@ -79,7 +110,7 @@ def main(argv=None):
                 (output/'report.json').write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
         print(json.dumps(result,sort_keys=True))
         return 0 if result.get('status','complete') in ('complete','duration') else 2
-    except (ValueError,OSError,MemoryError) as exc:
+    except (ValueError,OSError,MemoryError,KeyError,TypeError,subprocess.SubprocessError) as exc:
         print(json.dumps({'status':'failed','reason':str(exc)}),file=sys.stderr)
         return 2
 

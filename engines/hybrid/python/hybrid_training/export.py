@@ -37,6 +37,10 @@ def validate_artifact(manifest):
         expected={'version':1,'architecture':'hybrid-mlp-v1','dtype':'float32','byte_order':'little',
                   'weights':'weights.bin','schema_sha256':schema.SCHEMA_SHA256,'rule_sha256':schema.RULE_SHA256}
         if any(m.get(k)!=v for k,v in expected.items()): raise ValueError('incompatible artifact')
+        for tensor in m['tensors']:
+            numbers=[tensor['offset'],tensor['byte_length'],*tensor['shape']]
+            if any(type(value) not in (int,float) or not math.isfinite(value) or int(value)!=value for value in numbers):
+                raise ValueError('invalid numeric tensor metadata')
         if m['tensors']!=tensor_specs(): raise ValueError('invalid tensor layout')
         if not _hex(m['model_sha256']) or not _hex(m['source_sha256']): raise ValueError('invalid fingerprint')
         provenance=m['provenance']

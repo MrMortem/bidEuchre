@@ -7,6 +7,10 @@ namespace BidEuchre.Arena;
 
 public static class TournamentRunner
 {
+    // A no-play re-audit may recover durable attempt bookkeeping and refresh reports.
+    public static Task<TournamentReport> AuditAsync(ArenaManifest manifest, string directory) =>
+        RunAsync(manifest, directory, TimeSpan.FromSeconds(1), new CancellationToken(canceled: true));
+
     public static async Task<TournamentReport> RunAsync(ArenaManifest manifest, string directory, TimeSpan maxDuration,
         CancellationToken cancellationToken)
     {
@@ -107,6 +111,7 @@ public static class TournamentRunner
     {
         int count = 0;
         double maximum = 0;
+        var backends = new HashSet<string>();
         foreach (var line in File.ReadLines(result.TracePath))
         {
             using var row = JsonDocument.Parse(line);
@@ -115,9 +120,24 @@ public static class TournamentRunner
             if (!row.RootElement.TryGetProperty("elapsedDecisionMs", out var timing) || !timing.TryGetDouble(out var elapsed)
                 || !double.IsFinite(elapsed) || elapsed < 0 || elapsed > result.Spec.Budget.StopMs)
                 throw new InvalidDataException($"Decision exceeded frozen StopMs ({result.Spec.Budget.StopMs}) or has missing timing.");
+            if (!row.RootElement.TryGetProperty("seat", out var seatElement) || !seatElement.TryGetInt32(out var seat) || seat is < 0 or > 3)
+            {
+                if (result.Spec.Seats.Any(e => e.ExpectedBackend is not null)) throw new InvalidDataException("Missing diagnostic seat.");
+            }
+            else
+            {
+                string? backend = row.RootElement.TryGetProperty("backend", out var backendElement) ? backendElement.GetString() : null;
+                string? hash = row.RootElement.TryGetProperty("modelSha256", out var hashElement) ? hashElement.GetString() : null;
+                if (backend is not null) backends.Add(backend);
+                try { ArenaProcessDriver.ValidateDiagnostics(result.Spec.Seats[seat], backend, hash); }
+                catch (BidEuchre.Protocol.ProtocolException exception) { throw new InvalidDataException(exception.Message); }
+            }
             count++;
             maximum = Math.Max(maximum, elapsed);
         }
+        if (requireDecisions && result.Spec.Seats.Any(e => e.ExpectedBackend is not null)
+            && !backends.Order().SequenceEqual(result.EffectiveBackends))
+            throw new InvalidDataException("Effective backend summary differs from trace diagnostics.");
         if (requireDecisions && count == 0) throw new InvalidDataException("Complete trace contains no decisions.");
         return (count, maximum);
     }

@@ -54,7 +54,7 @@ int main(int argc,char** argv) {
         if(isWorker)return worker(workerDelay);
         if(manifest.empty())if(auto env=std::getenv("HYBRID_MODEL"))manifest=env;
         std::optional<FrozenModel> model;std::string hash="none";
-        try {model=FrozenModel::load(manifest);std::ifstream file(manifest);std::string data((std::istreambuf_iterator<char>(file)),{});hash=beu::json::parse(data).at("model_sha256").string();}catch(const std::exception&){model.reset();}
+        try {model=FrozenModel::load(manifest);hash=model->model_sha256();}catch(const std::exception&){model.reset();}
         BaselineProcess baseline(executable(argv[0]),workerDelay);SeatMemory memory;std::optional<SeatObservation> observation;
         std::optional<ActionId> cachedAction;std::string cachedPosition,cachedInfo;
         SearchHooks hooks;

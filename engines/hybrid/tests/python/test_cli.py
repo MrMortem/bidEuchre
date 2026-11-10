@@ -9,6 +9,13 @@ from hybrid_training.cli import parser
 from hybrid_training.device import choose_device
 
 class CliTests(unittest.TestCase):
+    def test_invalid_config_and_resume_errors_are_structured(self):
+        for args in [('train','--workers','0'),('resume','--output','/missing/task12-checkpoint')]:
+            result=subprocess.run([sys.executable,'-m','hybrid_training.cli',*args],capture_output=True,text=True)
+            self.assertEqual(2,result.returncode)
+            self.assertEqual('failed',json.loads(result.stderr)['status'])
+            self.assertNotIn('Traceback',result.stderr)
+
     def test_commands_and_bounded_defaults(self):
         for command in ('generate','train','cycle','benchmark-device','resume'):
             args=parser().parse_args([command])

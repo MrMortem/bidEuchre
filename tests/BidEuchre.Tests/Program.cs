@@ -10,6 +10,8 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("ArenaAuditNeverLaunchesAndRechecksDiagnostics", ArenaResumeTests.AuditNeverLaunchesAndRechecksDiagnostics),
+    ("ArenaBackendDiagnostics", ArenaProcessTests.BackendDiagnostics),
     ("StartedAttemptCrashRetainsLateEvidence", ArenaResumeTests.StartedAttemptCrashRetainsLateEvidence),
     ("StratifiedBootstrapIsDeterministic", () => Run(ArenaStatisticsTests.StratifiedBootstrapIsDeterministic)),
     ("BoundedTournamentResumesAndRetainsFailures", ArenaResumeTests.BoundedTournamentResumesAndRetainsFailures),

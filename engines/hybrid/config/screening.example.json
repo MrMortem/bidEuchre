@@ -1,0 +1,51 @@
+{
+  "registry_root": "/absolute/path/to/registry",
+  "baseline": {
+    "executable": "/absolute/path/to/engines/cpp-heuristic/build/bideuchre-cpp-heuristic",
+    "arguments": [],
+    "source_files": [
+      "/absolute/path/to/engines/cpp-heuristic/src/bot.cpp",
+      "/absolute/path/to/engines/cpp-heuristic/src/bot.hpp",
+      "/absolute/path/to/engines/cpp-heuristic/src/game.cpp",
+      "/absolute/path/to/engines/cpp-heuristic/src/game.hpp",
+      "/absolute/path/to/engines/cpp-heuristic/src/main.cpp"
+    ]
+  },
+  "hybrid": {
+    "executable": "/absolute/path/to/engines/hybrid/build/bideuchre-hybrid",
+    "arguments": [
+      "--decision-ms",
+      "3000",
+      "--stop-ms",
+      "3500"
+    ]
+  },
+  "arena": "/absolute/path/to/src/BidEuchre.Arena/bin/Debug/net10.0/BidEuchre.Arena",
+  "budget": {
+    "DecisionMs": 3000,
+    "StopMs": 3500,
+    "ProcessMs": 5000,
+    "StartupMs": 5000
+  },
+  "conditions": [
+    {
+      "Id": "baseline-partner-opponents",
+      "PartnerId": "baseline",
+      "Opponent0Id": "baseline",
+      "Opponent1Id": "baseline"
+    }
+  ],
+  "resources": {
+    "workers": 1,
+    "training_processes": 0,
+    "max_memory_bytes": 2147483648,
+    "max_disk_bytes": 5368709120,
+    "max_seconds": 1800,
+    "device": "cpu"
+  },
+  "run_seed": 10000,
+  "start_index": 0,
+  "primary_blocks": 1,
+  "replacement_blocks": 1,
+  "bootstrap_seed": 271828
+}

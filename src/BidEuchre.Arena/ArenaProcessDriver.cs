@@ -31,6 +31,18 @@ public sealed class ArenaProcessDriver : IBotDriver
         this.budget = budget;
     }
 
+    public string? LastBackend { get; private set; }
+    public string? LastModelSha256 { get; private set; }
+
+    internal static void ValidateDiagnostics(EngineSpec engine, string? backend, string? hash)
+    {
+        if (engine.ExpectedBackend is null) return;
+        bool matches = engine.ExpectedBackend == "hybrid" ? backend is "hybrid" or "hybrid-policy" : backend == engine.ExpectedBackend;
+        if (!matches || (engine.ModelSha256 is not null && hash != engine.ModelSha256)
+            || (engine.ExpectedBackend == "hybrid" && string.IsNullOrEmpty(engine.ModelSha256)))
+            throw new ProtocolException("Missing or mismatched backend/model diagnostics.");
+    }
+
     public string StderrTail
     {
         get
@@ -83,11 +95,24 @@ public sealed class ArenaProcessDriver : IBotDriver
         await OperationAsync(budget.ProcessMs, async token =>
         {
             await SendAsync("position " + PositionCodec.Encode(new BotPosition(seat, view)), token);
+            LastBackend = null; LastModelSha256 = null;
             await SendAsync("go", token);
             while (true)
             {
                 var line = await ReadLineAsync(token);
-                if (line.Length == 0 || line.StartsWith("info ", StringComparison.OrdinalIgnoreCase)) continue;
+                if (line.Length == 0) continue;
+                if (line.StartsWith("info ", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var field in line.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    {
+                        if (field.StartsWith("backend=")) LastBackend = field[8..];
+                        if (field.StartsWith("model_sha256=")) LastModelSha256 = field[13..];
+                    }
+                    // Reject an unexpected fallback even if a later info line would conceal it.
+                    if (LastBackend is not null) ValidateDiagnostics(spec, LastBackend, LastModelSha256);
+                    continue;
+                }
+                ValidateDiagnostics(spec, LastBackend, LastModelSha256);
                 result = BotActionNotation.Parse(line);
                 // Validate against the private legal view before handing it to the authority.
                 if (!FixtureExporter.LegalActionIds(view).Contains(FixtureExporter.ActionId(result)))

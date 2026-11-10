@@ -38,6 +38,11 @@ internal static class ArenaTestChild
             }
             else if (line == "go")
             {
+                if (mode.StartsWith("backend-") && mode != "backend-missing")
+                {
+                    var backend = mode[8..];
+                    Console.WriteLine("info backend=" + (backend == "wronghash" ? "hybrid" : backend) + " model_sha256=" + new string(backend == "wronghash" ? 'b' : 'a', 64));
+                }
                 if (mode == "info") { while (true) Console.WriteLine("info unlimited"); }
                 if (mode == "stderr") { while (true) Console.Error.Write(new string('x', 8192)); }
                 if (mode == "exit") { Console.Write("bestaction bi"); return; }

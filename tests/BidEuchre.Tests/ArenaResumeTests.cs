@@ -14,6 +14,34 @@ internal static class ArenaResumeTests
         return ArenaManifest.Create("schema", "source", "rules", candidate, incumbent, [candidate, incumbent], budget ?? new(),
             [new("fixed", incumbent.Id, incumbent.Id, incumbent.Id)], 1, 1, 921, 3);
     }
+    public static async Task AuditNeverLaunchesAndRechecksDiagnostics()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "arena-audit-" + Guid.NewGuid().ToString("N"));
+        var manifest = LiveManifest("exit");
+        var candidate = manifest.Engines[0] with { ExpectedBackend = "hybrid", ModelSha256 = new string('a',64) };
+        var incumbent = manifest.Engines[1];
+        manifest = ArenaManifest.Create("schema", "source", "rules", candidate, incumbent, [candidate,incumbent], new(),
+            [new("fixed", incumbent.Id, incumbent.Id, incumbent.Id)], 1, 1, 921, 3);
+        try
+        {
+            var empty = await TournamentRunner.AuditAsync(manifest, path);
+            Assert.Equal(0, empty.Attempts);
+            Assert.Equal(0, Directory.GetFiles(Path.Combine(path,"started-attempts")).Length);
+            Assert.False(empty.CanPromote);
+            using (var store = RunStore.Open(path, manifest))
+            {
+                var trace = Path.Combine(path,"traces","synthetic-backend-fixture.jsonl");
+                File.WriteAllText(trace, JsonSerializer.Serialize(new { kind="action", seat=0, elapsedDecisionMs=1, backend="hybrid-policy", modelSha256=new string('b',64) }) + "\n");
+                store.Commit(ArenaStatisticsTests.SyntheticResult(manifest.Legs[0],0) with { TracePath=trace, EffectiveBackends=["hybrid-policy"] });
+            }
+            var tainted = await TournamentRunner.AuditAsync(manifest, path);
+            Assert.Equal(0, tainted.Attempts);
+            Assert.True(tainted.GateErrors.Any(e => e.Contains("diagnostics")));
+            Assert.False(tainted.CanPromote);
+        }
+        finally { Directory.Delete(path,true); }
+    }
+
     public static async Task BoundedTournamentResumesAndRetainsFailures()
     {
         var path = Path.Combine(Path.GetTempPath(), "arena-live-" + Guid.NewGuid().ToString("N"));

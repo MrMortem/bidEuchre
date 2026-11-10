@@ -58,7 +58,7 @@ FrozenModel FrozenModel::load(const std::filesystem::path& manifest) {
     number(m.at("byte_length"),offset);
     auto data=read(manifest.parent_path()/"weights.bin",offset);require(data.size()==offset,"invalid weight byte length");
     require(sha256(std::as_bytes(std::span(data.data(),data.size())))==m.at("model_sha256").string(),"weight SHA256 mismatch");
-    FrozenModel model;offset=0;
+    FrozenModel model;model.model_sha256_=sha256(std::as_bytes(std::span(data.data(),data.size())));offset=0;
     auto floats=[&](std::size_t count) {
         std::vector<float> values;values.reserve(count);
         for(std::size_t i=0;i<count;++i) {
