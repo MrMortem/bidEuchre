@@ -1,8 +1,12 @@
 import json
+import os
+import subprocess
+from unittest import mock
 from pathlib import Path
 import sys
 import shlex
 import tempfile
+import time
 import unittest
 from hybrid_training.worker import run_job, JobResult
 
@@ -60,3 +64,45 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             run_job(job(), WORKER, path)
         self.assertEqual(before, path.read_bytes())
+
+    def test_large_job_nonreading_child_respects_deadline(self):
+        fake = self.script('import time\ntime.sleep(.8)\n')
+        request = job()
+        request['population'][0]['version'] = 'v' * 64000
+        request['duration_seconds'] = .1
+        payload_size = len(json.dumps(request).encode()) + 1
+        self.assertGreater(payload_size, 64000)
+        self.assertLessEqual(payload_size, 65536)
+        # Pipe capacity can grow to 64 KiB on macOS. Saturate the real child
+        # pipe to make constrained/backpressured delivery deterministic.
+        real_popen = subprocess.Popen
+        def saturated_popen(*args, **kwargs):
+            process = real_popen(*args, **kwargs)
+            descriptor = process.stdin.fileno()
+            os.set_blocking(descriptor, False)
+            try:
+                while True:
+                    os.write(descriptor, b' ' * 16384)
+            except BlockingIOError:
+                pass
+            finally:
+                os.set_blocking(descriptor, True)
+            return process
+        started = time.monotonic()
+        with mock.patch('hybrid_training.worker.subprocess.Popen', side_effect=saturated_popen):
+            result = run_job(request, fake, self.root/'blocked-input.jsonl')
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, .6, 'stdin delivery bypassed the job deadline')
+        self.assertEqual('interrupted', result.status)
+        sidecar = json.loads(result.spool_path.with_name(result.spool_path.name+'.status.json').read_text())
+        self.assertEqual('interrupted', sidecar['status'])
+
+    def test_nonobject_protocol_records_persist_failed_status(self):
+        for index, value in enumerate(([], None, 0, 1.5, 'text', True)):
+            with self.subTest(value=value):
+                fake = self.script('import sys\nsys.stdin.readline()\nprint('+repr(json.dumps(value))+')\n')
+                result = run_job(job(), fake, self.root/f'nonobject-{index}.jsonl')
+                self.assertEqual('failed', result.status)
+                sidecar = json.loads(result.spool_path.with_name(result.spool_path.name+'.status.json').read_text())
+                self.assertEqual('failed', sidecar['status'])
+                self.assertIn('object', sidecar['reason'])

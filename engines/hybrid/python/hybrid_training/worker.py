@@ -50,17 +50,29 @@ def run_job(job: dict, worker: Path, spool: Path) -> JobResult:
     with spool.open('xb') as output:
         try:
             process = subprocess.Popen([str(worker)], stdin=subprocess.PIPE,
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            process.stdin.write(payload)
-            process.stdin.close()
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       bufsize=0)
+            os.set_blocking(process.stdin.fileno(), False)
+            sent = 0
             with selectors.DefaultSelector() as select:
+                select.register(process.stdin, selectors.EVENT_WRITE, 'in')
                 select.register(process.stdout, selectors.EVENT_READ, 'out')
                 select.register(process.stderr, selectors.EVENT_READ, 'err')
                 while select.get_map():
                     if time.monotonic() - started >= duration:
                         state, reason = 'interrupted', 'supervisor duration limit'
                         break
-                    for key, _ in select.select(timeout=min(.1, duration)):
+                    remaining = max(0, duration-(time.monotonic()-started))
+                    for key, _ in select.select(timeout=min(.1, remaining)):
+                        if key.data == 'in':
+                            try:
+                                sent += os.write(key.fileobj.fileno(), payload[sent:sent+16384])
+                            except BlockingIOError:
+                                continue
+                            if sent == len(payload):
+                                select.unregister(key.fileobj)
+                                process.stdin.close()
+                            continue
                         chunk = os.read(key.fileobj.fileno(), 65536)
                         if not chunk:
                             select.unregister(key.fileobj)
@@ -78,6 +90,8 @@ def run_job(job: dict, worker: Path, spool: Path) -> JobResult:
                             if len(line) > MAX_LINE:
                                 raise ValueError('row exceeds bound')
                             row = json.loads(line)
+                            if not isinstance(row, dict):
+                                raise ValueError('protocol record must be an object')
                             if footer is not None:
                                 raise ValueError('data after footer')
                             if row.get('type') == 'footer':
@@ -112,6 +126,7 @@ def run_job(job: dict, worker: Path, spool: Path) -> JobResult:
                 if process.poll() is None:
                     process.kill()
                 process.wait()
+                process.stdin.close()
                 process.stdout.close()
                 process.stderr.close()
             try:
