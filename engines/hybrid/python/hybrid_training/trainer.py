@@ -311,6 +311,7 @@ def generate_burst(config: TrainConfig, replay: ReplayStore, output: Path, worke
             # Only the scheduler-owned unfinished spool is discarded. No champion
             # or committed shard is ever evicted to satisfy a capacity limit.
             spool.unlink(missing_ok=True); spool.with_name(spool.name+'.status.json').unlink(missing_ok=True)
+            spool.with_name(spool.name+'.status.json.pending').unlink(missing_ok=True)
             stop=threading.Event(); exceeded=[]; peak=[memory_bytes()]
             def monitor():
                 while not stop.wait(.1):

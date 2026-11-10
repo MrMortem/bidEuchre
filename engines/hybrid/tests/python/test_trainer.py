@@ -101,13 +101,19 @@ class TrainerTests(unittest.TestCase):
             config=TrainConfig(device='cpu',execution_mode='fixed_seeded',duration_seconds=10,max_updates=2)
             captured=[]
             def interrupt(request,worker,spool):
-                captured.append(copy.deepcopy(request)); raise KeyboardInterrupt
+                captured.append(copy.deepcopy(request))
+                # Crash after worker status temporary creation, before replacement.
+                spool.with_name(spool.name+'.status.json.pending').write_text('{\"version\":')
+                raise KeyboardInterrupt
             with patch('hybrid_training.trainer.run_job',side_effect=interrupt):
                 self.assertEqual('interrupted',generate_burst(config,replay,output,WORKER))
             before=load_checkpoint(output/'checkpoint.pt')['pending_job']
             self.assertEqual(captured[0],before)
+            pending_status=output/'pending-match.jsonl.status.json.pending'
+            self.assertTrue(pending_status.exists())
             self.assertEqual('complete',generate_burst(config,replay,output,WORKER))
             after=load_checkpoint(output/'checkpoint.pt')
+            self.assertFalse(pending_status.exists())
             self.assertEqual(1,after['next_job']); self.assertIsNone(after['pending_job'])
             shard=next(p for p in replay.root.iterdir() if p.is_dir())
             self.assertEqual(before['seed'],json.loads((shard/'manifest.json').read_text())['job']['seed'])
