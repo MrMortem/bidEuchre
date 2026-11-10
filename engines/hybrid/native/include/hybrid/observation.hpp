@@ -35,6 +35,10 @@ public:
     SeatObservation observe(const Json& privatePosition);
     void record_own_action(ActionId action);
     void new_game();
+    // Resume an observer's own sanitized state without inventing unknown recall.
+    static SeatMemory from_observation(const SeatObservation&);
+    // Public counters preceding the replayed deal; accepts no private state.
+    static SeatMemory with_public_summary(const PublicSummary&);
     // Chronological actor decisions followed optionally by a final observation.
     // Consecutive duplicate snapshots consume no additional action. Every action
     // is matched to a distinct legal actor decision, never to a terminal view.

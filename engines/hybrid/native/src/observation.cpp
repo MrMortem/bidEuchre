@@ -199,6 +199,9 @@ SeatObservation SeatMemory::observe(const Json& privatePosition) {
     result.legal=legal_mask(result.position); auto nextSerial=serial(result.position);
     auto snapshot=json_stringify(result.position);
     if(previous_) require(previous_->seat==p.seat,"SeatMemory cannot change observer without new_game");
+    if(previous_ && snapshot_==snapshot) {
+        result.recall=recall_; result.summary=summary_; result.features=encode(p,result); return result;
+    }
     bool fresh=!previous_ || serial_!=nextSerial || previous_->hand_number!=p.hand_number;
     if(previous_ && !fresh && (!public_extension(*previous_,p) || (!nextSerial && !private_extension(p,*previous_,recall_)))) fresh=true;
     if(fresh) { recall_={}; action_recorded_=false; if(!nextSerial) ++legacy_epoch_; }
@@ -226,6 +229,14 @@ void SeatMemory::record_own_action(ActionId action) {
     if(action>=13 && action<=36) recall_.sent_exchange=1U<<(action-13);
 }
 void SeatMemory::new_game() { *this=SeatMemory{}; }
+SeatMemory SeatMemory::from_observation(const SeatObservation& observation) {
+    SeatMemory memory; memory.observe(observation.position);
+    memory.recall_=observation.recall; memory.summary_=observation.summary;
+    return memory;
+}
+SeatMemory SeatMemory::with_public_summary(const PublicSummary& summary) {
+    SeatMemory memory; memory.summary_=summary; return memory;
+}
 SeatMemory SeatMemory::from_private_history(const std::vector<Json>& positions,const std::vector<ActionId>& ownActions) {
     SeatMemory memory; std::size_t action=0;
     for(const auto& position:positions) {

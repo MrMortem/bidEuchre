@@ -8,7 +8,7 @@ add_subdirectory("${CMAKE_CURRENT_SOURCE_DIR}/../cpp-heuristic" "${CMAKE_CURRENT
 add_custom_target(hybrid-schema-check
     COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/scripts/generate_schema.py" --check
     VERBATIM)
-add_library(bideuchre_hybrid_lib native/src/model.cpp native/src/integrity.cpp native/src/actions.cpp native/src/json_io.cpp native/src/match.cpp native/src/observation.cpp)
+add_library(bideuchre_hybrid_lib native/src/sampler.cpp native/src/model.cpp native/src/integrity.cpp native/src/actions.cpp native/src/json_io.cpp native/src/match.cpp native/src/observation.cpp)
 target_include_directories(bideuchre_hybrid_lib PUBLIC native/include)
 target_compile_features(bideuchre_hybrid_lib PUBLIC cxx_std_20)
 target_link_libraries(bideuchre_hybrid_lib PUBLIC bideuchre_heuristic_lib)
@@ -26,7 +26,7 @@ add_executable(bideuchre-hybrid-model-check native/src/model_check_main.cpp)
 target_link_libraries(bideuchre-hybrid-model-check PRIVATE bideuchre_hybrid_lib)
 
 if(BUILD_TESTING)
-    add_executable(hybrid-tests native/tests/test_main.cpp native/tests/test_model.cpp native/tests/test_schema.cpp native/tests/test_match.cpp native/tests/test_parity.cpp native/tests/test_observation.cpp native/src/replay_main.cpp)
+    add_executable(hybrid-tests native/tests/test_main.cpp native/tests/test_sampler.cpp native/tests/test_model.cpp native/tests/test_schema.cpp native/tests/test_match.cpp native/tests/test_parity.cpp native/tests/test_observation.cpp native/src/replay_main.cpp)
     target_link_libraries(hybrid-tests PRIVATE bideuchre_hybrid_lib)
     target_compile_definitions(hybrid-tests PRIVATE HYBRID_REPLAY_LIBRARY HYBRID_FIXTURE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../tests/fixtures/hybrid/authority-v1.jsonl")
     set(HYBRID_TRAINING_PYTHON "${CMAKE_CURRENT_SOURCE_DIR}/.venv/bin/python" CACHE FILEPATH "Dedicated hybrid training Python (run install.sh)")
