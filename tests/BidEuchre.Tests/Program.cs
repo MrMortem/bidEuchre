@@ -101,6 +101,17 @@ if (!string.IsNullOrWhiteSpace(cppHeuristicEngine))
             new EngineIdentity("C++ Heuristic Bot", "Bid Euchre Project", "1"))));
 }
 
+var hybridEngine = Environment.GetEnvironmentVariable("BIDEUCHRE_HYBRID_ENGINE");
+if (!string.IsNullOrWhiteSpace(hybridEngine))
+{
+    tests.Add(("Hybrid engine completes normal and solo-contract hands",
+        () => ExternalEngineTests.CompletesHands(
+            hybridEngine, new EngineIdentity("Hybrid Bot", "Bid Euchre Project", "1"),
+            Environment.GetEnvironmentVariable("BIDEUCHRE_HYBRID_ARGUMENTS"))));
+    tests.Add(("Hybrid engine budgets cover slow sampler and delayed baseline",
+        () => ExternalEngineTests.HybridBudgets(hybridEngine)));
+}
+
 var cppStrengthEngine = Environment.GetEnvironmentVariable("BIDEUCHRE_CPP_STRENGTH_ENGINE");
 if (!string.IsNullOrWhiteSpace(cppStrengthEngine))
 {
@@ -1055,10 +1066,10 @@ internal static class ExternalEngineTests
 {
     private static readonly string[] Names = ["South", "West", "North", "East"];
 
-    public static async Task CompletesHands(string launcher, EngineIdentity expectedIdentity)
+    public static async Task CompletesHands(string launcher, EngineIdentity expectedIdentity, string? arguments = null)
     {
         var clients = Enumerable.Range(0, 4)
-            .Select(_ => new EngineProcessClient(launcher))
+            .Select(_ => new EngineProcessClient(launcher, arguments))
             .ToArray();
         try
         {
@@ -1085,6 +1096,24 @@ internal static class ExternalEngineTests
             {
                 await client.DisposeAsync();
             }
+        }
+    }
+
+    public static async Task HybridBudgets(string launcher)
+    {
+        foreach (var arguments in new[] { "--sampler-delay-ms 10000", "--model /missing/model.json --worker-delay-ms 10000" })
+        {
+            await using var client = new EngineProcessClient(launcher, arguments);
+            var startup = System.Diagnostics.Stopwatch.StartNew();
+            await client.StartAsync();
+            Assert.True(startup.ElapsedMilliseconds < 5000, "Hybrid startup exceeded host budget.");
+            await client.NewGameAsync();
+            var game = NewGame(911);
+            var decision = System.Diagnostics.Stopwatch.StartNew();
+            var action = await client.ChooseActionAsync(game.CreateView(1), 1);
+            Assert.True(decision.ElapsedMilliseconds <= 3500, "Hybrid exceeded internal stop budget.");
+            Assert.True(action is BotAction.Pass or BotAction.Bid, "Expected a legal bidding fallback.");
+            Console.WriteLine($"Hybrid host wall clock: {decision.ElapsedMilliseconds} ms ({arguments})");
         }
     }
 
