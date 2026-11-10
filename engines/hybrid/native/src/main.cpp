@@ -1,4 +1,7 @@
 #include "hybrid/search.hpp"
+#include "hybrid/tree_search.hpp"
+#include "hybrid/integrity.hpp"
+#include <unistd.h>
 #include "hybrid/baseline_process.hpp"
 #include "hybrid/actions.hpp"
 #include "hybrid/json_io.hpp"
@@ -25,6 +28,23 @@ std::string executable(char* argv0) {
 #endif
     return std::filesystem::canonical(argv0).string();
 }
+// Resolve once, validate the frozen target, then replace this process. No Python,
+// live training, pointer polling, or command-line overrides are involved.
+int launch_registry(const std::filesystem::path& root) {
+    std::ifstream input(root/"champion.json");if(!input)throw std::invalid_argument("missing registry champion descriptor");
+    std::string text((std::istreambuf_iterator<char>(input)),{});if(text.size()>65536)throw std::invalid_argument("oversized registry descriptor");
+    auto pointer=beu::json::parse(text);const auto& engine=pointer.at("engine");
+    auto target=engine.at("Executable").string();auto cwd=engine.at("WorkingDirectory").string();
+    if(!std::filesystem::path(target).is_absolute() || !std::filesystem::path(cwd).is_absolute())throw std::invalid_argument("registry paths must be absolute");
+    std::ifstream binary(target,std::ios::binary);if(!binary)throw std::invalid_argument("missing frozen binary");
+    std::string bytes((std::istreambuf_iterator<char>(binary)),{});
+    if(sha256(std::as_bytes(std::span(bytes.data(),bytes.size())))!=engine.at("ExecutableSha256").string())throw std::invalid_argument("frozen executable hash mismatch");
+    std::vector<std::string> args{target};
+    for(const auto& item:engine.at("Arguments").array()) {auto arg=item.string();if(arg=="--registry" || arg.find('\0')!=std::string::npos)throw std::invalid_argument("invalid recursive registry command");args.push_back(arg);}
+    if(chdir(cwd.c_str())!=0)throw std::runtime_error("cannot enter frozen working directory");
+    std::vector<char*> argv;for(auto& arg:args)argv.push_back(arg.data());argv.push_back(nullptr);
+    execv(target.c_str(),argv.data());throw std::runtime_error("cannot execute frozen engine");
+}
 int worker(int delayMs) {
     beu::HeuristicBot bot;output("workerready");std::string line;
     while(std::getline(std::cin,line)) {
@@ -39,6 +59,11 @@ int main(int argc,char** argv) {
     using namespace hybrid;
     std::signal(SIGPIPE,SIG_IGN);
     try {
+        if(argc>=2 && std::string(argv[1])=="--registry") {
+            if(argc!=3)throw std::invalid_argument("registry launch forbids configuration overrides");
+            return launch_registry(argv[2]);
+        }
+        bool searchExplicit=false,leafExplicit=false;
         SearchLimits limits;std::string manifest;bool isWorker=false;int workerDelay=0,samplerDelay=0;
         for(int i=1;i<argc;++i) {
             std::string arg=argv[i];auto value=[&](){if(i+1>=argc)throw std::invalid_argument("missing option value");return std::string(argv[++i]);};
@@ -47,6 +72,13 @@ int main(int argc,char** argv) {
             else if(arg=="--decision-ms")limits.decisionMs=std::clamp(std::stoi(value()),0,3000);
             else if(arg=="--stop-ms")limits.stopMs=std::clamp(std::stoi(value()),0,3500);
             else if(arg=="--max-simulations")limits.maxSimulations=std::max(0,std::stoi(value()));
+            else if(arg=="--search-mode"){limits.searchMode=value();searchExplicit=true;}
+            else if(arg=="--leaf-mode"){limits.leafMode=value();leafExplicit=true;}
+            else if(arg=="--belief-mode"){auto mode=value();if(mode!="learned" && mode!="uniform")throw std::invalid_argument("invalid belief mode");limits.learnedBeliefs=mode=="learned";}
+            else if(arg=="--continuation-mode"){auto mode=value();if(mode!="learned" && mode!="uniform")throw std::invalid_argument("invalid continuation mode");limits.learnedPolicy=mode=="learned";}
+            else if(arg=="--value-mode"){auto mode=value();if(mode!="match" && mode!="score")throw std::invalid_argument("invalid value mode");limits.matchValue=mode=="match";}
+            else if(arg=="--observer-queries")limits.observerQueries=std::clamp(std::stoi(value()),0,8);
+            else if(arg=="--observer-query-ms")limits.observerQueryMs=std::clamp(std::stoi(value()),1,100);
             else if(arg=="--worker-delay-ms")workerDelay=std::clamp(std::stoi(value()),0,10000);
             else if(arg=="--sampler-delay-ms")samplerDelay=std::clamp(std::stoi(value()),0,10000);
             else throw std::invalid_argument("unknown engine option");
@@ -55,6 +87,9 @@ int main(int argc,char** argv) {
         if(manifest.empty())if(auto env=std::getenv("HYBRID_MODEL"))manifest=env;
         std::optional<FrozenModel> model;std::string hash="none";
         try {model=FrozenModel::load(manifest);hash=model->model_sha256();}catch(const std::exception&){model.reset();}
+        if(model){if(!searchExplicit)limits.searchMode=model->search_mode();if(!leafExplicit)limits.leafMode=model->leaf_mode();}
+        if(limits.searchMode!="root" && limits.searchMode!="information-tree")throw std::invalid_argument("invalid search mode");
+        if(limits.leafMode!="policy" && limits.leafMode!="double-dummy")throw std::invalid_argument("invalid leaf mode");
         BaselineProcess baseline(executable(argv[0]),workerDelay);SeatMemory memory;std::optional<SeatObservation> observation;
         std::optional<ActionId> cachedAction;std::string cachedPosition,cachedInfo;
         SearchHooks hooks;
@@ -83,7 +118,7 @@ int main(int argc,char** argv) {
                     int first=-1;for(int id=0;id<61;++id)if(o.legal[id]){first=id;break;}if(first<0)throw std::invalid_argument("no legal action");
                     ActionId action=static_cast<ActionId>(first);RootStats stats;stats.seed=limits.seed;std::string backend="immediate";
                     bool useBaseline=!model;
-                    if(model)try {auto result=search.choose(o,memory,*model,limits);action=result.action;stats=result.stats;backend=stats.completedBalancedPass?"hybrid":"hybrid-policy";}catch(const std::exception&){useBaseline=true;}
+                    if(model)try {auto result=limits.searchMode=="information-tree"?InformationTreeSearch{}.choose(o,memory,*model,limits):search.choose(o,memory,*model,limits);action=result.action;stats=result.stats;backend=stats.completedBalancedPass?"hybrid":"hybrid-policy";}catch(const std::exception&){useBaseline=true;}
                     if(useBaseline) {
                         auto deadline=began+std::chrono::milliseconds(std::max(0,std::min(limits.decisionMs,limits.stopMs)-20));
                         if(auto chosen=baseline.choose(o.position,deadline)){action=*chosen;backend="baseline";}else backend="immediate";
@@ -91,6 +126,7 @@ int main(int argc,char** argv) {
                     // All work is synchronous; exactly this dispatch owns stdout.
                     std::ostringstream info;info<<"info backend="<<backend<<" model_sha256="<<hash<<" balanced="<<stats.completedBalancedPass<<" simulations="<<stats.simulations<<" temperature="<<stats.temperature<<" seed="<<stats.seed<<" counts=";
                     for(int id=0;id<61;++id)if(o.legal[id])info<<id<<':'<<stats.counts[id]<<',';
+                    info<<" search_mode="<<limits.searchMode<<" leaf_mode="<<limits.leafMode<<" observer_queries="<<stats.observerQueries<<" observer_fallbacks="<<stats.observerFallbacks<<" tree_visits="<<stats.treeVisits<<" tree_availability="<<stats.treeAvailability<<" dd_evaluations="<<stats.ddEvaluations<<" dd_unknown="<<stats.ddUnknown;
                     info<<" fallback_reason="<<(backend=="immediate"?baseline.fallback_reason():"none");
                     info<<" elapsed_ms="<<std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-began).count();
                     memory.record_own_action(action);baseline.record_own_action(action);cachedAction=action;cachedPosition=positionKey;cachedInfo=info.str();output(cachedInfo);output(format_action(action));

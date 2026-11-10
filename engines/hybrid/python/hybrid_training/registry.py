@@ -143,6 +143,7 @@ class Registry:
             path=self.root/'candidates'/identity/'manifest.json'
             artifact=validate_artifact(path)
             if digest(canonical(artifact))!=identity: raise ValueError('candidate manifest hash mismatch')
+            self._check_modes(artifact)
             result={'id':identity,'kind':'hybrid','artifact':artifact,'manifest':str(path),
                     'engine':dict(self.frozen['hybrid'],Id=identity,ModelSha256=artifact['model_sha256'],ExpectedBackend='hybrid')}
             result['engine']['Arguments']=[*result['engine']['Arguments'],'--model',str(path)]
@@ -150,9 +151,20 @@ class Registry:
             raise ValueError('frozen executable hash mismatch')
         return result
 
+    def _check_modes(self, artifact):
+        arguments=self.frozen['hybrid']['Arguments']
+        for field,default in [('search_mode','root'),('leaf_mode','policy')]:
+            option='--'+field.replace('_','-')
+            if any(x.startswith(option+'=') for x in arguments) or arguments.count(option)>1:
+                raise ValueError('ambiguous engine mode')
+            if option in arguments and arguments.index(option)+1>=len(arguments):raise ValueError('missing engine mode')
+            mode=arguments[arguments.index(option)+1] if option in arguments else default
+            if mode!=artifact.get(field,default): raise ValueError('artifact/engine mode disagreement')
+
     def register_candidate(self, manifest: Path) -> str:
         artifact=validate_artifact(manifest)
         reject_test_provenance(artifact)
+        self._check_modes(artifact)
         identity=digest(canonical(artifact)); target=self.root/'candidates'/identity
         with self.lock():
             if target.exists():
@@ -179,7 +191,9 @@ class Registry:
         event={'id':identity,'reason':reason,'previous':read(self.root/'champion.json')['id'] if (self.root/'champion.json').exists() else None}
         event_id=uuid.uuid4().hex
         publish(self.root/'history'/(event_id+'.json'),event)
-        publish(self.root/'champion.json',dict(event,event=event_id))
+        # One atomic file binds identity to the complete frozen launch command.
+        # Artifact/binary durability barriers precede this final publication.
+        publish(self.root/'champion.json',dict(event,event=event_id,engine=record['engine']))
 
     def promote(self, candidate_id: str, gate_report: Path, verification_report: Path) -> None:
         from .promotion import verify_promotion

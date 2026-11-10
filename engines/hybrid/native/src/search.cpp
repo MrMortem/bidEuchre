@@ -1,5 +1,6 @@
 #include "hybrid/search.hpp"
 #include "hybrid/policy.hpp"
+#include "hybrid/dd_leaf.hpp"
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -34,7 +35,8 @@ SearchResult RootSearch::choose(const SeatObservation& input,const SeatMemory& m
     }
     game["legalActions"]=Json(actions);position["game"]=Json(game);o.position=Json(position);
 
-    const auto deadline=begin+std::chrono::milliseconds(std::max(0,std::min(limits.decisionMs,limits.stopMs)-20));
+    auto deadline=begin+std::chrono::milliseconds(std::max(0,std::min(limits.decisionMs,limits.stopMs)-20));
+    if(limits.deadline)deadline=std::min(deadline,*limits.deadline);
     std::vector<int> legal;for(int i=0;i<61;++i)if(o.legal[i])legal.push_back(i);
     if(legal.empty())throw std::invalid_argument("no legal root action");
     SearchResult result{static_cast<ActionId>(legal.front()),{}};result.stats.seed=limits.seed;
@@ -44,6 +46,8 @@ SearchResult RootSearch::choose(const SeatObservation& input,const SeatMemory& m
     if(Clock::now()>=deadline)return result;
     const int root=beu::parse_position(o.position).seat;
     FrozenPolicy continuation(model);BeliefSampler sampler;Rng rng(limits.seed);
+    auto boundary=[&](const BoundaryFeatures& f){return hooks_.boundary?hooks_.boundary(f):limits.matchValue?sigmoid(model.boundary_logit(f)):sigmoid(4*(f[0]-f[1]));};
+    DoubleDummyLeaf dd(model,boundary);
     auto evaluate=[&](SampledWorld world,int action,std::uint64_t seed)->std::optional<float> {
         world.memories[root]=memory;
         (void)world.memories[root].observe(o.position);
@@ -59,14 +63,19 @@ SearchResult RootSearch::choose(const SeatObservation& input,const SeatMemory& m
                 // This is intentionally before any next deal, and the value API
                 // receives only scores, next dealer and public summary features.
                 auto features=encode_boundary(scored.scoresAfter,(p.dealer+1)%4,root,final.summary);
-                float value=hooks_.boundary?hooks_.boundary(features):sigmoid(model.boundary_logit(features));
+                float value=boundary(features);
                 if(!std::isfinite(value) || value<0 || value>1)throw std::domain_error("invalid boundary value");
                 if(Clock::now()>=deadline)return {};
                 return value;
             }
+            if(limits.leafMode=="double-dummy" && p.phase=="Playing" && p.completed_tricks.size()>=4){
+                auto value=dd.evaluate(world,root,deadline);if(value){++result.stats.ddEvaluations;return value;}++result.stats.ddUnknown;
+            }
             const int actor=p.current_seat;
             auto actorObservation=world.memories[actor].observe(world.match.view(actor));
-            auto probabilities=hooks_.policy?hooks_.policy(actorObservation):continuation.distribution(actorObservation);
+            std::array<float,61> probabilities{};
+            if(limits.learnedPolicy)probabilities=hooks_.policy?hooks_.policy(actorObservation):continuation.distribution(actorObservation);
+            else {int count=std::count(actorObservation.legal.begin(),actorObservation.legal.end(),true);for(int a=0;a<61;++a)probabilities[a]=actorObservation.legal[a]?1.f/count:0;}
             if(Clock::now()>=deadline)return {};
             auto choice=draw(probabilities,actorObservation.legal,random[actor]);
             world.memories[actor].record_own_action(choice);world.match.apply(choice);
@@ -76,7 +85,8 @@ SearchResult RootSearch::choose(const SeatObservation& input,const SeatMemory& m
     std::vector<int> batch=legal;
     while(Clock::now()<deadline) {
         if(limits.maxSimulations && result.stats.simulations+static_cast<int>(batch.size())>*limits.maxSimulations)break;
-        auto sampled=hooks_.sample?hooks_.sample(o,raw.ownership_logits,rng,deadline):sampler.sample(o,raw.ownership_logits,rng,deadline);
+        std::optional<std::array<float,96>> ownership;if(limits.learnedBeliefs)ownership=raw.ownership_logits;
+        auto sampled=hooks_.sample?hooks_.sample(o,ownership,rng,deadline):sampler.sample(o,ownership,rng,deadline);
         if(!std::holds_alternative<SampledWorld>(sampled) || Clock::now()>=deadline)break;
         const auto seed=rng();std::vector<float> values;
         for(int action:batch) {auto v=evaluate(std::get<SampledWorld>(sampled),action,seed);if(!v)break;values.push_back(*v);}

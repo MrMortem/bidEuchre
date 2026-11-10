@@ -37,6 +37,8 @@ def validate_artifact(manifest):
         expected={'version':1,'architecture':'hybrid-mlp-v1','dtype':'float32','byte_order':'little',
                   'weights':'weights.bin','schema_sha256':schema.SCHEMA_SHA256,'rule_sha256':schema.RULE_SHA256}
         if any(m.get(k)!=v for k,v in expected.items()): raise ValueError('incompatible artifact')
+        for field,choices,default in [('search_mode',('root','information-tree'),'root'),('leaf_mode',('policy','double-dummy'),'policy')]:
+            if m.get(field,default) not in choices: raise ValueError('invalid '+field)
         for tensor in m['tensors']:
             numbers=[tensor['offset'],tensor['byte_length'],*tensor['shape']]
             if any(type(value) not in (int,float) or not math.isfinite(value) or int(value)!=value for value in numbers):
@@ -69,7 +71,7 @@ def _provenance():
             sources.extend(encoded+b'\0'+(root/name).read_bytes()+b'\0')
     return revision,_digest(diff+sources),_digest(sources)
 
-def export_model(main, boundary, metadata: dict, destination: Path) -> Path:
+def export_model(main, boundary, metadata: dict, destination: Path, *, search_mode="root", leaf_mode="policy") -> Path:
     """Create destination/manifest.json atomically; refuse to replace a candidate."""
     destination=Path(destination)
     if destination.exists(): raise FileExistsError(destination)
@@ -91,6 +93,7 @@ def export_model(main, boundary, metadata: dict, destination: Path) -> Path:
         data=b''.join(chunks)
         revision,diff,source=_provenance()
         manifest={'version':1,'architecture':'hybrid-mlp-v1','dtype':'float32','byte_order':'little',
+            'search_mode':search_mode,'leaf_mode':leaf_mode,
             'weights':'weights.bin','byte_length':len(data),'tensors':specs,'model_sha256':_digest(data),
             'schema_sha256':schema.SCHEMA_SHA256,'rule_sha256':schema.RULE_SHA256,'source_sha256':source,
             'provenance':{'git_revision':revision,'source_diff_sha256':diff,'metadata':metadata}}

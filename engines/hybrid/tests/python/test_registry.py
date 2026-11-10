@@ -129,3 +129,55 @@ class RegistryTests(unittest.TestCase):
             with self.assertRaisesRegex(OSError,'directory sync'):self.registry.register_candidate(artifact)
         self.assertEqual(identity,self.registry.register_candidate(artifact))
         self.assertEqual(old,self.registry.current()['id'])
+
+    def test_atomic_launch_descriptor_matches_complete_frozen_engine(self):
+        self.registry._point(self.candidate,'unit launch descriptor')
+        pointer=json.loads((self.registry_root/'champion.json').read_text())
+        self.assertEqual(self.registry.current()['engine'],pointer['engine'])
+        self.assertEqual('root',self.registry.record(self.candidate)['artifact']['search_mode'])
+        self.assertEqual('policy',self.registry.record(self.candidate)['artifact']['leaf_mode'])
+
+    def test_mode_mismatch_rejected_before_publication(self):
+        m=json.loads(self.artifact.read_text());m['search_mode']='information-tree'
+        self.artifact.write_text(json.dumps(m))
+        with self.assertRaisesRegex(ValueError,'mode'):self.registry.register_candidate(self.artifact)
+
+    def test_native_registry_launch_exact_arguments_cwd_and_hash(self):
+        import subprocess,hashlib,os
+        native=Path(__file__).resolve().parents[2]/'build/bideuchre-hybrid'
+        script=self.root/'probe';script.write_text('#!/bin/sh\nprintf "cwd=%s\\n" "$PWD"\nprintf "arg=%s\\n" "$@"\n');script.chmod(0o755)
+        descriptor={'Executable':str(script),'ExecutableSha256':hashlib.sha256(script.read_bytes()).hexdigest(),
+                    'WorkingDirectory':str(self.root),'Arguments':['--seed','731','--max-simulations','7','literal space']}
+        (self.root/'champion.json').write_text(json.dumps({'id':'fixture','engine':descriptor}))
+        result=subprocess.run([native,'--registry',self.root],capture_output=True,text=True)
+        self.assertEqual(0,result.returncode,result.stderr)
+        self.assertEqual(['cwd='+str(self.root.resolve()),*['arg='+x for x in descriptor['Arguments']]],result.stdout.splitlines())
+        result=subprocess.run([native,'--registry',self.root,'--seed','9'],capture_output=True,text=True)
+        self.assertNotEqual(0,result.returncode)
+        script.write_text(script.read_text()+'# changed\n')
+        result=subprocess.run([native,'--registry',self.root],capture_output=True,text=True)
+        self.assertNotEqual(0,result.returncode);self.assertIn('hash',result.stderr)
+
+    def test_native_registry_keeps_loaded_a_after_pointer_b(self):
+        import subprocess
+        binary=Path(__file__).resolve().parents[2]/'build/bideuchre-hybrid'
+        config=json.loads((self.registry_root/'config.json').read_text())
+        config['hybrid']['executable']=str(binary)
+        config['hybrid']['arguments']=['--seed','731','--max-simulations','0','--search-mode','root','--leaf-mode','policy']
+        root=self.root/'live-registry';root.mkdir();(root/'config.json').write_text(json.dumps(config))
+        registry=Registry(root);a=registry.register_candidate(self.artifact);registry._point(a,'unit A')
+        process=subprocess.Popen([binary,'--registry',root],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True)
+        def greeting():
+            process.stdin.write('beuci\n');process.stdin.flush();lines=[]
+            while True:
+                line=process.stdout.readline();self.assertTrue(line);lines.append(line)
+                if line.strip()=='beuciok':return ''.join(lines)
+        try:
+            sha=registry.current()['artifact']['model_sha256'];self.assertIn(sha,greeting())
+            other=export_model(HybridNet(),BoundaryNet(),{'purpose':'B'},self.root/'B')
+            b=registry.register_candidate(other);registry._point(b,'unit B')
+            self.assertEqual(b,registry.current()['id']);self.assertIn(sha,greeting())
+            process.communicate('quit\n',timeout=3);self.assertEqual(0,process.returncode)
+        finally:
+            if process.poll() is None:process.kill();process.wait()
+            process.stdin.close();process.stdout.close()

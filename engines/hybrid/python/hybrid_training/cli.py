@@ -34,6 +34,8 @@ def parser():
         if name=='promote':
             command.add_argument('--gate-report',type=Path,required=True)
             command.add_argument('--verification-report',type=Path,required=True)
+    command=commands.add_parser('ablations')
+    command.add_argument('--base-manifest',type=Path,required=True);command.add_argument('--output',type=Path,required=True)
     command=commands.add_parser('create-evaluation')
     command.add_argument('--candidate',required=True); command.add_argument('--incumbent',required=True)
     command.add_argument('--seed-manifest',type=Path,required=True)
@@ -62,6 +64,10 @@ def main(argv=None):
     args=parser().parse_args(argv)
     signal.signal(signal.SIGTERM,lambda *_: (_ for _ in ()).throw(KeyboardInterrupt()))
     try:
+        if args.command=='ablations':
+            from .ablations import make_ablation_manifests
+            paths=make_ablation_manifests(json.loads(args.base_manifest.read_text()),args.output)
+            print(json.dumps({'manifests':[str(p) for p in paths],'can_promote':False}));return 0
         if args.command in ('register','current','promote','rollback','create-evaluation','evaluate'):
             print(json.dumps(_registry_command(args),sort_keys=True)); return 0
         fields=TrainConfig.__dataclass_fields__
