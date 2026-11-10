@@ -21,7 +21,7 @@ struct NormalizedOutput {
 [[nodiscard]] NormalizedOutput normalize_output(const NetworkOutput&,const ActionMask&);
 class FrozenModel {
 public:
-    [[nodiscard]] static FrozenModel load(const std::filesystem::path& manifest);
+    [[nodiscard]] static FrozenModel load(const std::filesystem::path& manifest, const std::string& expectedModel = {}, const std::string& expectedManifest = {});
     [[nodiscard]] const std::string& model_sha256() const { return model_sha256_; }
     [[nodiscard]] const std::string& search_mode() const {return search_mode_;}
     [[nodiscard]] const std::string& leaf_mode() const {return leaf_mode_;}

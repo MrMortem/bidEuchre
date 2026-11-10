@@ -20,6 +20,9 @@ def parser():
         command=commands.add_parser(name)
         command.add_argument('--output',type=Path,default=Path('hybrid-run'))
         command.add_argument('--replay',type=Path)
+        registry=command.add_mutually_exclusive_group()
+        registry.add_argument('--registry',dest='registry_root',help='Frozen population registry (also HYBRID_REGISTRY or state/registry)')
+        registry.add_argument('--no-registry',dest='registry_enabled',action='store_false',help='Explicit isolated bootstrap; ignore environment/default registries')
         command.add_argument('--worker',type=Path,default=Path(__file__).resolve().parents[2]/'build/bideuchre-hybrid-worker')
         for key,kind,default in [('device',str,'auto'),('seed',int,1),('workers',int,2),
              ('max-memory-bytes',int,2<<30),('max-disk-bytes',int,5<<30),('duration-seconds',float,1800),
@@ -79,7 +82,8 @@ def main(argv=None):
             # invocation budgets, never batch partitions, population or device/RNG.
             config=TrainConfig(**dict(state['config'],duration_seconds=args.duration_seconds,max_updates=args.max_updates,
                                       max_memory_bytes=args.max_memory_bytes,max_disk_bytes=args.max_disk_bytes,
-                                      checkpoint_seconds=args.checkpoint_seconds))
+                                      checkpoint_seconds=args.checkpoint_seconds,registry_root=args.registry_root or state['config'].get('registry_root'),
+                                      registry_enabled=True if args.registry_root else state['config'].get('registry_enabled',True) and args.registry_enabled))
         replay_path=args.replay or (Path(state['replay_root']) if args.command=='resume' and state.get('replay_root') else output/'replay')
         replay=ReplayStore(replay_path,config.max_disk_bytes)
         if not _capacity(config,replay,output):

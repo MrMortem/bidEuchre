@@ -43,9 +43,11 @@ void test_search() {
             CHECK("normalized target",std::abs(sum-1)<1e-5);
             auto changed=o.position.object(); auto game=changed.at("game").object(); auto legal=game.at("legalActions").object();
             for(auto& [key,value]:legal) if(value.is_array()) {auto a=value.array();std::reverse(a.begin(),a.end());value=Json(a);}
+            auto players=game.at("players").array();auto own=players[actor].object();auto hand=own.at("cards").array();
+            std::reverse(hand.begin(),hand.end());own["cards"]=Json(hand);players[actor]=Json(own);game["players"]=Json(players);
             game["legalActions"]=Json(legal);changed["game"]=Json(game);auto reordered=memories[actor];auto equivalent=reordered.observe(Json(changed));
             auto repeat=search.choose(equivalent,reordered,model,limits);
-            CHECK("candidate order independent",result.action==repeat.action && result.stats.means==repeat.stats.means && result.stats.counts==repeat.stats.counts);
+            CHECK("card set order independent",result.action==repeat.action && result.stats.means==repeat.stats.means && result.stats.counts==repeat.stats.counts && result.stats.target==repeat.stats.target && result.stats.completedBalancedPass==repeat.stats.completedBalancedPass);
         } else {
             auto before=observations;SearchLimits limits;limits.maxSimulations=10;
             (void)search.choose(o,memories[actor],model,limits);CHECK("forced bypass",before==observations);

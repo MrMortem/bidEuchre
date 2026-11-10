@@ -41,6 +41,17 @@ int launch_registry(const std::filesystem::path& root) {
     if(sha256(std::as_bytes(std::span(bytes.data(),bytes.size())))!=engine.at("ExecutableSha256").string())throw std::invalid_argument("frozen executable hash mismatch");
     std::vector<std::string> args{target};
     for(const auto& item:engine.at("Arguments").array()) {auto arg=item.string();if(arg=="--registry" || arg.find('\0')!=std::string::npos)throw std::invalid_argument("invalid recursive registry command");args.push_back(arg);}
+    const auto* pinnedModel=engine.find("ModelSha256");
+    if(std::find(args.begin(),args.end(),"--model")!=args.end() && (!pinnedModel || pinnedModel->is_null()))
+        throw std::invalid_argument("missing frozen model identity");
+    if(const auto* model=pinnedModel;model && !model->is_null()) {
+        // Registry manifests are published as canonical bytes. The explicit raw
+        // binding avoids reserializing floating metadata in another language.
+        if(pointer.at("id").string()!=engine.at("Id").string() ||
+           engine.at("ManifestSha256").string()!=engine.at("Id").string())throw std::invalid_argument("frozen candidate identity mismatch");
+        if(std::count(args.begin(),args.end(),"--model")!=1)throw std::invalid_argument("missing frozen model argument");
+        args.insert(args.end(),{"--expected-model-sha256",model->string(),"--expected-manifest-sha256",engine.at("ManifestSha256").string()});
+    }
     if(chdir(cwd.c_str())!=0)throw std::runtime_error("cannot enter frozen working directory");
     std::vector<char*> argv;for(auto& arg:args)argv.push_back(arg.data());argv.push_back(nullptr);
     execv(target.c_str(),argv.data());throw std::runtime_error("cannot execute frozen engine");
@@ -64,10 +75,12 @@ int main(int argc,char** argv) {
             return launch_registry(argv[2]);
         }
         bool searchExplicit=false,leafExplicit=false;
-        SearchLimits limits;std::string manifest;bool isWorker=false;int workerDelay=0,samplerDelay=0;
+        SearchLimits limits;std::string manifest,expectedModel,expectedManifest;bool isWorker=false;int workerDelay=0,samplerDelay=0;
         for(int i=1;i<argc;++i) {
             std::string arg=argv[i];auto value=[&](){if(i+1>=argc)throw std::invalid_argument("missing option value");return std::string(argv[++i]);};
-            if(arg=="--baseline-worker")isWorker=true;
+            if(arg=="--expected-model-sha256")expectedModel=value();
+            else if(arg=="--expected-manifest-sha256")expectedManifest=value();
+            else if(arg=="--baseline-worker")isWorker=true;
             else if(arg=="--model")manifest=value();else if(arg=="--seed")limits.seed=std::stoull(value());
             else if(arg=="--decision-ms")limits.decisionMs=std::clamp(std::stoi(value()),0,3000);
             else if(arg=="--stop-ms")limits.stopMs=std::clamp(std::stoi(value()),0,3500);
@@ -86,7 +99,8 @@ int main(int argc,char** argv) {
         if(isWorker)return worker(workerDelay);
         if(manifest.empty())if(auto env=std::getenv("HYBRID_MODEL"))manifest=env;
         std::optional<FrozenModel> model;std::string hash="none";
-        try {model=FrozenModel::load(manifest);hash=model->model_sha256();}catch(const std::exception&){model.reset();}
+        try {model=FrozenModel::load(manifest,expectedModel,expectedManifest);hash=model->model_sha256();}
+        catch(const std::exception&){if(!expectedModel.empty() || !expectedManifest.empty())throw;model.reset();}
         if(model){if(!searchExplicit)limits.searchMode=model->search_mode();if(!leafExplicit)limits.leafMode=model->leaf_mode();}
         if(limits.searchMode!="root" && limits.searchMode!="information-tree")throw std::invalid_argument("invalid search mode");
         if(limits.leafMode!="policy" && limits.leafMode!="double-dummy")throw std::invalid_argument("invalid leaf mode");

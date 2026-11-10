@@ -39,6 +39,20 @@ def validate_gate(report):
         raise ValueError('replacement conditions are not complete and balanced')
 
 
+def _production_budgets(registry, engines, budget):
+    from .registry import adapter_options
+    if budget['DecisionMs']!=3000 or budget['StopMs']!=3500:
+        raise ValueError('promotion requires production decision budgets')
+    for identity in engines:
+        record=registry.record(identity); options=adapter_options(record)
+        if record['kind']=='baseline':
+            if max(20,min(5000,options.get('--play-ms',700)))!=3000:
+                raise ValueError('baseline decision budget differs from production gate: '+identity)
+        elif (max(0,min(3000,options.get('--decision-ms',3000)))!=3000 or
+              max(0,min(3500,options.get('--stop-ms',3500)))!=3500):
+            raise ValueError('hybrid decision budgets differ from production gate: '+identity)
+
+
 def _schedule(registry,candidate_id,incumbent_id,seeds,mode):
     candidate=registry.record(candidate_id); incumbent=registry.record(incumbent_id)
     if candidate['kind']!='hybrid' or candidate_id==incumbent_id: raise ValueError('distinct hybrid candidate required')
@@ -59,6 +73,7 @@ def _schedule(registry,candidate_id,incumbent_id,seeds,mode):
             identity=alias.get(condition[name],condition[name]); engines[identity]=registry.record(identity)['engine']; row[name]=identity
         conditions.append(row)
     if not conditions or len({x['Id'] for x in conditions})!=len(conditions): raise ValueError('unique declared conditions required')
+    if mode=='promotion': _production_budgets(registry,engines,budget)
     blocks=[]; legs=[]
     for index in range(primary+replacement):
         seed=integer(4*(run+start+index)+(3 if mode=='promotion' else 2),'arena seed')
@@ -215,11 +230,7 @@ def verify_promotion(registry, candidate_id, gate_report, verification_report):
     if other.root!=registry.root or descriptor['candidate']!=candidate_id or descriptor['incumbent']!=registry.current()['id'] or descriptor['mode']!='promotion':
         raise ValueError('candidate/incumbent/trial mismatch')
     if gate_report.resolve()!=manifest.parent/'run/report.json' or (manifest.parent/'consumed.json').exists(): raise ValueError('unregistered or spent trial')
-    arguments=registry.record(candidate_id)['engine']['Arguments']
-    for flag,expected in [('--decision-ms',3000),('--stop-ms',3500)]:
-        if flag in arguments and (arguments.count(flag)!=1 or arguments[arguments.index(flag)+1]!=str(expected)):
-            raise ValueError('native decision budgets differ from production gate')
-    if schedule['Budget']['DecisionMs']!=3000 or schedule['Budget']['StopMs']!=3500: raise ValueError('promotion requires production decision budgets')
+    _production_budgets(registry,[e['Id'] for e in schedule['Engines']],schedule['Budget'])
     for leg in schedule['Legs'][::2]:
         path=registry.root/'reservations'/str(leg['Seed'])
         if not path.exists() or path.read_text()!=descriptor['id'] or leg['Seed']%4!=3: raise ValueError('promotion seed reservation mismatch')

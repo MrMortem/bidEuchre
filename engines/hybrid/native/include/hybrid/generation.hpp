@@ -7,6 +7,7 @@ struct PopulationMember {
     std::string id, kind, version;
     std::string modelPath, modelSha256;
     bool previousChampion=false;
+    std::string modelManifestSha256;
 };
 struct GenerationJob {
     std::string jobId, split="train", executionMode="auto";

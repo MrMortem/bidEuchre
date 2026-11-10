@@ -16,7 +16,7 @@ class RegistryTests(unittest.TestCase):
         self.root=Path(self.tmp.name); self.registry_root=self.root/'registry'; self.registry_root.mkdir()
         binary=self.root/'engine'; binary.write_bytes(b'fixture executable'); binary.chmod(0o755)
         source=self.root/'source.cpp'; source.write_text('// frozen baseline fixture')
-        config={'baseline':{'executable':str(binary),'arguments':[],'source_files':[str(source)]},
+        config={'baseline':{'executable':str(binary),'arguments':['--play-ms','3000'],'source_files':[str(source)]},
                 'hybrid':{'executable':str(binary),'arguments':['--decision-ms','3000','--stop-ms','3500','--max-simulations','0']},
                 'arena':str(binary),'budget':{'DecisionMs':3000,'StopMs':3500,'ProcessMs':5000,'StartupMs':5000},
                 'conditions':[{'Id':'baseline','PartnerId':'baseline','Opponent0Id':'baseline','Opponent1Id':'baseline'}]}
@@ -181,3 +181,22 @@ class RegistryTests(unittest.TestCase):
         finally:
             if process.poll() is None:process.kill();process.wait()
             process.stdin.close();process.stdout.close()
+
+    def test_native_registry_rejects_valid_model_and_metadata_replacements(self):
+        import subprocess, shutil
+        binary=Path(__file__).resolve().parents[2]/'build/bideuchre-hybrid'
+        config=json.loads((self.registry_root/'config.json').read_text())
+        config['hybrid']['executable']=str(binary)
+        root=self.root/'bound-registry';root.mkdir();(root/'config.json').write_text(json.dumps(config))
+        registry=Registry(root);a=registry.register_candidate(self.artifact);registry._point(a,'unit frozen identity')
+        frozen=Path(registry.record(a)['manifest']);original=frozen.read_bytes()
+        def launch():
+            return subprocess.run([binary,'--registry',root],input='beuci\nquit\n',capture_output=True,text=True,timeout=5)
+        self.assertEqual(0,launch().returncode)
+        altered=json.loads(original);altered['provenance']['metadata']['purpose']='replacement metadata only'
+        frozen.write_text(json.dumps(altered))
+        self.assertNotEqual(0,launch().returncode,'metadata replacement was silently accepted')
+        frozen.write_bytes(original)
+        other=export_model(HybridNet(),BoundaryNet(),{'purpose':'different valid model'},self.root/'replacement')
+        shutil.copyfile(other,frozen);shutil.copyfile(other.parent/'weights.bin',frozen.parent/'weights.bin')
+        self.assertNotEqual(0,launch().returncode,'valid replacement weights were silently accepted')

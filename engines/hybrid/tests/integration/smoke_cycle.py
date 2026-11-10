@@ -47,7 +47,7 @@ def main():
         evidence['authority_traces'] = len(fixtures.read_text().splitlines())
         training = state / 'training'
         common = [sys.executable, '-m', 'hybrid_training.cli']
-        run('generate-initialize', [*common, 'cycle', '--output', training, '--device', 'cpu',
+        run('generate-initialize', [*common, 'cycle', '--no-registry', '--output', training, '--device', 'cpu',
             '--execution-mode', 'fixed_seeded', '--duration-seconds', '20', '--max-updates', '1', '--batch-size', '8'])
         before = load_checkpoint(training/'checkpoint.pt')
         run('optimizer', [*common, 'resume', '--output', training, '--duration-seconds', '15', '--max-updates', '4'])

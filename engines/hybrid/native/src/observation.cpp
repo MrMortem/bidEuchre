@@ -24,6 +24,10 @@ Json select(const Json& value,std::initializer_list<const char*> keys) {
 Json cards(const Json& value) {
     Json::Array result;
     for(const auto& c:value.array()) result.push_back(select(c,{"code"}));
+    // Hands and legal card sets are unordered; auction and trick arrays are not.
+    std::sort(result.begin(),result.end(),[](const Json& a,const Json& b){
+        return beu::parse_card(a.at("code").string())<beu::parse_card(b.at("code").string());
+    });
     return Json(result);
 }
 Json plays(const Json& value) {

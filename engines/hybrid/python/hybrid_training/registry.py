@@ -71,6 +71,43 @@ def publish(path, value):
     finally: temporary.unlink(missing_ok=True)
 
 
+DEFAULT_REGISTRY_ROOT = Path(__file__).resolve().parents[2]/'state/registry'
+
+
+def discover_registry(explicit=None):
+    """Same explicit/environment/default precedence as the native run.sh launcher."""
+    selected=explicit or os.environ.get('HYBRID_REGISTRY')
+    root=Path(selected).expanduser().resolve() if selected else DEFAULT_REGISTRY_ROOT.resolve()
+    if not selected and not (root/'champion.json').exists(): return None
+    if not (root/'config.json').is_file() or not (root/'champion.json').is_file():
+        raise ValueError('selected registry is not initialized: '+str(root))
+    return root
+
+
+def adapter_options(record):
+    """Parse the two supported frozen adapters without ambiguous native argv."""
+    baseline={'--samples','--play-ms','--search-depth','--search-nodes','--seed'}
+    hybrid={'--seed','--decision-ms','--stop-ms','--max-simulations','--observer-queries','--observer-query-ms'}
+    enums={'--search-mode':{'root','information-tree'},'--leaf-mode':{'policy','double-dummy'},
+           '--belief-mode':{'learned','uniform'},'--continuation-mode':{'learned','uniform'},'--value-mode':{'match','score'}}
+    kind=record['kind']
+    if kind not in ('baseline','hybrid'): raise ValueError('unknown production adapter')
+    numeric=baseline if kind=='baseline' else hybrid
+    allowed=numeric if kind=='baseline' else numeric|set(enums)|{'--model'}
+    arguments=record['engine']['Arguments']; options={}
+    if len(arguments)%2: raise ValueError('missing adapter option value')
+    for flag,value in zip(arguments[::2],arguments[1::2]):
+        if flag not in allowed or flag in options: raise ValueError('unknown or ambiguous adapter argument: '+flag)
+        if flag in numeric:
+            if not re.fullmatch(r'[0-9]+',value): raise ValueError('invalid numeric adapter option: '+flag)
+            value=int(value)
+            if value>(2**64-1 if flag=='--seed' else 2**31-1): raise ValueError('adapter option out of range')
+        elif flag in enums and value not in enums[flag]: raise ValueError('invalid adapter option: '+flag)
+        elif flag=='--model' and not value: raise ValueError('missing model argument')
+        options[flag]=value
+    return options
+
+
 class Registry:
     def __init__(self, root: Path):
         self.root=Path(root).resolve(); durable_directory(self.root)
@@ -113,14 +150,14 @@ class Registry:
             spec=config[kind]; executable=Path(spec['executable']).resolve(); sha=file_hash(executable)
             if not isinstance(spec['arguments'],list) or not all(isinstance(x,str) for x in spec['arguments']):
                 raise ValueError('engine arguments must be strings')
-            if kind=='hybrid' and any(x=='--model' or x.startswith('--model=') for x in spec['arguments']):
+            if kind=='hybrid' and any(x.split('=')[0] in ('--model','--registry','--expected-model-sha256','--expected-manifest-sha256') for x in spec['arguments']):
                 raise ValueError('registry owns the frozen model argument')
             target=self.root/'binaries'/sha/executable.name; durable_directory(target.parent)
             if not target.exists(): shutil.copy2(executable,target)
             if file_hash(target)!=sha: raise ValueError('frozen executable corrupted')
             sync_path(target); sync_path(target.parent)
             binaries[kind]={'Executable':str(target),'Arguments':spec['arguments'],
-                'WorkingDirectory':str(target.parent),'ExecutableSha256':sha,'ModelSha256':None,'ExpectedBackend':None}
+                'WorkingDirectory':str(target.parent),'ExecutableSha256':sha,'ModelSha256':None,'ExpectedBackend':None,'ManifestSha256':None}
         arena=Path(config['arena']).resolve()
         authority={str(arena):file_hash(arena)}
         # A .NET apphost delegates to adjacent assemblies; freeze their hashes too.
@@ -145,8 +182,9 @@ class Registry:
             if digest(canonical(artifact))!=identity: raise ValueError('candidate manifest hash mismatch')
             self._check_modes(artifact)
             result={'id':identity,'kind':'hybrid','artifact':artifact,'manifest':str(path),
-                    'engine':dict(self.frozen['hybrid'],Id=identity,ModelSha256=artifact['model_sha256'],ExpectedBackend='hybrid')}
+                    'engine':dict(self.frozen['hybrid'],Id=identity,ModelSha256=artifact['model_sha256'],ManifestSha256=file_hash(path),ExpectedBackend='hybrid')}
             result['engine']['Arguments']=[*result['engine']['Arguments'],'--model',str(path)]
+        result['engine'].setdefault('ManifestSha256',None)
         if file_hash(result['engine']['Executable'])!=result['engine']['ExecutableSha256']:
             raise ValueError('frozen executable hash mismatch')
         return result
@@ -180,6 +218,18 @@ class Registry:
             finally:
                 if temporary.exists(): shutil.rmtree(temporary)
         return identity
+
+    def previous_champions(self, current_id, limit=4):
+        """Most recent distinct verified prior champions, excluding the baseline."""
+        verified={x.get('candidate') for x in map(read,(self.root/'evidence').glob('*.json')) if x.get('status')=='passing'}
+        seen={current_id,self.frozen['baseline']['id']}; records=[]
+        events=sorted((self.root/'history').glob('*.json'),key=lambda p:(p.stat().st_mtime_ns,p.name),reverse=True)
+        for path in events:
+            identity=read(path)['id']
+            if identity in seen or identity not in verified: continue
+            seen.add(identity);records.append(self.record(identity))
+            if len(records)>=limit: break
+        return records
 
     def current(self) -> dict:
         return self.record(read(self.root/'champion.json')['id'])

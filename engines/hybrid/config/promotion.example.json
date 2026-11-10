@@ -2,7 +2,7 @@
   "registry_root": "/absolute/path/to/registry",
   "baseline": {
     "executable": "/absolute/path/to/engines/cpp-heuristic/build/bideuchre-cpp-heuristic",
-    "arguments": [],
+    "arguments": ["--play-ms", "3000"],
     "source_files": [
       "/absolute/path/to/engines/cpp-heuristic/src/bot.cpp",
       "/absolute/path/to/engines/cpp-heuristic/src/bot.hpp",

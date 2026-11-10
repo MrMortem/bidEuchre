@@ -30,6 +30,7 @@ from .worker import run_job
 
 ROLES = {'training':0, 'tuning':1, 'screening':2, 'promotion':3}
 SPLITS = {'train':'training', 'validation':'tuning', 'test':'screening'}
+ATTEMPT_LIMITS = ('duration_seconds','memory_bytes','disk_bytes')
 RESERVE_BYTES = 32 << 20  # serialization, replacement checkpoint and export
 
 
@@ -49,8 +50,11 @@ class TrainConfig:
     generation_matches: int = 1
     execution_mode: str = 'seeded_timed'
     recent_fraction: float = .5
+    registry_root: str | None = None
+    registry_enabled: bool = True
 
     def __post_init__(self):
+        if type(self.registry_enabled) is not bool: raise ValueError('registry_enabled must be boolean')
         if self.device not in ('auto','cpu','mps') or not 1 <= self.workers <= 2:
             raise ValueError('device or worker limit invalid')
         if self.execution_mode not in ('fixed_seeded','seeded_timed'):
@@ -195,6 +199,8 @@ def _state(config, output):
         if state['config'][key] != asdict(config)[key]: raise ValueError('resume configuration mismatch: '+key)
     if state['versions']['torch'] != torch.__version__ or state['versions']['numpy'] != np.__version__:
         raise ValueError('resume requires the recorded PyTorch/NumPy versions')
+    if state.get('pending_job'):
+        for key in ATTEMPT_LIMITS: state['pending_job'].pop(key,None)
     _restore_rng(state['rng'])
     return state
 
@@ -259,12 +265,45 @@ def _save(state, output):
 
 
 def _population(config, state):
-    base = dict(id='baseline',kind='baseline',version='unchanged') if config.execution_mode=='seeded_timed' else dict(id='fixed',kind='fixed',version='v1')
-    population=[base,dict(id='uniform',kind='uniform',version='v1')]
+    from .registry import Registry, discover_registry, adapter_options, file_hash, canonical, digest
+    if state.get('population_generation')==state['generation']:
+        if config.registry_root and str(Path(config.registry_root).resolve())!=state['population_lineage'].get('registry_root'):
+            raise ValueError('resume registry differs from frozen population')
+        return state['population']
+    def model_member(record, previous=False):
+        return dict(id=record['id'],kind='model',version=record['id'],model_path=record['manifest'],
+            model_sha256=record['artifact']['model_sha256'],model_manifest_sha256=file_hash(record['manifest']),previous_champion=previous)
+    root=discover_registry(config.registry_root) if config.registry_enabled else None; baseline_options={}
+    if root:
+        if config.execution_mode=='fixed_seeded':
+            raise ValueError('registry population includes timed C++ baseline; use seeded_timed')
+        registry=Registry(root)
+        with registry.lock():
+            incumbent=registry.current(); baseline=registry.record(registry.frozen['baseline']['id'])
+            prior=registry.previous_champions(incumbent['id'])
+            base=dict(id=baseline['id'],kind='baseline',version=baseline['source_sha256'])
+            population=[base if incumbent['kind']=='baseline' else model_member(incumbent)]
+            population.extend(model_member(record,True) for record in prior)
+            if incumbent['id']!=baseline['id']: population.append(base)
+            options=adapter_options(baseline)
+            for option,key,default,low,high in [('--samples','baseline_samples',160,16,4096),
+                    ('--play-ms','baseline_play_ms',700,20,5000),('--search-depth','baseline_depth',12,1,30),
+                    ('--search-nodes','baseline_nodes',12000,1000,2000000)]:
+                baseline_options[key]=max(low,min(high,options.get(option,default)))
+            lineage=dict(registry_root=str(root),incumbent=incumbent['id'],previous_champions=[r['id'] for r in prior],
+                baseline=baseline['id'],registry_config_sha256=registry.frozen['config_sha256'])
+    else:
+        base=dict(id='baseline',kind='baseline',version='unchanged') if config.execution_mode=='seeded_timed' else dict(id='bootstrap-fixed',kind='fixed',version='v1')
+        population=[base];lineage=dict(registry_root=None,incumbent=base['id'],previous_champions=[],bootstrap=True)
+    population.extend(dict(id='variety-'+kind,kind=kind,version='v1') for kind in ('fixed','reverse','uniform'))
     if state['export_manifest']:
-        path=Path(state['export_manifest']).resolve(); artifact=validate_artifact(path)
-        population=[base,dict(id='candidate-'+artifact['model_sha256'][:12],kind='model',version=artifact['model_sha256'],
-                             model_path=str(path),model_sha256=artifact['model_sha256'])]
+        path=Path(state['export_manifest']).resolve();artifact=validate_artifact(path);identity=digest(canonical(artifact))
+        population.append(dict(id='learner-'+identity,kind='model',version=identity,model_path=str(path),
+            model_sha256=artifact['model_sha256'],model_manifest_sha256=file_hash(path)))
+    else:
+        population.append(dict(id='learner-bootstrap',kind='uniform',version='v1'))
+    state.update(population=population,population_generation=state['generation'],population_lineage=lineage,
+        incumbent=0,learner=len(population)-1,population_policy=baseline_options)
     return population
 
 
@@ -288,11 +327,11 @@ def generate_burst(config: TrainConfig, replay: ReplayStore, output: Path, worke
             index=state['next_job']; population=_population(config,state)
             seed=seed_for(config.seed,index,'training')
             job=dict(job_id=f'run-{config.seed}-generation-{state["generation"]}-job-{index}',seed=seed,split='train',
-                     schedule_index=index,population=population,learner=1,incumbent=0,execution_mode=config.execution_mode,
-                     max_hands=1000,max_decisions=20000,duration_seconds=max(1,min(int(remaining),max(1,int(config.checkpoint_seconds)))),
-                     memory_bytes=max(1,config.max_memory_bytes-memory_bytes()-RESERVE_BYTES),
-                     disk_bytes=max(1024,(config.max_disk_bytes-_disk_bytes(output,replay)-RESERVE_BYTES)//3),
-                     workers=1,training_processes=1,device='cpu')
+                     schedule_index=index,population=population,learner=state['learner'],incumbent=state['incumbent'],execution_mode=config.execution_mode,
+                     max_hands=1000,max_decisions=20000,workers=1,training_processes=1,device='cpu',
+                     dealer=0,exploration=.1,search_fraction=.25,play_search_fraction=.05,decision_ms=3000,stop_ms=3500,
+                     max_simulations=None,baseline_samples=160,baseline_play_ms=700,baseline_depth=12,baseline_nodes=12000)
+            job.update(state['population_policy'])
             if config.execution_mode=='fixed_seeded': job.update(search_fraction=0.,play_search_fraction=0.)
             state=copy.deepcopy(state); state.update(pending_job=job,population=population,native_rng={'pre_job_seed':seed},stage='generate')
             _save(state,output)  # durable pre-job point, before any native random draw
@@ -312,10 +351,20 @@ def generate_burst(config: TrainConfig, replay: ReplayStore, output: Path, worke
             # or committed shard is ever evicted to satisfy a capacity limit.
             spool.unlink(missing_ok=True); spool.with_name(spool.name+'.status.json').unlink(missing_ok=True)
             spool.with_name(spool.name+'.status.json.pending').unlink(missing_ok=True)
+            allowance=dict(duration_seconds=max(1,int(deadline-time.monotonic())),
+                memory_bytes=max(1,config.max_memory_bytes-memory_bytes()-RESERVE_BYTES),
+                disk_bytes=max(1024,(config.max_disk_bytes-_disk_bytes(output,replay)-RESERVE_BYTES)//3))
+            state['last_attempt']=dict(number=state.get('last_attempt',{}).get('number',0)+1,
+                job_id=job['job_id'],allowance=allowance,configured=asdict(config))
+            _save(state,output)
+            attempt_snapshot=copy.deepcopy(state)
             stop=threading.Event(); exceeded=[]; peak=[memory_bytes()]
             def monitor():
+                last_save=time.monotonic()
                 while not stop.wait(.1):
                     try:
+                        if time.monotonic()-last_save>=config.checkpoint_seconds:
+                            _save(attempt_snapshot,output); last_save=time.monotonic()
                         rows=_processes(); children=[r for r in rows if r[1]==os.getpid() and Path(r[3]).name==Path(worker).name]
                         total=memory_bytes()+sum(r[2] for r in children); peak[0]=max(peak[0],total)
                         reason='capacity' if total+RESERVE_BYTES>config.max_memory_bytes or _disk_bytes(output,replay)+RESERVE_BYTES>config.max_disk_bytes else 'duration' if time.monotonic()>=deadline else None
@@ -330,7 +379,7 @@ def generate_burst(config: TrainConfig, replay: ReplayStore, output: Path, worke
                         return
             watcher=threading.Thread(target=monitor,daemon=True); watcher.start()
             try:
-                result=run_job(job,worker,spool)
+                result=run_job(dict(job,**allowance),worker,spool)
                 status=exceeded[0] if exceeded else result.status
                 state['resources']['worker_reported_memory_bytes']=max(result.reported_memory_bytes,state['resources'].get('worker_reported_memory_bytes',0))
                 if status=='complete':
@@ -341,7 +390,7 @@ def generate_burst(config: TrainConfig, replay: ReplayStore, output: Path, worke
                 if exc.errno!=28: raise
                 status='capacity'
             finally:
-                stop.set(); watcher.join(timeout=3)
+                stop.set(); watcher.join()  # never race a periodic snapshot with the final checkpoint
             state['resources']['peak_memory_bytes']=max(state['resources']['peak_memory_bytes'],peak[0])
             if status!='complete':
                 _save(state,output)
@@ -438,7 +487,8 @@ def train_cycle(config: TrainConfig, replay: ReplayStore, output: Path) -> Cycle
     destination=output/f'candidate-g{state["generation"]}-u{state["updates"]}'
     metadata=dict(versions=versions(),config=asdict(config),updates=state['updates'],rows_seen=state['rows_seen'],
                   replay_mixture={k:v for k,v in state['replay'].items() if k!='shards'},split_manifest=state['split_manifest'],
-                  resources=state['resources'],device_report=asdict(device_report),strength_claim=False)
+                  resources=state['resources'],device_report=asdict(device_report),population_lineage=state.get('population_lineage'),
+                  population=state.get('population'),strength_claim=False)
     if destination.exists():
         manifest=destination/'manifest.json'; artifact=validate_artifact(manifest)
         tensors={**{'main.'+k:v for k,v in state['main'].items()},**{'boundary.'+k:v for k,v in state['boundary'].items()}}

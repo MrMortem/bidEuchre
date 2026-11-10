@@ -176,3 +176,26 @@ class PromotionTests(test_registry.RegistryTests):
                     with self.assertRaisesRegex(ValueError,'test provenance'):self.registry.promote(self.candidate,report,verification)
                     audit.assert_not_called()
                 self.assertEqual(old,self.registry.current()['id'])
+
+    def test_production_budget_validation_covers_every_participant(self):
+        from hybrid_training.promotion import _schedule
+        baseline=self.registry.current()['id']
+        records={baseline:copy.deepcopy(self.registry.record(baseline)),self.candidate:copy.deepcopy(self.registry.record(self.candidate))}
+        records[baseline]['engine']['Arguments']=['--play-ms','3000']
+        historical='f'*64
+        records[historical]=copy.deepcopy(records[self.candidate]);records[historical]['id']=historical;records[historical]['engine']['Id']=historical
+        config=copy.deepcopy(self.registry.frozen['config'])
+        config['conditions']=[{'Id':'historical','PartnerId':historical,'Opponent0Id':'baseline','Opponent1Id':historical}]
+        seeds={'primary_blocks':1000,'replacement_blocks':500,'start_index':0,'run_seed':1,'bootstrap_seed':7}
+        with patch.object(self.registry,'record',side_effect=lambda identity:copy.deepcopy(records[identity])), patch.dict(self.registry.frozen,config=config):
+            _schedule(self.registry,self.candidate,baseline,seeds,'promotion')
+            for identity,arguments in [(baseline,['--play-ms','20']),(baseline,[]),
+                    (self.candidate,['--decision-ms','20']), (historical,['--stop-ms','100']),
+                    (historical,['--decision-ms=3000']), (baseline,['--play-ms','3000','--play-ms','3000']),
+                    (historical,['--stop-ms']), (historical,['--mystery','1'])]:
+                with self.subTest(identity=identity,arguments=arguments):
+                    saved=records[identity]['engine']['Arguments'];records[identity]['engine']['Arguments']=arguments
+                    with self.assertRaisesRegex(ValueError,'budget|argument|option'):
+                        _schedule(self.registry,self.candidate,baseline,seeds,'promotion')
+                    _schedule(self.registry,self.candidate,baseline,seeds,'screening')
+                    records[identity]['engine']['Arguments']=saved

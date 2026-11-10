@@ -22,6 +22,7 @@ public static class TournamentRunner
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         deadline.CancelAfter(maxDuration);
         var attempts = store.ReadAttempts().ToList();
+        var invalidEvidence = new Dictionary<(string, int, string), string>();
         // A process crash may leave only a durable start and a partial trace. Audit it before allowing a retry.
         foreach (var unfinished in store.ReadUnfinishedAttempts())
         {
@@ -39,10 +40,13 @@ public static class TournamentRunner
         }
         // A crash after recording a complete attempt but before publishing its result must not replay that leg.
         foreach (var attempt in attempts.Where(a => TournamentStatistics.IsComplete(a.Result)))
-            store.Commit(attempt.Result);
+        {
+            if (ValidComplete(attempt.Result)) store.Commit(attempt.Result);
+        }
         foreach (var spec in manifest.Legs)
         {
             if (store.TryReadCompleted(spec.BlockId, spec.LegId, out _)) continue;
+            if (invalidEvidence.Keys.Any(k => k.Item1 == spec.BlockId && k.Item2 == spec.LegId)) continue;
             if (attempts.Any(a => a.Result.Spec.BlockId == spec.BlockId && a.Result.Spec.LegId == spec.LegId && a.Result.Status == MatchStatus.Failed)) continue;
             if (deadline.IsCancellationRequested) break;
             string trace = Path.GetFullPath(Path.Combine(directory, "traces", Guid.NewGuid().ToString("N") + ".jsonl"));
@@ -70,9 +74,9 @@ public static class TournamentRunner
             if (result.Status == MatchStatus.Interrupted) break;
         }
         var completed = manifest.Legs.Select(spec => store.TryReadCompleted(spec.BlockId, spec.LegId, out var result) ? result : null)
-            .Where(result => result is not null).Cast<MatchResult>().ToArray();
+            .Where(result => result is not null).Cast<MatchResult>().Where(ValidComplete).ToArray();
         var report = TournamentStatistics.Summarize(manifest, completed);
-        var errors = report.GateErrors.Concat(attempts.Where(a => a.Result.Status == MatchStatus.Failed)
+        var errors = report.GateErrors.Concat(invalidEvidence.Values).Concat(attempts.Where(a => a.Result.Status == MatchStatus.Failed)
             .Select(a => $"Failed attempt {a.Result.Spec.BlockId}/{a.Result.Spec.LegId}: {a.Result.Error}")).ToList();
         int decisions = 0;
         double maximum = 0;
@@ -97,6 +101,17 @@ public static class TournamentRunner
         RunStore.Publish(Path.Combine(directory, "report.json"), JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }), replace: true);
         RunStore.Publish(Path.Combine(directory, "report.md"), Markdown(report), replace: true);
         return report;
+
+        bool ValidComplete(MatchResult result)
+        {
+            try { ReadTimings(result); return true; }
+            catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException)
+            {
+                invalidEvidence[(result.Spec.BlockId, result.Spec.LegId, result.TracePath)] =
+                    $"Invalid trace evidence {result.Spec.BlockId}/{result.Spec.LegId}: {exception.Message}";
+                return false;
+            }
+        }
     }
 
     private static void VerifyExecutable(EngineSpec engine)
@@ -139,6 +154,7 @@ public static class TournamentRunner
             && !backends.Order().SequenceEqual(result.EffectiveBackends))
             throw new InvalidDataException("Effective backend summary differs from trace diagnostics.");
         if (requireDecisions && count == 0) throw new InvalidDataException("Complete trace contains no decisions.");
+        if (requireDecisions) ClosedTrace.Verify(result, count);
         return (count, maximum);
     }
     private static string Markdown(TournamentReport r)

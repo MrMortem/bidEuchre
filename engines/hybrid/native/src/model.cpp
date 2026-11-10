@@ -32,9 +32,11 @@ void softmax(std::span<const float> logits,std::span<float> probabilities) {
     for(auto& p:probabilities) p=static_cast<float>(p/sum);
 }
 }
-FrozenModel FrozenModel::load(const std::filesystem::path& manifest) {
+FrozenModel FrozenModel::load(const std::filesystem::path& manifest, const std::string& expectedModel, const std::string& expectedManifest) {
     static_assert(sizeof(float)==4 && std::numeric_limits<float>::is_iec559);
-    auto m=beu::json::parse(read(manifest,65536));
+    auto manifestBytes=read(manifest,65536);
+    require(expectedManifest.empty() || sha256(std::as_bytes(std::span(manifestBytes.data(),manifestBytes.size())))==expectedManifest,"frozen manifest SHA256 mismatch");
+    auto m=beu::json::parse(manifestBytes);
     number(m.at("version"),1);
     require(m.at("architecture").string()=="hybrid-mlp-v1" && m.at("dtype").string()=="float32" &&
         m.at("byte_order").string()=="little" && m.at("weights").string()=="weights.bin","incompatible artifact encoding");
@@ -58,6 +60,7 @@ FrozenModel FrozenModel::load(const std::filesystem::path& manifest) {
     number(m.at("byte_length"),offset);
     auto data=read(manifest.parent_path()/"weights.bin",offset);require(data.size()==offset,"invalid weight byte length");
     require(sha256(std::as_bytes(std::span(data.data(),data.size())))==m.at("model_sha256").string(),"weight SHA256 mismatch");
+    require(expectedModel.empty() || m.at("model_sha256").string()==expectedModel,"frozen model SHA256 mismatch");
     FrozenModel model;
     if(const auto* mode=m.find("search_mode"))model.search_mode_=mode->string();
     if(const auto* mode=m.find("leaf_mode"))model.leaf_mode_=mode->string();

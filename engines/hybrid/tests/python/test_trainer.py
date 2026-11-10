@@ -108,7 +108,7 @@ class TrainerTests(unittest.TestCase):
             with patch('hybrid_training.trainer.run_job',side_effect=interrupt):
                 self.assertEqual('interrupted',generate_burst(config,replay,output,WORKER))
             before=load_checkpoint(output/'checkpoint.pt')['pending_job']
-            self.assertEqual(captured[0],before)
+            self.assertEqual({k:v for k,v in captured[0].items() if k not in ('duration_seconds','memory_bytes','disk_bytes')},before)
             pending_status=output/'pending-match.jsonl.status.json.pending'
             self.assertTrue(pending_status.exists())
             self.assertEqual('complete',generate_burst(config,replay,output,WORKER))
@@ -117,6 +117,31 @@ class TrainerTests(unittest.TestCase):
             self.assertEqual(1,after['next_job']); self.assertIsNone(after['pending_job'])
             shard=next(p for p in replay.root.iterdir() if p.is_dir())
             self.assertEqual(before['seed'],json.loads((shard/'manifest.json').read_text())['job']['seed'])
+
+    def test_resume_refreshes_attempt_limits_without_changing_pending_semantics(self):
+        from dataclasses import replace
+        with tempfile.TemporaryDirectory() as tmp:
+            output=Path(tmp); replay=ReplayStore(output/'replay',128<<20); captured=[]
+            config=TrainConfig(device='cpu',execution_mode='fixed_seeded',duration_seconds=2,checkpoint_seconds=1)
+            def stop(request,worker,spool):
+                captured.append(copy.deepcopy(request)); raise KeyboardInterrupt
+            with patch('hybrid_training.trainer.run_job',side_effect=stop):
+                generate_burst(config,replay,output,WORKER)
+            saved=load_checkpoint(output/'checkpoint.pt')
+            def complete(request,worker,spool):
+                captured.append(copy.deepcopy(request)); return run_job(request,worker,spool)
+            larger=replace(config,duration_seconds=60,max_memory_bytes=4<<30,max_disk_bytes=10<<30)
+            with patch('hybrid_training.trainer.run_job',side_effect=complete):
+                self.assertEqual('complete',generate_burst(larger,replay,output,WORKER))
+            after=load_checkpoint(output/'checkpoint.pt')
+            for key in ('duration_seconds','memory_bytes','disk_bytes'):
+                self.assertGreater(captured[1][key],captured[0][key],key)
+                self.assertNotIn(key,saved['pending_job'])
+            self.assertGreater(captured[1]['duration_seconds'],config.checkpoint_seconds)
+            for key,value in saved['pending_job'].items(): self.assertEqual(value,captured[1][key])
+            self.assertEqual(saved['native_rng'],after['native_rng'])
+            self.assertEqual(1,after['next_job'])
+            self.assertEqual(1,len([p for p in replay.root.iterdir() if p.is_dir()]))
 
     def test_memory_reduces_initial_batch_and_persists_partition(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -184,3 +209,90 @@ class TrainerTests(unittest.TestCase):
                 self.assertEqual('complete',generate_burst(config,replay,output,WORKER))
             self.assertEqual(2,load_checkpoint(output/'checkpoint.pt')['next_job'])
             self.assertEqual(2,len([p for p in replay.root.iterdir() if p.is_dir()]))
+
+class PopulationTests(unittest.TestCase):
+    def test_registry_lineage_is_bounded_frozen_and_distinct_from_local_learner(self):
+        from test_registry import RegistryTests
+        from hybrid_training.registry import publish, read
+        from hybrid_training.trainer import _population, _initial
+        fixture=RegistryTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        registry=fixture.registry
+        ids=[]
+        for i in range(7):
+            artifact=read(fixture.artifact);artifact['provenance']['metadata']['generation']=i
+            publish(fixture.artifact,artifact)
+            identity=registry.register_candidate(fixture.artifact);ids.append(identity)
+            # Explicit synthetic local history fixture; no promotion/strength claim.
+            publish(registry.root/'evidence'/f'unit-{i}.json',{'candidate':identity,'status':'passing'})
+            registry._point(identity,'unit history fixture')
+        config=TrainConfig(device='cpu');state=_initial(config)
+        state['export_manifest']=str(fixture.artifact)
+        with patch.dict('os.environ',HYBRID_REGISTRY=str(registry.root)):
+            first=copy.deepcopy(_population(config,state))
+            self.assertEqual(ids[-1],first[state.get('incumbent',0)]['id'])
+            previous=[p['id'] for p in first if p.get('previous_champion')]
+            self.assertEqual(list(reversed(ids[-5:-1])),previous)
+            self.assertEqual(1,sum(p['kind']=='baseline' for p in first))
+            self.assertTrue({'fixed','reverse','uniform'} <= {p['kind'] for p in first})
+            learner=first[state['learner']]
+            self.assertTrue(learner['id'].startswith('learner-'))
+            self.assertNotEqual(state['incumbent'],state['learner'])
+            artifact=read(fixture.artifact);artifact['provenance']['metadata']['generation']=8;publish(fixture.artifact,artifact)
+            new=registry.register_candidate(fixture.artifact)
+            publish(registry.root/'evidence'/'unit-8.json',{'candidate':new,'status':'passing'})
+            registry._point(new,'unit mid-generation promotion')
+            self.assertEqual(first,_population(config,state))
+            state['generation']+=1
+            next_population=_population(config,state)
+            self.assertEqual(new,next_population[state['incumbent']]['id'])
+            self.assertEqual(str(registry.root),state['population_lineage']['registry_root'])
+
+    def test_registry_discovery_and_pending_job_freeze(self):
+        from test_registry import RegistryTests
+        from hybrid_training.registry import discover_registry
+        from hybrid_training.checkpoint import save_checkpoint
+        from dataclasses import replace
+        fixture=RegistryTests();fixture.setUp();self.addCleanup(fixture.doCleanups)
+        root=fixture.registry.root
+        with patch.dict('os.environ',{},clear=True), patch('hybrid_training.registry.DEFAULT_REGISTRY_ROOT',root):
+            self.assertEqual(root,discover_registry())
+            with patch.dict('os.environ',HYBRID_REGISTRY='/missing/selected-registry'):
+                self.assertEqual(root,discover_registry(root))
+                with self.assertRaisesRegex(ValueError,'not initialized'): discover_registry()
+        with patch.dict('os.environ',{},clear=True), patch('hybrid_training.registry.DEFAULT_REGISTRY_ROOT',root/'missing'):
+            self.assertIsNone(discover_registry())
+        output=fixture.root/'generation';replay=ReplayStore(output/'replay',64<<20)
+        config=TrainConfig(device='cpu',duration_seconds=10,registry_root=str(root))
+        captured=[]
+        def stop(request,worker,spool):
+            captured.append(copy.deepcopy(request));raise KeyboardInterrupt
+        with patch('hybrid_training.trainer.run_job',side_effect=stop):
+            self.assertEqual('interrupted',generate_burst(config,replay,output,WORKER))
+        first=load_checkpoint(output/'checkpoint.pt')
+        self.assertEqual(fixture.registry.current()['id'],first['population_lineage']['incumbent'])
+        fixture.registry._point(fixture.candidate,'unit mid-resume pointer change')
+        with patch('hybrid_training.trainer.run_job',side_effect=stop):
+            self.assertEqual('interrupted',generate_burst(replace(config,duration_seconds=20),replay,output,WORKER))
+        after=load_checkpoint(output/'checkpoint.pt')
+        self.assertEqual(first['pending_job'],after['pending_job'])
+        self.assertEqual(first['population_lineage'],after['population_lineage'])
+        self.assertEqual(captured[0]['population'],captured[1]['population'])
+        after.update(generation=after['generation']+1,pending_job=None,stage='generate')
+        save_checkpoint(after,output/'checkpoint.pt')
+        with patch('hybrid_training.trainer.run_job',side_effect=stop):
+            generate_burst(config,replay,output,WORKER)
+        newest=load_checkpoint(output/'checkpoint.pt')
+        self.assertEqual(fixture.candidate,newest['population_lineage']['incumbent'])
+        self.assertEqual('model',captured[-1]['population'][captured[-1]['incumbent']]['kind'])
+
+        # The actual worker receives the frozen lineup; a metadata-only model
+        # replacement cannot be accepted on the next pending-job retry.
+        status=generate_burst(replace(config,duration_seconds=2),replay,output,WORKER)
+        self.assertIn(status,('interrupted','duration'))
+        rows=[json.loads(line) for line in (output/'pending-match.jsonl').read_text().splitlines()]
+        self.assertEqual(fixture.candidate,rows[0]['job']['population'][rows[0]['job']['incumbent']]['id'])
+        model_path=Path(fixture.registry.record(fixture.candidate)['manifest'])
+        changed=json.loads(model_path.read_text());changed['provenance']['metadata']['purpose']='replacement'
+        model_path.write_text(json.dumps(changed))
+        self.assertEqual('failed',generate_burst(replace(config,duration_seconds=5),replay,output,WORKER))
+        self.assertEqual([],list(replay.root.iterdir()))

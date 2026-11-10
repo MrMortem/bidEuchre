@@ -42,6 +42,57 @@ internal static class ArenaResumeTests
         finally { Directory.Delete(path,true); }
     }
 
+    public static async Task ClosedTraceCorruptionCannotRecoverCompleteLegs()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "arena-seal-" + Guid.NewGuid().ToString("N"));
+        var manifest = LiveManifest();
+        try
+        {
+            var complete = await TournamentRunner.RunAsync(manifest, path, TimeSpan.FromSeconds(15), default);
+            Assert.True(complete.Complete);
+            var clean = await TournamentRunner.AuditAsync(manifest, path);
+            Assert.Equal(0, clean.GateErrors.Length);
+            var attempts = Directory.GetFiles(Path.Combine(path,"attempts"),"*.json");
+            var originals = attempts.ToDictionary(p => p, File.ReadAllText);
+            var traces = attempts.Select(p => JsonSerializer.Deserialize<RunAttempt>(originals[p])!.Result.TracePath).ToArray();
+            var contents = traces.ToDictionary(p => p, File.ReadAllText);
+            var starts = Directory.GetFiles(Path.Combine(path,"started-attempts")).Length;
+            foreach (var mutation in new[] { "truncate", "corrupt", "header", "end", "count", "terminal" })
+            {
+                for (int i = 0; i < traces.Length; i++)
+                {
+                    var rows = contents[traces[i]].Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                    if (mutation == "truncate") rows = rows.Take(new[] { 18, 4, 12, 10 }[i]).ToArray();
+                    else if (mutation == "corrupt") rows[2] = "{broken";
+                    else if (mutation == "header") { var header = System.Text.Json.Nodes.JsonNode.Parse(rows[0])!; header["spec"]!["Seed"] = 999; rows[0] = header.ToJsonString(); }
+                    else if (mutation == "end") rows[^1] = "{\"kind\":\"end\",\"winner\":99}";
+                    File.WriteAllText(traces[i], string.Join('\n', rows) + "\n");
+                    // Isolate the structural/result bindings from the outer file hash.
+                    if (mutation is "header" or "end" or "count" or "terminal")
+                    {
+                        var attempt = System.Text.Json.Nodes.JsonNode.Parse(originals[attempts[i]])!;
+                        var seal = attempt["Result"]!["TraceSeal"]!;
+                        seal["Sha256"] = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(traces[i])));
+                        if (mutation == "count") seal["Actions"] = seal["Actions"]!.GetValue<int>() + 1;
+                        if (mutation == "terminal") seal["TerminalSha256"] = new string('0',64);
+                        File.WriteAllText(attempts[i],attempt.ToJsonString());
+                    }
+                }
+                foreach (var result in Directory.GetFiles(Path.Combine(path,"results"))) File.Delete(result);
+                var audit = await TournamentRunner.AuditAsync(manifest, path);
+                Assert.Equal(0, audit.CompletedLegs, mutation + " must not recover a complete leg");
+                Assert.True(audit.GateErrors.Length >= 4);
+                Assert.Equal(starts, Directory.GetFiles(Path.Combine(path,"started-attempts")).Length);
+                foreach (var item in originals) File.WriteAllText(item.Key,item.Value);
+                foreach (var item in contents) File.WriteAllText(item.Key,item.Value);
+            }
+            var restored = await TournamentRunner.AuditAsync(manifest, path);
+            Assert.True(restored.Complete);
+            Assert.Equal(0,restored.GateErrors.Length);
+        }
+        finally { Directory.Delete(path,true); }
+    }
+
     public static async Task BoundedTournamentResumesAndRetainsFailures()
     {
         var path = Path.Combine(Path.GetTempPath(), "arena-live-" + Guid.NewGuid().ToString("N"));

@@ -10,6 +10,7 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("ClosedTraceCorruptionCannotRecoverCompleteLegs", ArenaResumeTests.ClosedTraceCorruptionCannotRecoverCompleteLegs),
     ("ArenaAuditNeverLaunchesAndRechecksDiagnostics", ArenaResumeTests.AuditNeverLaunchesAndRechecksDiagnostics),
     ("ArenaBackendDiagnostics", ArenaProcessTests.BackendDiagnostics),
     ("StartedAttemptCrashRetainsLateEvidence", ArenaResumeTests.StartedAttemptCrashRetainsLateEvidence),

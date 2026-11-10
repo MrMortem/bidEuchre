@@ -16,6 +16,8 @@ public static class MatchRunner
         StreamWriter? trace = null;
         MatchStatus status = MatchStatus.Failed;
         string? error = null;
+        int actions = 0;
+        string? terminal = null;
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -55,6 +57,7 @@ public static class MatchRunner
                 ArenaProcessDriver.ValidateDiagnostics(spec.Seats[seat], backend, modelSha256);
                 if (backend is not null) backends.Add(backend);
                 ActionApplier.Apply(game, seat, action);
+                actions++;
                 await Write(new { kind = "action", seat, action = FixtureExporter.ActionId(action), elapsedDecisionMs, backend, modelSha256, state = FixtureExporter.Project(game, null, true) });
                 if (game.Phase is GamePhase.HandComplete or GamePhase.GameComplete)
                 {
@@ -65,6 +68,11 @@ public static class MatchRunner
                     }
                 }
             }
+            terminal = JsonSerializer.Serialize(FixtureExporter.Project(game, null, true));
+            await Write(new { kind = "end", actions, winner = game.GameWinner, scores = game.Scores,
+                hands = game.HandHistory.Count, state = JsonSerializer.Deserialize<JsonElement>(terminal) });
+            await trace.FlushAsync(cancellationToken);
+            ((FileStream)trace.BaseStream).Flush(flushToDisk: true);
             status = MatchStatus.Complete;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -89,8 +97,11 @@ public static class MatchRunner
                 catch (Exception exception) { status = MatchStatus.Failed; error ??= exception.Message; }
             }
         }
-        return new MatchResult(spec, status, status == MatchStatus.Complete ? game?.GameWinner : null,
+        var result = new MatchResult(spec, status, status == MatchStatus.Complete ? game?.GameWinner : null,
             game?.Scores.ToArray() ?? [0, 0], game?.HandHistory.Count ?? 0, error, tracePath) { EffectiveBackends = backends.Order().ToArray() };
+
+        return status == MatchStatus.Complete ? result with { TraceSeal = new(ClosedTrace.FileHash(tracePath), actions,
+            ClosedTrace.Hash(JsonSerializer.Serialize(spec)), ClosedTrace.Hash(terminal!)) } : result;
 
         async Task Write(object value) => await trace!.WriteLineAsync(JsonSerializer.Serialize(value).AsMemory(), cancellationToken);
     }

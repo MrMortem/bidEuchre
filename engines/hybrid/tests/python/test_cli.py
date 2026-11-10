@@ -21,6 +21,7 @@ class CliTests(unittest.TestCase):
             args=parser().parse_args([command])
             self.assertEqual(1800,args.duration_seconds)
             self.assertEqual(2,args.workers)
+            self.assertEqual('/tmp/explicit-registry',parser().parse_args([command,'--registry','/tmp/explicit-registry']).registry_root)
         with self.assertRaises(ValueError): choose_device('bogus',{})
         with patch('torch.backends.mps.is_available',return_value=False):
             self.assertEqual('cpu',choose_device('cpu',{}).device)
@@ -39,3 +40,20 @@ class CliTests(unittest.TestCase):
             result=subprocess.run([sys.executable,'-m','hybrid_training.cli','resume','--output',tmp,
                 '--duration-seconds','10','--max-updates','1'],capture_output=True,text=True,timeout=20)
             self.assertEqual(0,result.returncode,result.stderr)
+
+    def test_explicit_bootstrap_ignores_ambient_registry_and_persists_on_resume(self):
+        import os
+        from hybrid_training.checkpoint import load_checkpoint
+        with tempfile.TemporaryDirectory() as tmp:
+            env=dict(os.environ,HYBRID_REGISTRY='/missing/unit-user-registry')
+            command=[sys.executable,'-m','hybrid_training.cli','cycle','--no-registry','--output',tmp,
+                '--device','cpu','--execution-mode','fixed_seeded','--duration-seconds','10','--max-updates','1','--batch-size','8']
+            result=subprocess.run(command,capture_output=True,text=True,env=env,timeout=20)
+            self.assertEqual(0,result.returncode,result.stderr)
+            saved=load_checkpoint(Path(tmp)/'checkpoint.pt')
+            self.assertFalse(saved['config']['registry_enabled'])
+            self.assertIsNone(saved['population_lineage']['registry_root'])
+            result=subprocess.run([sys.executable,'-m','hybrid_training.cli','resume','--output',tmp,
+                '--duration-seconds','10','--max-updates','1'],capture_output=True,text=True,env=env,timeout=20)
+            self.assertEqual(0,result.returncode,result.stderr)
+            self.assertFalse(load_checkpoint(Path(tmp)/'checkpoint.pt')['config']['registry_enabled'])
