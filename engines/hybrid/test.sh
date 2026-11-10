@@ -5,13 +5,8 @@ engine_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cmake_bin="${HYBRID_CMAKE:-$engine_dir/.venv/bin/cmake}"
 ctest_bin="$(dirname "$cmake_bin")/ctest"
 project_dir="$(cd "$engine_dir/../.." && pwd)"
-dotnet_command="${BIDEUCHRE_DOTNET:-${DOTNET_ROOT:+$DOTNET_ROOT/dotnet}}"
-if [ -z "$dotnet_command" ]; then
-    if [ -x "$project_dir/.dotnet/dotnet" ]; then dotnet_command="$project_dir/.dotnet/dotnet";
-    else dotnet_command="$(command -v dotnet || true)"; fi
-fi
-if [ ! -x "$dotnet_command" ]; then echo "Set BIDEUCHRE_DOTNET to a .NET 10 SDK dotnet executable." >&2; exit 1; fi
-export DOTNET_ROOT="$(cd "$(dirname "$dotnet_command")" && pwd)"
+. "$engine_dir/scripts/dotnet.sh"
+bideuchre_find_dotnet "$project_dir"
 export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-$project_dir/.dotnet-home}" DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 # The baseline is EXCLUDE_FROM_ALL; explicitly build its registered CTest target.
 "$cmake_bin" --build "$engine_dir/build" --target bideuchre-cpp-heuristic-tests --parallel 2
@@ -21,6 +16,7 @@ fresh="$(mktemp "$engine_dir/build/authority-fresh.XXXXXX")"
 trap 'rm -f "$fresh"' EXIT
 "$dotnet_command" run --project "$engine_dir/../../src/BidEuchre.Arena" -- export-fixtures --output "$fresh"
 "$engine_dir/build/bideuchre-hybrid-replay" --fixtures "$fresh"
+"$engine_dir/tests/integration/dotnet_discovery.sh" "$dotnet_command"
 
 # Four independent production EngineProcessClient instances, actual frozen model
 # and missing-model baseline. Fixed simulation counts keep this smoke run bounded.

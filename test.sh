@@ -2,13 +2,8 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-dotnet_command="${BIDEUCHRE_DOTNET:-${DOTNET_ROOT:+$DOTNET_ROOT/dotnet}}"
-if [[ -z "$dotnet_command" ]]; then
-  if [[ -x "$project_dir/.dotnet/dotnet" ]]; then dotnet_command="$project_dir/.dotnet/dotnet";
-  else dotnet_command="$(command -v dotnet || true)"; fi
-fi
-if [[ ! -x "$dotnet_command" ]]; then echo "Set BIDEUCHRE_DOTNET to a .NET 10 SDK dotnet executable." >&2; exit 1; fi
-export DOTNET_ROOT="$(cd "$(dirname "$dotnet_command")" && pwd)"
+. "$project_dir/engines/hybrid/scripts/dotnet.sh"
+bideuchre_find_dotnet "$project_dir"
 # The hybrid install supplies stable local CMake independently of workflow tooling.
 if [[ -x "$project_dir/engines/hybrid/.venv/bin/cmake" ]]; then
   export PATH="$project_dir/engines/hybrid/.venv/bin:$PATH"

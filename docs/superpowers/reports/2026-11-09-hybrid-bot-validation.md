@@ -186,13 +186,13 @@ Ranges use the exclusive base and inclusive final commit. All Tasks 1–13 and t
 | 11: local trainer | `1ffe4cb..1ffe8f8` | Orphan status-temporary restart repaired and reviewed | Fourteen CTest suites; trainer11/checkpoint2/CLI2; cycle302 decisions, four updates, CPU/MPS measured |
 | 12: promotion / registry | `1ffe8f8..8f701ab` | Artifact durability and synthetic-evidence rejection repaired and reviewed | Sixteen CTest suites; registry5/promotion12 after fix; real4-match screen and no-play audit |
 | 13: gated experiments / launch descriptor | `8f701ab..4802375` | Approved; >3000ms manifest cap closed in Task14 | Seventeen CTest suites; 24 actual ablation matches, 36 balanced diagnostic positions; no promotion |
-| 14: final Mac workflow | `4802375..current final task` | Implementer self-review; controller owns independent task and whole-branch final handoff | Required root/hybrid/Python/smoke checks and bounded equal-allowance screen detailed above |
+| 14: final Mac workflow | `4802375..current final task` | Independent task review found SDK-symlink discovery; fix1 and real-apphost regression below; controller owns final scoped/whole-branch review | Required root/hybrid/Python/smoke checks and bounded equal-allowance screen detailed above |
 
 Task8's frequency tolerance and unequal-latent-history suggestion and Task10's compressed generation implementation readability remain explicitly deferred to whole-branch review, not silently claimed fixed. Task7's ignored `nodiscard` warning and Task13's advertised decision-cap mismatch are repaired here. The existing baseline `all_bids` warning is outside strategic-source scope. Task2's active cancellation is exercised by the later real bounded tournament test: a 25ms active run records Interrupted, then resumes four complete legs without duplication. No redundant cancellation framework was added.
 
 ## Exhaustive decision appendix
 
-This appendix preserves every line containing `Ruling:` in the SDD ledger at handoff, in order, with spacing restored and decision, reason and cost made readable. There were 29 rulings at capture. These are controller scope/interpretation decisions, not invented user requirements.
+This appendix preserves every line containing `Ruling:` in the SDD ledger at handoff, in order, with spacing restored and decision, reason and cost made readable. There were 30 rulings at capture. These are controller scope/interpretation decisions, not invented user requirements.
 
 1. **Bash3 transcript repair before baseline verification.** Use the already-authorized `while IFS= read -r` repair because the baseline suite cannot run under Mac Bash3 with `mapfile`. Preserve strategy and assertions. Cost if wrong: one reversible shell change.
 2. **Scoped worktree writes.** Use escalated mutations only inside the authorized native-app worktree because it is outside inherited writable roots. Cost if wrong: automatic review rejects the operation rather than silently writing elsewhere.
@@ -223,3 +223,21 @@ This appendix preserves every line containing `Ruling:` in the SDD ledger at han
 27. **Stable final tooling.** Task14 may minimally change build/CMake/installer discovery/bootstrap so final commands do not depend on disposable SDD tooling. Use dedicated hybrid Python/CMake and an explicit SDK prerequisite. Cost if wrong: reversible dependency/build configuration only; no strategy/rule change.
 28. **Scoped final minor repairs.** Task14 may fix the Task13 >3000ms budget validator/test and Task7 ignored-nodiscard test warning for accurate metadata and clean new-test output. Other deferred minors belong to final-review triage. Cost if wrong: reversible validation/test-only changes.
 29. **Keep the branch/worktree.** Preserve `codex/hybrid-bot` and the native-app worktree without merge/push or another integration-choice question, because the user's prior instruction already selected keep-as-is. Cost if wrong: integration remains a later explicit reversible choice; no shared side effect.
+
+30. **Resolve SDK symlinks once.** Task14 fix may add one pure-Bash shared SDK-resolution helper and focused test to avoid duplicating link resolution across three scripts. Conventional PATH/private-SDK symlinks made the old derived runtime path point to the shim directory and broke direct apphosts. Cost if wrong: reversible build/test discovery helper, no live-engine or policy change.
+
+## Task14 review fix1: SDK symlinks
+
+Independent review of `d4ca506` found that root `test.sh`, hybrid `test.sh` and `smoke_cycle.sh` derived DOTNET_ROOT from the selected executable's containing directory without following executable symlinks. The CLI could run while Arena's native apphost failed to locate .NET. All three now source `engines/hybrid/scripts/dotnet.sh`; it resolves relative/absolute link chains and canonical physical directories, preserving explicit executable, DOTNET_ROOT, repository-local and PATH discovery precedence. It uses Bash3 plus standard macOS utilities, no Python or `readlink -f`.
+
+A focused regression creates a two-link private-SDK shim path containing spaces, changes cwd, runs the real SDK CLI and **direct Arena apphost** under each of the four discovery modes, then checks the canonical root and62 exported authority traces. It is registered in hybrid/test.sh after authority build/export. The test first ran with the extracted old logic unchanged and failed exit131: `.NET location: Not found`, `DOTNET_ROOT = .../bid euchre sdk.../shim bin`. Thus this is an actual runtime-discovery failure, not a mocked path comparison.
+
+```sh
+/bin/bash engines/hybrid/tests/integration/dotnet_discovery.sh /tmp/bideuchre-dotnet/dotnet > /tmp/task14-fix1-red.log 2>&1
+# After implementing link resolution:
+/bin/bash engines/hybrid/tests/integration/dotnet_discovery.sh /tmp/bideuchre-dotnet/dotnet > /tmp/task14-fix1-green.log 2>&1
+/bin/bash -n test.sh engines/hybrid/test.sh engines/hybrid/scripts/{dotnet,smoke_cycle}.sh engines/hybrid/tests/integration/dotnet_discovery.sh
+git diff --check
+```
+
+GREEN exited0 under actual Mac Bash3.2.57: **explicit/PATH/ROOT/repository4/4** each exported62 traces from `/private/tmp/bideuchre-dotnet`; CLI and native apphost both succeeded. Shell syntax/diff checks passed. Only affected discovery/runtime checks were repeated; gameplay/model/training behavior did not change. The earlier full-suite/smoke evidence remains as recorded. Minor production-client backend identity assertion remains whole-branch-review triage, not claimed fixed here. Fix commit is recorded in the final task handoff; no self-referential hash is required in this appendix.
