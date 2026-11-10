@@ -32,3 +32,51 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(p['win'].tolist(),[[1.],[0.]])
         raw['policy_logits'][0,0]=float('nan')
         with self.assertRaises(ValueError): normalize_output(raw,legal)
+
+class PackagingTests(unittest.TestCase):
+    def test_built_metadata_preserves_python310_and_numpy_markers(self):
+        # Exercise the actual build backend so these are published wheel metadata,
+        # rather than assertions against TOML source spelling alone.
+        import email
+        import shutil
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            shutil.copy(ROOT/'engines/hybrid/pyproject.toml',project/'pyproject.toml')
+            package = project/'python/hybrid_training'
+            package.mkdir(parents=True)
+            (package/'__init__.py').write_text('')
+            metadata = project/'metadata'; metadata.mkdir()
+            result = subprocess.run([sys.executable,'-c',
+                'from setuptools.build_meta import prepare_metadata_for_build_wheel; '
+                'prepare_metadata_for_build_wheel("metadata")'],cwd=project,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
+            message = email.message_from_string(next(metadata.glob('*.dist-info/METADATA')).read_text())
+            self.assertEqual(message['Requires-Python'],'<3.14,>=3.10')
+            requirements = set(message.get_all('Requires-Dist'))
+            self.assertEqual(requirements,{'torch==2.9.1',
+                'numpy==2.2.6; python_version < "3.11"',
+                'numpy==2.3.5; python_version >= "3.11"'})
+
+    def test_installer_version_gate_accepts310_rejects39(self):
+        # Simulate only the version reported to the gate; this does not claim an
+        # actual Python 3.10 runtime test. Stub pip prevents dependency mutation.
+        import os
+        import shlex
+        import shutil
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            project=Path(directory)
+            shutil.copy(ROOT/'engines/hybrid/install.sh',project/'install.sh')
+            stub=project/'.venv/bin/python'; stub.parent.mkdir(parents=True)
+            stub.write_text('#!/bin/bash\nexit 0\n'); stub.chmod(0o755)
+            interpreter=project/'version-python'
+            for version,expected in [((3,10),0),((3,9),1)]:
+                code=f'import sys; sys.version_info={version!r}; exec(sys.argv[1])'
+                interpreter.write_text('#!/bin/bash\nexec '+shlex.quote(sys.executable)+' -c '+shlex.quote(code)+' "$2"\n')
+                interpreter.chmod(0o755)
+                result=subprocess.run(['bash',str(project/'install.sh')],
+                    env={**os.environ,'HYBRID_PYTHON':str(interpreter)},capture_output=True,text=True)
+                self.assertEqual(result.returncode,expected,result.stderr)
