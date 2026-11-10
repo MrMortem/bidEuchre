@@ -12,5 +12,8 @@ dependencies = [
     "numpy==2.3.5; python_version >= '3.11'",
 ]
 
+[project.scripts]
+bideuchre-hybrid-train = "hybrid_training.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["python"]

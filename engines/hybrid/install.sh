@@ -7,3 +7,6 @@ if [ ! -x "$engine_dir/.venv/bin/python" ]; then
     "$python_bin" -m venv --copies "$engine_dir/.venv"
 fi
 "$engine_dir/.venv/bin/python" -m pip install -e "$engine_dir"
+# Exact local environment evidence; regenerated only on explicit installation.
+"$engine_dir/.venv/bin/python" -m pip freeze --all > "$engine_dir/.venv/dependencies.lock"
+"$engine_dir/.venv/bin/python" -m hybrid_training.cli --help >/dev/null
