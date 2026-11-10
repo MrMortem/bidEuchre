@@ -186,13 +186,13 @@ Ranges use the exclusive base and inclusive final commit. All Tasks 1–13 and t
 | 11: local trainer | `1ffe4cb..1ffe8f8` | Orphan status-temporary restart repaired and reviewed | Fourteen CTest suites; trainer11/checkpoint2/CLI2; cycle302 decisions, four updates, CPU/MPS measured |
 | 12: promotion / registry | `1ffe8f8..8f701ab` | Artifact durability and synthetic-evidence rejection repaired and reviewed | Sixteen CTest suites; registry5/promotion12 after fix; real4-match screen and no-play audit |
 | 13: gated experiments / launch descriptor | `8f701ab..4802375` | Approved; >3000ms manifest cap closed in Task14 | Seventeen CTest suites; 24 actual ablation matches, 36 balanced diagnostic positions; no promotion |
-| 14: final Mac workflow | `4802375..current final task` | Independent task review found SDK-symlink discovery; fix1 and real-apphost regression below; controller owns final scoped/whole-branch review | Required root/hybrid/Python/smoke checks and bounded equal-allowance screen detailed above |
+| 14: final Mac workflow and integration closeout | `4802375..18bcca2` | Approved: SDK-symlink fix and all six whole-branch Important findings addressed; final scoped review found no new Critical/Important issue | Controller freshly reran all four full gates on `18bcca2`: root 66 C#, hybrid 17 CTest, Python 78/78, isolated smoke 4/4 sealed matches; details below |
 
-Task8's frequency tolerance and unequal-latent-history suggestion and Task10's compressed generation implementation readability remain explicitly deferred to whole-branch review, not silently claimed fixed. Task7's ignored `nodiscard` warning and Task13's advertised decision-cap mismatch are repaired here. The existing baseline `all_bids` warning is outside strategic-source scope. Task2's active cancellation is exercised by the later real bounded tournament test: a 25ms active run records Interrupted, then resumes four complete legs without duplication. No redundant cancellation framework was added.
+At the component-gate handoff, Task8's frequency tolerance/unequal-latent-history suggestion and Task10's compressed generation readability were deferred to whole-branch review; their final nonblocking outcomes are recorded below, not claimed fixed. Task7's ignored `nodiscard` warning and Task13's advertised decision-cap mismatch are repaired here. The existing baseline `all_bids` warning is outside strategic-source scope. Task2's active cancellation is exercised by the later real bounded tournament test: a 25ms active run records Interrupted, then resumes four complete legs without duplication. No redundant cancellation framework was added.
 
 ## Exhaustive decision appendix
 
-This appendix preserves every line containing `Ruling:` in the SDD ledger at handoff, in order, with spacing restored and decision, reason and cost made readable. The initial capture contained 30 rulings; the final whole-branch fix wave adds rulings 31–37 below without changing the original decisions. These are controller scope/interpretation decisions, not invented user requirements.
+This appendix preserves every line containing `Ruling:` in the SDD ledger at handoff, in order, with spacing restored and decision, reason and cost made readable. The initial capture contained 30 rulings; the final whole-branch fix wave adds rulings 31–40 below without changing the original decisions. These are controller scope/interpretation decisions, not invented user requirements.
 
 1. **Bash3 transcript repair before baseline verification.** Use the already-authorized `while IFS= read -r` repair because the baseline suite cannot run under Mac Bash3 with `mapfile`. Preserve strategy and assertions. Cost if wrong: one reversible shell change.
 2. **Scoped worktree writes.** Use escalated mutations only inside the authorized native-app worktree because it is outside inherited writable roots. Cost if wrong: automatic review rejects the operation rather than silently writing elsewhere.
@@ -269,7 +269,7 @@ PYTHONPATH=engines/hybrid/python:engines/hybrid/tests/python engines/hybrid/.ven
 
 The first focused native GREEN reported **1,210,653 checks**, and the focused registry suite **10/10**; the integrated trainer/registry/promotion/CLI checkpoint reported **44/44**, before the additional discovery/native-lineage assertions. The full final gate below supersedes these interim counts.
 
-### Additional controller rulings (31–37)
+### Additional controller rulings (31–40)
 
 31. **Honor the unproven-strength boundary.** Do not run a full gate or claim increased strength/human-partner quality merely to close the software plan; the approved design permits software delivery before promotion evidence. Cost if wrong: strength remains unproven and explicitly disclosed; the incumbent stays active.
 32. **Keep existing-Mac scope.** Cloud/distributed/paid compute and non-Mac deployment remain outside the approved constraints. Cost if wrong: no validation or performance promise for those environments.
@@ -279,6 +279,10 @@ The first focused native GREEN reported **1,210,653 checks**, and the focused re
 36. **Do not ban frozen fixed-count or policy-only profiles from promotion.** Enforce equal maximum time allowances and exact deployment of the evaluated configuration; validate and record caps and actual activity. A faster profile can legitimately win within the same allowance, as C++ depth/node caps can finish early. Mandatory compute expenditure is not an approved gate. Cost if wrong: a future gate may restrict profiles explicitly; no untested challenger is installed, and any eventual strength claim applies only to its exact tested configuration.
 
 37. **Explicit isolated bootstrap opt-out.** Add persisted `--no-registry` and use it in the unique-state smoke. Correct default discovery must not make fixed-seeded verification consume or mutate an existing user champion, or fail because of an invalid ambient registry. Cost if wrong: an explicitly opted-out debug run uses recorded bootstrap policies; ordinary generation still discovers and freezes registry champions by default. Registry selection and opt-out are mutually exclusive CLI options.
+
+38. **Defer stronger sampler-distribution regression.** Task and whole-branch review found no established union-counting defect. Keep probability-sensitive distribution checks and the tiny unequal-compatible-history fixture as a nonblocking coverage follow-up rather than expand the final wave. Cost if wrong: a subtle future distribution regression may evade the loose fixture; hard feasibility checks and full promotion evidence still protect deployment, with no present strength claim.
+39. **Defer generation readability extraction.** The compressed generation flow has substantial real-behavior coverage and no established remaining correctness defect. Refactoring is optional code organization, not a prerequisite for the verified workflow. Cost if wrong: future maintenance/review costs are higher, and later changes need focused tests.
+40. **Defer extra production-client model telemetry assertion.** Separate Arena/model-identity evidence proves actual learned play, while the four-client production suite proves transport/phase integration. Reviewers graded the extra all-four backend/hash assertion Minor, and the current client exposes no such diagnostic API. Cost if wrong: a future client-specific fallback regression could pass the functional smoke; the missing assertion remains documented and is not claimed fixed.
 
 ### Explicit residual Minor follow-ups
 
@@ -310,3 +314,36 @@ HYBRID_REGISTRY=/missing/final-fix-user-registry ./engines/hybrid/scripts/smoke_
 ```
 
 The isolated smoke also exited 0 with the deliberately invalid ambient registry. Evidence: `/private/var/folders/jp/4f3n3mz53czdh3dbct2rszdh0000gn/T/bid euchre smoke 8ob2ojtc/verification.json`. It passed in **12.47 s**, retained `registry_enabled=false` and a null registry bootstrap lineage, completed the same **302-decision/12-hand** training match and **4/4** sealed screening legs/**1,014 decisions**, with **0 gate errors**, maximum **41.57 ms**, and both champion-unchanged checks true. No full promotion, overnight run, strength claim, user-registry mutation, push or merge occurred. Final `git diff --check` passed.
+
+
+## Final approval and fresh controller verification
+
+The independent final scoped review of **`4cca637..18bcca2`** approved **all six Important fixes**, with **no new Critical or Important issue**. The review checked native artifact identity, closed-trace/result seals and no-play recovery, exact card-permutation search behavior, per-attempt resource limits/checkpoint ordering, all-participant production allowances, and frozen registry population lineage. It also confirmed additive EngineSpec serialization and the mutually exclusive, persisted R37 bootstrap opt-out. The three prior Minor findings remain nonblocking, explicitly deferred under rulings 38–40 above.
+
+After that approval, the controller freshly ran all four full verification commands against code commit **`18bcca273b71c825d7c7344975cec0190cc034da`**, with the stable SDK/environment documented above. **Every command exited 0.** These results supersede the earlier final-wave counts as the final code verification, while the historical RED/GREEN and intermediate evidence remain preserved above.
+
+```sh
+./test.sh > /tmp/bid-euchre-final-direct-root.log 2>&1
+./engines/hybrid/test.sh > /tmp/bid-euchre-final-direct-hybrid.log 2>&1
+engines/hybrid/.venv/bin/python -m unittest discover -s engines/hybrid/tests/python > /tmp/bid-euchre-final-direct-python.log 2>&1
+# Smoke ran with HYBRID_REGISTRY set to a deliberately nonexistent path.
+./engines/hybrid/scripts/smoke_cycle.sh > /tmp/bid-euchre-final-direct-smoke.log 2>&1
+```
+
+| Final direct gate | Result |
+| --- | --- |
+| Root | 66 C# tests, 17 web tests, 28 CFR standard-library tests, baseline tests and macOS packaging passed. Optional CFR PyTorch/process and Prolog skips remain as disclosed. |
+| Hybrid | 17/17 CTest suites in 42.06 s; 62 fresh authority traces; four real SDK-discovery apphost modes; three live-host checks passed. |
+| All hybrid Python | **78/78** in 21.789 s, including the R37 isolation regression. |
+| Invalid-ambient-registry smoke | Passed in **12.176219 s**: 302 generated decisions across 12 hands; five optimizer updates/40 rows; 12 main-network tensors changed; maximum native parity error **3.725290298461914e-8**. Four of four sealed authoritative screening matches completed, with 1,014 decisions, zero gate errors and maximum decision time **40.1373 ms**. |
+
+The final screening remained **NonPromoting**, with primary win rate 0, replacement difference -1 and `CanPromote=false`. The temporary baseline champion and the user's champion bytes were both unchanged. These tiny screening observations verify the workflow, not improved strength. No full promotion or unattended training run was performed.
+
+Durable evidence bindings from the controller's final summary:
+
+- Model SHA-256: `b5d4c475dbd5d0fb6b0aeda2aafa322b355d2f0419fe10cd700e9ae574fc278d`.
+- Candidate identity: `ee780abfe1b973aa70bb4b61dbf67cbc9f611b44ff56b81e8f650590e11675a4`.
+- Checkpoint SHA-256: `9cbb005fef66fe490bfa4ded838c47080b833e08d207202d1a60500c6cd1bd1e`.
+- Authority manifest fingerprint: `28150a7357dcc5e9dd4e0da04859ea605f669c05a55c76a5d99db2762742fa7b`.
+
+The source records at closeout were `/tmp/bid-euchre-final-direct-summary.json`, the four logs above, and `/private/var/folders/jp/4f3n3mz53czdh3dbct2rszdh0000gn/T/bid euchre smoke 5z7y51f3/verification.json`. Those temporary paths may be cleaned up; the review outcome, complete decision ledger and final verification results are preserved in this committed report. This closeout changes documentation only and reruns no tests. Retain branch `codex/hybrid-bot` and its worktree; no merge, push or archive is authorized by this closeout.
