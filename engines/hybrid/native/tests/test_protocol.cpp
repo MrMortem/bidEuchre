@@ -58,6 +58,50 @@ void test_protocol() {
     beu::HeuristicBot reference;reference.set_position(beu::parse_position(position));auto expected=parse_action(reference.choose_action());
     auto baselineAction=ordinary.choose(position,std::chrono::steady_clock::now()+std::chrono::seconds(3));
     CHECK("unchanged baseline action",baselineAction && *baselineAction==expected);ordinary.reset();CHECK("reset reaps baseline",!ordinary.running());
+    // A persistent unchanged baseline retains its own sent exchange card through
+    // all subsequent plays. Compare a complete bidder decision sequence.
+    for(bool restart: {false,true}) {
+        const int seed=7102;
+        auto fixture=load_case("random-"+std::to_string(seed));NativeMatch game;
+        game.start(deal_from_json(fixture.at("initial")),0,{0,0});
+        game.apply(5);game.apply(0);game.apply(0);game.apply(0);game.apply(9);
+        beu::HeuristicBot persistent;BaselineProcess process(HYBRID_ENGINE_PATH);
+        auto own=game.view(1);persistent.set_position(beu::parse_position(own));
+        auto sent=parse_action(persistent.choose_action());auto worker=process.choose(own,std::chrono::steady_clock::now()+std::chrono::seconds(3));
+        CHECK("PartnersBest bidder exchange equivalence",worker && *worker==sent);game.apply(sent);
+        auto legal=game.legal_actions();int returned=-1;
+        for(int id=13;id<37;++id)if(legal[id] && id!=sent){returned=id;break;}
+        CHECK("different partner return exists",returned>=0);game.apply(static_cast<ActionId>(returned));
+        if(restart)process.terminate();
+        int plays=0;
+        while(beu::parse_position(game.view(1)).phase=="Playing") {
+            int actor=beu::parse_position(game.view(1)).current_seat;ActionId action=0;
+            if(actor==1) {
+                own=game.view(1);persistent.set_position(beu::parse_position(own));action=parse_action(persistent.choose_action());
+                worker=process.choose(own,std::chrono::steady_clock::now()+std::chrono::seconds(3));
+                if(!worker || *worker!=action)std::cerr<<"PartnersBest mismatch seed="<<seed<<" play="<<plays<<" expected="<<int(action)<<" actual="<<(worker?int(*worker):-1)<<'\n';
+                CHECK("PartnersBest persistent own-action memory equivalence",worker && *worker==action);++plays;
+            } else {auto mask=game.legal_actions();for(int id=37;id<61;++id)if(mask[id]){action=static_cast<ActionId>(id);break;}}
+            game.apply(action);
+        }
+        CHECK("PartnersBest six bidder plays compared",plays==6);
+    }
+    // A learned exchange that differs from baseline cannot be restored through
+    // the unchanged API. Do not label a guessed private history as baseline.
+    {
+        auto fixture=load_case("random-7102");NativeMatch game;game.start(deal_from_json(fixture.at("initial")),0,{0,0});
+        game.apply(5);game.apply(0);game.apply(0);game.apply(0);game.apply(9);
+        auto exchange=game.view(1);beu::HeuristicBot reference;reference.set_position(beu::parse_position(exchange));auto predicted=parse_action(reference.choose_action());
+        auto mask=game.legal_actions();ActionId actual=0;for(int id=13;id<37;++id)if(mask[id] && id!=predicted){actual=static_cast<ActionId>(id);break;}
+        BaselineProcess lazy(HYBRID_ENGINE_PATH);lazy.observe(exchange);lazy.record_own_action(actual);game.apply(actual);
+        mask=game.legal_actions();for(int id=13;id<37;++id)if(mask[id] && id!=actual){game.apply(static_cast<ActionId>(id));break;}
+        CHECK("lazy exchange mismatch fails closed",!lazy.choose(game.view(1),std::chrono::steady_clock::now()+std::chrono::seconds(3)));
+        CHECK("mismatch reason and no worker",lazy.fallback_reason()=="restore-action-mismatch" && !lazy.running());
+        CHECK("mismatch stays quarantined",!lazy.choose(game.view(1),std::chrono::steady_clock::now()+std::chrono::seconds(3)) && !lazy.running());
+        game.start(deal_from_json(fixture.at("initial")),0,{0,0},2,2);
+        CHECK("new deal recovers baseline",lazy.choose(game.view(1),std::chrono::steady_clock::now()+std::chrono::seconds(3)).has_value());
+        CHECK("recovery clears reason",lazy.fallback_reason()=="none");
+    }
     // A corrupt artifact and finite weights overflowing during inference both
     // route to the unchanged worker and identify the effective backend.
     auto corrupt=std::filesystem::path(HYBRID_TEST_MODEL).parent_path()/"corrupt.json";{std::ofstream file(corrupt);file<<"{}";}

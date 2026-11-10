@@ -91,8 +91,9 @@ int main(int argc,char** argv) {
                     // All work is synchronous; exactly this dispatch owns stdout.
                     std::ostringstream info;info<<"info backend="<<backend<<" model_sha256="<<hash<<" balanced="<<stats.completedBalancedPass<<" simulations="<<stats.simulations<<" temperature="<<stats.temperature<<" seed="<<stats.seed<<" counts=";
                     for(int id=0;id<61;++id)if(o.legal[id])info<<id<<':'<<stats.counts[id]<<',';
+                    info<<" fallback_reason="<<(backend=="immediate"?baseline.fallback_reason():"none");
                     info<<" elapsed_ms="<<std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-began).count();
-                    memory.record_own_action(action);cachedAction=action;cachedPosition=positionKey;cachedInfo=info.str();output(cachedInfo);output(format_action(action));
+                    memory.record_own_action(action);baseline.record_own_action(action);cachedAction=action;cachedPosition=positionKey;cachedInfo=info.str();output(cachedInfo);output(format_action(action));
                 } else if(command=="stop" || command=="setoption") { /* synchronous bounded search; no late second answer */ }
                 else output("error unknown command");
             }catch(const std::exception&) {output("error invalid position or command");}

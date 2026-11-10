@@ -12,6 +12,8 @@ public:
     BaselineProcess(const BaselineProcess&)=delete;
     BaselineProcess& operator=(const BaselineProcess&)=delete;
     void observe(const Json& privatePosition);
+    void record_own_action(ActionId);
+    [[nodiscard]] const std::string& fallback_reason() const {return reason_;}
     [[nodiscard]] std::optional<ActionId> choose(const Json& privatePosition,Deadline);
     void reset();
     void terminate();
@@ -20,8 +22,11 @@ private:
     bool start(Deadline);
     bool write_line(const std::string&,Deadline);
     std::optional<std::string> read_line(Deadline);
-    std::string executable_,buffer_;
-    std::vector<std::string> history_;
+    struct Entry {std::string position;bool bidderExchange;std::optional<ActionId> action;};
+    std::string executable_,buffer_,dealKey_,reason_="none";
+    std::vector<Entry> history_;
+    std::size_t delivered_=0;
+    bool quarantined_=false;
     int delayMs_=0,pid_=-1,input_=-1,output_=-1;
 };
 }
