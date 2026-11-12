@@ -51,4 +51,5 @@ public sealed record SessionState(
     bool Started,
     IReadOnlyList<SeatConfiguration> Seats,
     GameView? Game,
-    string? Error);
+    string? Error,
+    bool Dealing = false);

@@ -1,0 +1,9 @@
+# Bid Announcements
+
+Extend the existing pixel-art motion direction in both clients. When the public highest bid rises, stamp its value and bidder in the center of the table, hold briefly, then slide the badge into a persistent highest-bid display in the side information panel. Passes and unchanged polling do not animate. A higher bid replaces an in-flight announcement. Reopening a game or switching viewer shows the current bid directly in its dock; reduced motion and motion-off do the same. Clear the badge when a contract is chosen or a new hand starts; never show a contract type before it is revealed.
+
+Use an overlay independent of the table/card rendering, and measure center/dock coordinates so the flight follows responsive layout. Cancel on view change, disconnect, hidden page, resize, and motion disable. Preserve gameplay timing and input; the overlay cannot receive clicks or focus.
+
+Verify new-bid-only event tracking with regression tests; build both clients and the Mac package; check an actual center announcement and its docked result in the browser. Continue on unmerged PR #2 and update it without merging.
+
+Implemented and validated: 34/34 .NET and 17/17 web tests pass; the solution builds without warnings/errors. The browser showed a center bid stamp and its docked result, motion-off updated the dock directly, and a 390px viewport kept the announcement visible with no horizontal overflow or console errors. When scrolling places the dock outside the viewport, the stamp exits through the left edge. Independent review caught native scroll-extent and tab-switch cancellation issues, which were corrected. The native bidding flight is build/static-review verified; live bidding verification was performed on the web client. Optional bot suites skip missing prerequisites as reported by test.sh.

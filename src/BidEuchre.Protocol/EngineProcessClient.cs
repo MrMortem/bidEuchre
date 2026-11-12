@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.ComponentModel;
+using System.Text;
 using BidEuchre.Core;
 
 namespace BidEuchre.Protocol;
@@ -17,6 +19,10 @@ public sealed class EngineProcessClient : IAsyncDisposable
     private StreamWriter? _input;
     private StreamReader? _output;
     private Task? _disposeTask;
+    private readonly StringBuilder _standardError = new();
+    private readonly object _errorLock = new();
+    private StreamReader? _errorOutput;
+    private Task? _errorTask;
 
     public EngineProcessClient(string executable, string? arguments = null, TimeSpan? timeout = null)
     {
@@ -56,6 +62,9 @@ public sealed class EngineProcessClient : IAsyncDisposable
             _input = _process.StandardInput;
             _input.AutoFlush = true;
             _output = _process.StandardOutput;
+            _errorOutput = _process.StandardError;
+            lock (_errorLock) _standardError.Clear();
+            _errorTask = DrainStandardErrorAsync(_errorOutput);
 
             await SendAsync("beuci", operation.Token);
             string? name = null;
@@ -96,6 +105,21 @@ public sealed class EngineProcessClient : IAsyncDisposable
             }
 
             return Identity;
+        }
+        catch (Exception exception) when (exception is ProtocolException or IOException or Win32Exception)
+        {
+            // Let a failing launcher's final diagnostics arrive, but do not wait
+            // indefinitely for a process that leaves its error stream open.
+            if (_errorTask is not null)
+            {
+                try { await _errorTask.WaitAsync(TimeSpan.FromMilliseconds(200), operation.Token); }
+                catch (TimeoutException) { }
+            }
+
+            string diagnostic;
+            lock (_errorLock) diagnostic = _standardError.ToString().Trim();
+            throw new ProtocolException($"Could not load engine '{_executable}': {exception.Message}" +
+                (diagnostic.Length == 0 ? string.Empty : $"\n{diagnostic}"));
         }
         finally
         {
@@ -228,6 +252,7 @@ public sealed class EngineProcessClient : IAsyncDisposable
 
             DisposeQuietly(input);
             DisposeQuietly(output);
+            DisposeQuietly(_errorOutput);
             DisposeQuietly(process);
         }
         finally
@@ -296,6 +321,29 @@ public sealed class EngineProcessClient : IAsyncDisposable
         EnsureRunning();
         await _input!.WriteLineAsync(command.AsMemory(), cancellationToken);
         await _input.FlushAsync(cancellationToken);
+    }
+
+    private async Task DrainStandardErrorAsync(StreamReader reader)
+    {
+        var buffer = new char[1024];
+        try
+        {
+            int count;
+            while ((count = await reader.ReadAsync(buffer.AsMemory())) > 0)
+            {
+                lock (_errorLock)
+                {
+                    _standardError.Append(buffer, 0, count);
+                    // Keep the most recent diagnostics without retaining unbounded logs.
+                    if (_standardError.Length > 4096)
+                        _standardError.Remove(0, _standardError.Length - 4096);
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or ObjectDisposedException)
+        {
+            // Shutdown may close the pipe while a read is pending.
+        }
     }
 
     private Task SendPositionAsync(GameView view, int seat, CancellationToken cancellationToken)

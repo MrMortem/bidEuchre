@@ -1,0 +1,39 @@
+{
+  "width": 1672,
+  "height": 941,
+  "background": "table-flames.png",
+  "layers": [
+    {
+      "suit": "heart",
+      "file": "table-heart.png",
+      "x": 59,
+      "y": 38,
+      "width": 157,
+      "height": 155
+    },
+    {
+      "suit": "club",
+      "file": "table-club.png",
+      "x": 1439,
+      "y": 29,
+      "width": 190,
+      "height": 177
+    },
+    {
+      "suit": "spade",
+      "file": "table-spade.png",
+      "x": 50,
+      "y": 698,
+      "width": 173,
+      "height": 182
+    },
+    {
+      "suit": "diamond",
+      "file": "table-diamond.png",
+      "x": 1458,
+      "y": 695,
+      "width": 155,
+      "height": 191
+    }
+  ]
+}

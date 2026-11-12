@@ -32,7 +32,10 @@ if [[ "$go_error" != 'error a position must be supplied before go' ]]; then
 fi
 
 playing_payload='eyJzZWF0IjoxLCJnYW1lIjp7InBoYXNlIjoiUGxheWluZyIsImxlZ2FsQWN0aW9ucyI6eyJjYW5QYXNzIjpmYWxzZSwiYmlkcyI6W10sImNvbnRyYWN0TW9kZXMiOltdLCJ0cnVtcFN1aXRzIjpbXSwiY2FyZHMiOlt7ImNvZGUiOiJBUyJ9XX19fQ'
-mapfile -t recovery_lines < <(
+recovery_lines=()
+while IFS= read -r line; do
+  recovery_lines+=("$line")
+done < <(
   printf 'position invalid!\ngo\nposition %s\ngo\nquit\n' "$playing_payload" | "$engine_dir/run.sh"
 )
 
@@ -42,6 +45,16 @@ if [[ "${#recovery_lines[@]}" -ne 2 ||
   echo "FAIL: malformed-position recovery produced an unexpected transcript" >&2
   printf '%s\n' "${recovery_lines[@]}" >&2
   exit 1
+fi
+
+# Finder-launched Mac apps do not inherit the terminal's Homebrew PATH.
+if [[ "$(uname -s)" == Darwin &&
+      ( -x /opt/homebrew/bin/swipl || -x /usr/local/bin/swipl ) ]]; then
+  finder_actual="$(printf 'beuci\nisready\nquit\n' | PATH=/usr/bin:/bin:/usr/sbin:/sbin "$engine_dir/run.sh")"
+  if [[ "$finder_actual" != "$expected" ]]; then
+    echo "FAIL: Prolog engine did not load with Finder's PATH" >&2
+    exit 1
+  fi
 fi
 
 echo "PASS: Basic Prolog Bot unit, transcript, and recovery tests"

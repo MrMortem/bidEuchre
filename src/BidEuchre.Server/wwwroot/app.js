@@ -1,4 +1,12 @@
+const tableMotion = new TableMotion();
 const model = {
+  motionEnabled: true,
+  viewGeneration: 0,
+  viewLoading: false,
+  connectionLost: false,
+  sessionUnavailable: false,
+  motionCue: null,
+  bidAnnouncement: null,
   engines: [],
   sessions: [],
   session: null,
@@ -17,6 +25,8 @@ const $ = selector => document.querySelector(selector);
 const $$ = selector => [...document.querySelectorAll(selector)];
 
 document.addEventListener('DOMContentLoaded', async () => {
+  configureMotion();
+  configurePageLifecycle();
   bindNavigation();
   bindForms();
   buildSeatEditor();
@@ -29,10 +39,9 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
-  $('#viewer-seat').addEventListener('change', async event => {
-    model.viewerSeat = event.target.value === '' ? null : Number(event.target.value);
-    await refreshGame();
-  });
+  $('#retry-connection').addEventListener('click', () => refreshGame({notify:false}));
+  $('#viewer-seat').addEventListener('change', event =>
+    selectViewerSeat(event.target.value === '' ? null : Number(event.target.value)));
 }
 
 function bindForms() {
@@ -41,7 +50,9 @@ function bindForms() {
 }
 
 function showView(name) {
+  if (name !== 'game') { cancelTableMotion(); model.viewGeneration += 1; }
   document.body.classList.toggle('at-table', name === 'game');
+  updateSuitBackdrop(name === 'game' ? model.session?.game?.contract : null);
   $$('.view').forEach(view => view.classList.toggle('active', view.id === `${name}-view`));
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   if (name !== 'game') stopPolling();
@@ -75,14 +86,25 @@ function updateSeatEditor() {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
-  });
-  const contentType = response.headers.get('content-type') || '';
-  const body = contentType.includes('json') ? await response.json() : await response.text();
-  if (!response.ok) throw new Error(body?.error || body || `Request failed (${response.status})`);
-  return body;
+  // Only reads time out automatically. A submitted move is never retried.
+  const read = !options.method || options.method === 'GET';
+  const controller = read ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), 8000) : null;
+  try {
+    const response = await fetch(path, {
+      ...options,
+      signal:options.signal ?? controller?.signal,
+      headers:{ 'Content-Type':'application/json', ...(options.headers || {}) }
+    });
+    const contentType = response.headers.get('content-type') || '';
+    const body = contentType.includes('json') ? await response.json() : await response.text();
+    if (!response.ok) {
+      const error = new Error(body?.error || body || `Request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    }
+    return body;
+  } finally { if (timer) clearTimeout(timer); }
 }
 
 async function loadEngines() {
@@ -180,6 +202,8 @@ async function createSession(event) {
 }
 
 async function openSession(id) {
+  beginViewChange();
+  tableMotion.reset();
   stopPolling();
   model.sessionId = id;
   model.session = null;
@@ -187,51 +211,57 @@ async function openSession(id) {
   const summary = model.sessions.find(session => session.id === id);
   model.viewerSeat = summary?.seats.find(seat => seat.kind === 'Human')?.seat ?? null;
   showView('game');
+  const generation = model.viewGeneration;
   await refreshGame();
-  startPolling();
+  if (generation === model.viewGeneration && !model.sessionUnavailable) startPolling();
 }
 
 async function startCurrentSession() {
-  if (model.startPending) return;
+  if (model.startPending || inputLocked()) return;
+  const generation = model.viewGeneration;
   const button = $('#start-game');
   model.startPending = true;
   button.disabled = true;
   button.setAttribute('aria-busy', 'true');
   button.textContent = 'Starting bots…';
   try {
-    await api(`/api/sessions/${model.sessionId}/start`, { method: 'POST', body: '{}' });
-    await refreshGame();
-  } catch (error) { toast(error.message, true); }
+    await api(`/api/sessions/${model.sessionId}/start?animateDeal=${model.motionEnabled}`, { method: 'POST', body: '{}' });
+    if (generation === model.viewGeneration) await refreshGame();
+  } catch (error) { if (generation === model.viewGeneration) toast(error.message, true); }
   finally {
+    if (generation !== model.viewGeneration) return;
     model.startPending = false;
     button.disabled = false;
     button.removeAttribute('aria-busy');
     button.textContent = 'Start game';
+    syncInputState();
   }
 }
 
 function refreshGame({ notify = true } = {}) {
+  const sessionId = model.sessionId;
+  const viewerSeat = model.viewerSeat;
+  const generation = model.viewGeneration;
+  const current = () => generation === model.viewGeneration && sessionId === model.sessionId && viewerSeat === model.viewerSeat;
   const operation = async () => {
-    const sessionId = model.sessionId;
-    const viewerSeat = model.viewerSeat;
-    if (!sessionId) return;
-
+    if (!sessionId || !current()) return;
     try {
       const query = viewerSeat === null ? '' : `?seat=${viewerSeat}`;
       const session = await api(`/api/sessions/${sessionId}${query}`);
-
-      // A slow response for a table or hand we have already left must not repaint the UI.
-      if (sessionId !== model.sessionId || viewerSeat !== model.viewerSeat) return;
+      if (!current()) return;
+      if (model.connectionLost) tableMotion.reset();
       model.session = session;
+      model.viewLoading = false;
+      setConnectionState(false);
       renderGame();
+      syncInputState();
     } catch (error) {
-      if (notify && sessionId === model.sessionId && viewerSeat === model.viewerSeat) {
-        toast(error.message, true);
-      }
+      if (!current()) return;
+      model.viewLoading = false;
+      setConnectionState(true, error.status === 404);
+      if (notify && error.status !== 404) toast('Could not refresh the table. Reconnecting…', true);
     }
   };
-
-  // Serialize manual refreshes and polling so responses can never arrive out of order.
   const queued = model.refreshQueue.then(operation, operation);
   model.refreshQueue = queued.catch(() => {});
   return queued;
@@ -259,6 +289,9 @@ function renderGame() {
     startButton.textContent = 'Start game';
   }
 
+  updateSuitBackdrop(session.game?.contract);
+  model.motionCue = tableMotion.update(session.game, `${session.id}:${model.viewerSeat}`);
+
   if (!session.started || !session.game) {
     resetBoard();
     return;
@@ -270,16 +303,25 @@ function renderGame() {
   model.renderMode = 'game';
   $('#team-zero-score').textContent = game.scores[0];
   $('#team-one-score').textContent = game.scores[1];
-  $('#phase-label').textContent = `${splitWords(game.phase)} · Hand ${game.handNumber}`;
+  $('#phase-label').textContent = `${session.dealing ? 'Dealing' : splitWords(game.phase)} · Hand ${game.handNumber}`;
   $('#contract-label').textContent = contractName(game);
+  renderBidDock(game);
   $('#dealer-label').textContent = `Seat ${game.dealer + 1} deals · ${game.tricksByTeam[0]}–${game.tricksByTeam[1]} tricks`;
   $('#trick-count').textContent = `${game.completedTricks.length} / 6 tricks`;
   $('#game-error').textContent = session.error || '';
   $('#game-error').classList.toggle('hidden', !session.error);
 
+  if (game.phase !== 'Bidding') cancelDeal();
   game.players.forEach(player => renderPlayer(player, game));
+  if (session.dealing && !model.dealAnimation) {
+    if (model.dealCompletedHand === `${session.id}:${game.handNumber}`) finishServerDeal(session.id,game.handNumber);
+    else startDeal(game);
+  } else if (model.motionCue.deal && game.phase === 'Bidding' && !model.dealAnimation) startDeal(game);
   renderTrick(game);
   renderActions(game);
+  animateTableCues();
+  if (model.motionCue.highBidChanged) announceHighestBid(game);
+  syncInputState();
   const eventList = $('#event-list');
   const eventKey = JSON.stringify(game.events);
   if (eventList.dataset.renderKey !== eventKey) {
@@ -295,10 +337,14 @@ function resetBoard() {
   $('#team-one-score').textContent = '0';
   $('#phase-label').textContent = 'Waiting to start';
   $('#contract-label').textContent = 'No contract';
+  cancelBidAnnouncement();
+  $('#bid-dock').classList.add('hidden');
+  $('#contract-label').classList.remove('hidden');
   $('#dealer-label').textContent = 'Dealer not chosen';
   model.session.seats.forEach(seat => {
     const position = $(`#seat-${seat.seat}`);
     position.removeAttribute('data-render-key');
+    position.classList.remove('sitting-out');
     position.innerHTML = `<div class="player-tag">${portraitHtml(seat.seat)}<span>${escapeHtml(seat.name)}</span><span>${seat.kind === 'Bot' ? '⚙ Bot' : '● Human'}</span></div><div class="card-row">${backs(6)}</div>`;
   });
   $('#trick-area').innerHTML = '<span class="empty-trick">Cards played here</span>';
@@ -345,6 +391,7 @@ function renderPlayer(player, game) {
     </div>
     <div class="card-row">${cards}</div>`;
   position.dataset.renderKey = renderKey;
+  registerDealHand(position, player.seat);
   if (player.cards && current) {
     position.querySelectorAll('.playing-card.legal').forEach(button =>
       button.addEventListener('click', () => playOrExchange(button.dataset.card)));
@@ -368,13 +415,43 @@ function renderTrick(game) {
     return;
   }
   const renderKey = JSON.stringify([
+    model.sessionId, game.handNumber,
     plays.map(play => [play.seat, cardCode(play.card)]),
     completed?.number ?? null,
     completed?.winner ?? null
   ]);
   if (area.dataset.renderKey === renderKey) return;
-  area.innerHTML = plays.map(play => `<div class="trick-card seat-${play.seat}">${cardHtml(play.card, false)}</div>`).join('') +
-    (completed ? `<span class="trick-result">${escapeHtml(game.players[completed.winner].name)} won trick ${completed.number}</span>` : '');
+  // Keep existing card nodes: the next play must not restart a card in flight.
+  const keys = new Set(plays.map(play => `${play.seat}:${cardCode(play.card)}`));
+  [...area.children].forEach(node => { if (!keys.has(node.dataset.playKey)) node.remove(); });
+  plays.forEach(play => {
+    const key = `${play.seat}:${cardCode(play.card)}`;
+    let node = [...area.children].find(child => child.dataset.playKey === key);
+    if (!node) {
+      node = document.createElement('div');
+      node.className = `trick-card seat-${play.seat}`;
+      node.dataset.playKey = key;
+      node.innerHTML = cardHtml(play.card, false);
+      area.append(node);
+      if (model.motionCue?.addedPlays.has(key)) {
+        const [x, y] = [[0,85],[-95,0],[0,-85],[95,0]][play.seat];
+        runMotion(node, [
+          { translate:`${x}px ${y}px`, rotate:`${play.seat % 2 ? 8 : -6}deg`, opacity:.5 },
+          { translate:`${-x * .035}px ${-y * .035}px`, rotate:'0deg', opacity:1, offset:.8 },
+          { translate:'0 0', rotate:'0deg', opacity:1 }
+        ], { duration:300 });
+      }
+    }
+    node.classList.toggle('winning-card', completed?.winner === play.seat);
+  });
+  if (completed) {
+    const result = document.createElement('span');
+    result.className = 'trick-result';
+    result.textContent = `${game.players[completed.winner].name} won trick ${completed.number}`;
+    area.append(result);
+    if (model.motionCue?.winnerSeat != null) runMotion(result,
+      [{ translate:'0 6px', opacity:0 }, { translate:'0 0', opacity:1 }], { duration:220 });
+  }
   area.dataset.renderKey = renderKey;
 }
 
@@ -386,7 +463,10 @@ function renderActions(game) {
   let titleText;
   let helpText;
 
-  if (game.phase === 'HandComplete') {
+  if (model.session?.dealing || model.dealAnimation) {
+    titleText = 'Dealing cards';
+    helpText = 'Bidding begins when everyone has their six cards.';
+  } else if (game.phase === 'HandComplete') {
     titleText = 'Hand complete';
     helpText = 'Review the score, then deal the next hand when everyone is ready.';
     buttons.push({ key: 'next-hand', label: 'Deal next hand', handler: nextHand });
@@ -468,16 +548,27 @@ function addActionButton(label, handler, quiet = false) {
   $('#action-buttons').append(button);
 }
 
-async function sendAction(action) {
-  if (model.actionPending) return;
+async function submitGameRequest(path, body) {
+  if (inputLocked()) return;
+  const generation = model.viewGeneration;
   setActionBusy(true);
   try {
-    await api(`/api/sessions/${model.sessionId}/actions`, {
-      method: 'POST', body: JSON.stringify({ seat: model.viewerSeat, ...action })
-    });
-    await refreshGame();
-  } catch (error) { toast(error.message, true); }
-  finally { setActionBusy(false); }
+    await api(path, {method:'POST', body:JSON.stringify(body)});
+    if (generation === model.viewGeneration) await refreshGame();
+  } catch (error) {
+    if (generation === model.viewGeneration) {
+      toast(error.message, true);
+      // A lost response can still mean the server accepted the move. Read the
+      // authoritative state before releasing input; never repeat the POST.
+      await refreshGame({notify:false});
+    }
+  } finally {
+    if (generation === model.viewGeneration) setActionBusy(false);
+  }
+}
+
+async function sendAction(action) {
+  return submitGameRequest(`/api/sessions/${model.sessionId}/actions`, {seat:model.viewerSeat, ...action});
 }
 
 function playOrExchange(card) {
@@ -487,27 +578,59 @@ function playOrExchange(card) {
 }
 
 async function nextHand() {
-  if (model.actionPending) return;
-  setActionBusy(true);
-  try {
-    await api(`/api/sessions/${model.sessionId}/next-hand`, { method: 'POST', body: '{}' });
-    await refreshGame();
-  } catch (error) { toast(error.message, true); }
-  finally { setActionBusy(false); }
+  return submitGameRequest(`/api/sessions/${model.sessionId}/next-hand?animateDeal=${model.motionEnabled}`, {});
 }
 
 async function selectViewerSeat(seat) {
+  beginViewChange();
   model.viewerSeat = seat;
-  $('#viewer-seat').value = String(seat);
+  $('#viewer-seat').value = seat === null ? '' : String(seat);
   await refreshGame();
 }
 
-function setActionBusy(busy) {
-  model.actionPending = busy;
+function inputLocked() { return model.actionPending || model.viewLoading || model.connectionLost || !!model.dealAnimation || !!model.session?.dealing; }
+
+function syncInputState() {
+  const locked = inputLocked();
   const actions = $('#action-buttons');
-  actions.setAttribute('aria-busy', String(busy));
-  actions.querySelectorAll('button').forEach(button => button.disabled = busy);
-  $$('.playing-card.legal').forEach(button => button.disabled = busy);
+  actions.setAttribute('aria-busy', String(model.actionPending || model.viewLoading));
+  actions.querySelectorAll('button').forEach(button => button.disabled = locked);
+  $$('.playing-card.legal').forEach(button => button.disabled = locked);
+  $('#start-game').disabled = model.startPending || locked;
+  $('#viewer-seat').disabled = model.viewLoading || model.actionPending || !model.session?.seats.some(seat => seat.kind === 'Human');
+}
+
+function setActionBusy(busy) { model.actionPending = busy; syncInputState(); }
+
+function beginViewChange() {
+  cancelTableMotion();
+  model.viewGeneration += 1;
+  model.viewLoading = true;
+  model.actionPending = false;
+  model.startPending = false;
+  setConnectionState(false);
+  $$('.player-position .card-row').forEach(row => {
+    if (row.querySelector('.playing-card')) {
+      row.replaceChildren();
+      row.parentElement.removeAttribute('data-render-key');
+    }
+  });
+  $('#action-title').textContent = 'Loading hand…';
+  $('#action-help').textContent = 'Your hand will appear when the table is ready.';
+  syncInputState();
+}
+
+function setConnectionState(lost, unavailable = false) {
+  if (lost && !model.connectionLost) { cancelTableMotion(); tableMotion.reset(); }
+  model.connectionLost = lost;
+  model.sessionUnavailable = unavailable;
+  $('#connection-status').classList.toggle('hidden', !lost);
+  const message = unavailable ? 'This table is no longer available. Return to Tables to start a new game.'
+    : 'Connection lost. Reconnecting… Your last table state is shown.';
+  if ($('#connection-message').textContent !== message) $('#connection-message').textContent = message;
+  $('#retry-connection').classList.toggle('hidden', unavailable);
+  if (unavailable) stopPolling();
+  syncInputState();
 }
 
 async function loadRules() {
@@ -554,12 +677,13 @@ function inlineMarkdown(value) {
 }
 
 function cardHtml(card, legal) {
-  const suit = suitSymbol(card.suit);
   const red = card.suit === 'Hearts' || card.suit === 'Diamonds';
   const rank = cardRank(card);
   const code = cardCode(card);
   const label = `${rank} of ${card.suit}`;
-  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-corner" aria-hidden="true"><strong>${rank}</strong><span>${suit}</span></span>${["J", "Q", "K"].includes(rank) ? `<span class="court court-${rank}" aria-hidden="true"></span>` : `<span class="card-pip" aria-hidden="true">${suit}</span>`}<span class="card-corner inverted" aria-hidden="true"><strong>${rank}</strong><span>${suit}</span></span></button>`;
+  const column = '9TJQKA'.indexOf(code[0]);
+  const row = 'CDHS'.indexOf(code[1]);
+  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-face-sprite" style="--card-column:${column};--card-row:${row}" aria-hidden="true"></span></button>`;
 }
 
 function portraitHtml(seat) {
@@ -606,7 +730,7 @@ function startPolling() {
   const token = model.pollToken;
   const poll = async () => {
     await refreshGame({ notify: false });
-    if (token !== model.pollToken) return;
+    if (token !== model.pollToken || model.sessionUnavailable || document.hidden) return;
     model.pollTimer = window.setTimeout(poll, document.hidden ? 1500 : 500);
   };
   model.pollTimer = window.setTimeout(poll, 500);
@@ -624,4 +748,300 @@ function toast(message, error = false) {
   element.className = `toast show ${error ? 'error' : ''}`;
   clearTimeout(element.timer);
   element.timer = setTimeout(() => element.className = 'toast', 3500);
+}
+
+
+function configureMotion() {
+  const preference = matchMedia('(prefers-reduced-motion: reduce)');
+  const button = $('#motion-toggle');
+  let requested = true;
+  try { requested = localStorage.getItem('bideuchre.motion') !== 'off'; } catch { }
+  const update = () => {
+    const supported = typeof button.animate === 'function';
+    model.motionEnabled = requested && !preference.matches && supported;
+    document.body.classList.toggle('motion-off', !model.motionEnabled);
+    button.textContent = `Motion: ${model.motionEnabled ? 'On' : 'Off'}`;
+    button.setAttribute('aria-pressed', String(model.motionEnabled));
+    button.disabled = preference.matches || !supported;
+    button.title = preference.matches ? 'Your system reduced-motion setting is enabled.' : 'Turn table animations on or off.';
+    if (!model.motionEnabled) cancelTableMotion();
+  };
+  update();
+  button.addEventListener('click', () => {
+    requested = !requested;
+    try { localStorage.setItem('bideuchre.motion', requested ? 'on' : 'off'); } catch { }
+    update();
+  });
+  preference.addEventListener('change', update);
+  window.addEventListener('resize', cancelBidAnnouncement);
+  window.addEventListener('resize', cancelDeal);
+  window.addEventListener('resize', () => updateSuitBackdrop(document.body.classList.contains('at-table') ? model.session?.game?.contract : null));
+  document.addEventListener('scroll', cancelBidAnnouncement, {capture:true,passive:true});
+  document.addEventListener('scroll', cancelDeal, {capture:true,passive:true});
+}
+
+function configurePageLifecycle() {
+  document.addEventListener('visibilitychange', async () => {
+    cancelTableMotion();
+    tableMotion.reset();
+    stopPolling();
+    if (document.hidden || !$('#game-view').classList.contains('active')) return;
+    beginViewChange();
+    const generation = model.viewGeneration;
+    await refreshGame({notify:false});
+    if (generation === model.viewGeneration && !document.hidden && !model.sessionUnavailable) startPolling();
+  });
+}
+
+function runMotion(element, keyframes, options = {}) {
+  if (!element || document.hidden || !model.motionEnabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  element.getAnimations().filter(animation => animation.animationName !== 'hand-float').forEach(animation => animation.cancel());
+  return element.animate(keyframes, { duration:260, easing:'cubic-bezier(.2,.75,.25,1)', ...options });
+}
+
+function animateTableCues() {
+  const cue = model.motionCue;
+  if (!cue) return;
+  if (cue.turnSeat != null) runMotion($(`#seat-${cue.turnSeat} .player-tag`),
+    [{ translate:'0 0' }, { translate:'0 -4px', offset:.45 }, { translate:'0 0' }], { duration:260 });
+  if (cue.winnerSeat != null) {
+    runMotion($(`#seat-${cue.winnerSeat} .portrait`),
+      [{ scale:'1' }, { scale:'1.12', offset:.45 }, { scale:'1' }], { duration:380 });
+    const winner = $('#trick-area .winning-card .playing-card');
+    runMotion(winner, [{ scale:'1' }, { scale:'1.065', offset:.45 }, { scale:'1' }], { duration:380 });
+  }
+  for (const team of cue.scoreTeams) runMotion($(team === 0 ? '#team-zero-score' : '#team-one-score'),
+    [{ scale:'1' }, { scale:'1.2', color:'#ffdb62', offset:.4 }, { scale:'1' }], { duration:420 });
+}
+
+function cancelTableMotion() {
+  cancelDeal();
+  cancelBidAnnouncement();
+  $('#game-view')?.getAnimations({ subtree:true }).filter(animation => animation.animationName !== 'hand-float').forEach(animation => animation.cancel());
+}
+
+
+function bidBadgeHtml(game) {
+  const player = game.players.find(player => player.seat === game.bidder);
+  return `<span class="bid-caption">Highest bid</span><strong class="bid-value">${escapeHtml(bidName(game.highBid))}</strong><span class="bid-player">${escapeHtml(player?.name ?? `Seat ${game.bidder + 1}`)}</span>`;
+}
+
+function renderBidDock(game) {
+  const dock = $('#bid-dock');
+  const visible = game.highBid != null && game.bidder != null && ['Bidding','ChoosingContract'].includes(game.phase);
+  dock.classList.toggle('hidden', !visible);
+  $('#contract-label').classList.toggle('hidden', visible);
+  if (!visible) { cancelBidAnnouncement(); delete dock.dataset.bidKey; return; }
+  const key = `${model.sessionId}:${game.handNumber}:${game.bidder}:${game.highBid}`;
+  if (dock.dataset.bidKey !== key) {
+    dock.innerHTML = bidBadgeHtml(game);
+    dock.dataset.bidKey = key;
+  }
+}
+
+function bidFlightGeometry(table, dock, width, height, viewportWidth, viewportHeight) {
+  const clamp = (value, size, viewport) => Math.max(size / 2 + 12, Math.min(viewport - size / 2 - 12, value));
+  const naturalY = table.top + table.height * .48;
+  const x = clamp(table.left + table.width / 2, width, viewportWidth);
+  const y = clamp(naturalY < 0 || naturalY > viewportHeight ? viewportHeight / 2 : naturalY, height, viewportHeight);
+  const dockVisible = dock.top >= 0 && dock.top + dock.height <= viewportHeight;
+  return {x, y, targetX:dockVisible ? dock.left + dock.width / 2 : -width / 2 - 16,
+    targetY:dockVisible ? dock.top + dock.height / 2 : y, scale:Math.min(1, dock.width / width)};
+}
+
+function announceHighestBid(game) {
+  cancelBidAnnouncement();
+  if (!model.motionEnabled || document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const dock = $('#bid-dock');
+  if (dock.classList.contains('hidden')) return;
+  const table = $('.felt-table').getBoundingClientRect();
+  const destination = dock.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.className = 'bid-badge bid-announcement';
+  overlay.setAttribute('aria-hidden','true');
+  overlay.innerHTML = bidBadgeHtml(game);
+  overlay.style.left = `${table.left + table.width / 2}px`;
+  overlay.style.top = `${table.top + table.height * .48}px`;
+  $('#game-view').append(overlay);
+  const bounds = overlay.getBoundingClientRect();
+  const flight = bidFlightGeometry(table, destination, bounds.width, bounds.height, window.innerWidth, window.innerHeight);
+  overlay.style.left = `${flight.x - bounds.width / 2}px`;
+  overlay.style.top = `${flight.y - bounds.height / 2}px`;
+  const x = flight.targetX - flight.x;
+  const y = flight.targetY - flight.y;
+  const scale = flight.scale;
+  const animation = runMotion(overlay, [
+    {opacity:0, scale:'.85', translate:'0 10px', offset:0},
+    {opacity:1, scale:'1.06', translate:'0 0', offset:.13},
+    {opacity:1, scale:'1', translate:'0 0', offset:.25},
+    {opacity:1, scale:'1', translate:'0 0', offset:.5},
+    {opacity:1, scale:String(scale), translate:`${x}px ${y}px`, offset:.97},
+    {opacity:0, scale:String(scale), translate:`${x}px ${y}px`, offset:1}
+  ], {duration:800});
+  if (!animation) { overlay.remove(); return; }
+  const active = {element:overlay,animation};
+  model.bidAnnouncement = active;
+  dock.classList.add('bid-in-flight');
+  const finish = () => {
+    overlay.remove();
+    if (model.bidAnnouncement === active) {
+      model.bidAnnouncement = null;
+      dock.classList.remove('bid-in-flight');
+    }
+  };
+  animation.finished.then(finish,finish);
+}
+
+function cancelBidAnnouncement() {
+  const active = model.bidAnnouncement;
+  model.bidAnnouncement = null;
+  active?.animation.cancel();
+  active?.element.remove();
+  $('#bid-dock')?.classList.remove('bid-in-flight');
+}
+
+// All suit artwork shares the same 1672 x 941 cover canvas as the flames.
+function suitBackdropLayout(width, height, contract) {
+  const scale = Math.max(width / 1672, height / 941);
+  const originX = (width - 1672 * scale) / 2;
+  const originY = (height - 941 * scale) / 2;
+  const inset = Math.min(24, Math.min(width, height) * .04);
+  return [
+    ['Hearts',59,38,157,155], ['Clubs',1439,29,190,177],
+    ['Spades',50,698,173,182], ['Diamonds',1458,695,155,191]
+  ].map(([suit,x,y,w,h],index) => {
+    const left = originX + x * scale, top = originY + y * scale;
+    const cardWidth = w * scale, cardHeight = h * scale;
+    const active = contract?.mode === 'High' || (contract?.mode === 'Trump' && contract.trump === suit);
+    const right = index === 1 || index === 3, bottom = index >= 2;
+    let shiftX = 0, shiftY = 0;
+    if (contract?.mode === 'Low') {
+      shiftX = (right ? width + cardWidth + inset : -cardWidth * 2 - inset) - left;
+    } else if (active) {
+      shiftX = (right ? Math.min(left - 32, width - cardWidth - inset) : Math.max(left + 32, inset)) - left;
+      shiftY = (bottom ? Math.min(top - 20, height - cardHeight - inset) : Math.max(top + 20, inset)) - top;
+    }
+    return {left,top,width:cardWidth,height:cardHeight,x:shiftX,y:shiftY,active};
+  });
+}
+
+function updateSuitBackdrop(contract) {
+  const layers = $$('.table-scenery > span');
+  if (!layers.length) return;
+  const layout = suitBackdropLayout(window.innerWidth, window.innerHeight, contract);
+  layers.forEach((layer,index) => {
+    const position = layout[index];
+    layer.style.setProperty('--suit-x', `${position.x}px`);
+    layer.style.setProperty('--suit-y', `${position.y}px`);
+    layer.classList.toggle('contract-active', position.active);
+  });
+}
+
+function dealPackets(dealer) {
+  return Array.from({length:8},(_,packet) => ({
+    seat:(dealer+packet%4+1)%4, firstCard:Math.floor(packet/4)*3,
+    count:3, delay:180+packet*250
+  }));
+}
+
+function registerDealHand(position,seat) {
+  const deal = model.dealAnimation;
+  if (!deal) return;
+  position.querySelectorAll('.card-row > *').forEach((card,index) => {
+    const key = `${seat}:${index}`;
+    deal.targets.set(key,card);
+    card.style.opacity = deal.landed.has(key) ? '' : '0';
+  });
+}
+
+function cancelDeal() {
+  const deal = model.dealAnimation;
+  if (!deal) return;
+  model.dealAnimation = null;
+  deal.animations.forEach(animation => animation.cancel());
+  deal.visuals.forEach(visual => visual.remove());
+  deal.targets.forEach(card => card.style.opacity = '');
+  if (deal.sessionId) finishServerDeal(deal.sessionId,deal.handNumber);
+  syncInputState();
+}
+
+function startDeal(game) {
+  cancelDeal();
+  if (!model.motionEnabled || document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (model.session?.dealing) finishServerDeal(model.sessionId,game.handNumber);
+    return;
+  }
+  const table = $('.felt-table')?.getBoundingClientRect();
+  const dealer = $(`#seat-${game.dealer} .player-tag`)?.getBoundingClientRect();
+  if (!table || !dealer || !table.width || !dealer.width) {
+    if (model.session?.dealing) finishServerDeal(model.sessionId,game.handNumber);
+    return;
+  }
+  const origin = {
+    x:(dealer.left+dealer.width/2)*.65+(table.left+table.width/2)*.35,
+    y:(dealer.top+dealer.height/2)*.65+(table.top+table.height/2)*.35
+  };
+  const deal = {targets:new Map(),landed:new Set(),animations:[],visuals:[],
+    sessionId:model.session?.dealing ? model.sessionId : null,handNumber:game.handNumber};
+  model.dealAnimation = deal;
+  game.players.forEach(player => registerDealHand($(`#seat-${player.seat}`),player.seat));
+  const deck = document.createElement('div');
+  deck.className = 'deal-deck'; deck.setAttribute('aria-hidden','true');
+  deck.innerHTML = '<span class="card-back"></span>'.repeat(4);
+  deck.style.left = `${origin.x-25}px`; deck.style.top = `${origin.y-37}px`;
+  document.body.append(deck); deal.visuals.push(deck);
+  const flights = [];
+  for (const packet of dealPackets(game.dealer)) for(let offset=0;offset<packet.count;offset++) {
+    const key = `${packet.seat}:${packet.firstCard+offset}`;
+    const target = deal.targets.get(key);
+    if (!target) continue;
+    const bounds = target.getBoundingClientRect();
+    const width = target.offsetWidth || bounds.width;
+    const height = target.offsetHeight || bounds.height;
+    const left = bounds.left + (bounds.width - width) / 2;
+    const top = bounds.top + (bounds.height - height) / 2;
+    const matrix = window.getComputedStyle(target).transform.match(/^matrix\(([^)]+)\)$/);
+    const rotation = matrix ? (() => {
+      const values = matrix[1].split(',').map(Number);
+      return Math.atan2(values[1], values[0]) * 180 / Math.PI;
+    })() : 0;
+    const visual = document.createElement('span');
+    visual.className = 'card-back deal-card'; visual.setAttribute('aria-hidden','true');
+    visual.style.width = `${width}px`; visual.style.height = `${height}px`;
+    visual.style.left = `${left}px`; visual.style.top = `${top}px`;
+    const x = origin.x-left-width/2;
+    const y = origin.y-top-height/2;
+    document.body.append(visual); deal.visuals.push(visual);
+    const animation = visual.animate([
+      {translate:`${x}px ${y}px`,opacity:0,rotate:'0deg'},
+      {translate:`${x*.94}px ${y*.94-8}px`,opacity:1,offset:.08},
+      {translate:'0 0',opacity:1,rotate:`${rotation}deg`}
+    ],{duration:340,delay:packet.delay+offset*18,easing:'cubic-bezier(.2,.75,.25,1)',fill:'both'});
+    deal.animations.push(animation);
+    flights.push(animation.finished.then(() => {
+      if (model.dealAnimation !== deal) return;
+      deal.landed.add(key);
+      const current = deal.targets.get(key);
+      if (current) current.style.opacity = '';
+      visual.remove();
+    },() => {}));
+  }
+  syncInputState();
+  Promise.all(flights).then(() => { if (model.dealAnimation === deal) cancelDeal(); });
+}
+
+async function finishServerDeal(sessionId,handNumber) {
+  const key = `${sessionId}:${handNumber}`;
+  if (model.dealCompleting === key) return;
+  model.dealCompletedHand = key;
+  model.dealCompleting = key;
+  try {
+    await api(`/api/sessions/${sessionId}/deal-complete?handNumber=${handNumber}`, {method:'POST',body:'{}'});
+    if (model.sessionId === sessionId && model.session?.game?.handNumber === handNumber) {
+      model.session.dealing = false;
+      syncInputState();
+      await refreshGame({notify:false});
+    }
+  } catch { /* Keep bidding locked; the next state refresh retries completion. */ }
+  finally { if (model.dealCompleting === key) model.dealCompleting = null; }
 }

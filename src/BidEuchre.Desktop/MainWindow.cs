@@ -1,5 +1,9 @@
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -13,20 +17,20 @@ namespace BidEuchre.Desktop;
 
 public sealed class MainWindow : Window
 {
-    private static readonly IBrush Paper = Brush.Parse("#0B0720");
-    private static readonly IBrush Panel = Brush.Parse("#100B28");
-    private static readonly IBrush PanelRaised = Brush.Parse("#191039");
-    private static readonly IBrush Ink = Brush.Parse("#FFF5DC");
-    private static readonly IBrush Muted = Brush.Parse("#C0B6DD");
-    private static readonly IBrush Green = Brush.Parse("#55BCFF");
+    internal static readonly IBrush Paper = Brush.Parse("#0B0720");
+    internal static readonly IBrush Panel = Brush.Parse("#100B28");
+    internal static readonly IBrush PanelRaised = Brush.Parse("#191039");
+    internal static readonly IBrush Ink = Brush.Parse("#FFF5DC");
+    internal static readonly IBrush Muted = Brush.Parse("#C0B6DD");
+    internal static readonly IBrush Green = Brush.Parse("#55BCFF");
     private static readonly IBrush GreenDark = Brush.Parse("#103480");
     private static readonly IBrush Felt = Brush.Parse("#100B28");
     private static readonly IBrush Amber = Brush.Parse("#FF617B");
-    private static readonly IBrush Gold = Brush.Parse("#FFDB62");
-    private static readonly IBrush Line = Brush.Parse("#8D54B1");
+    internal static readonly IBrush Gold = Brush.Parse("#FFDB62");
+    internal static readonly IBrush Line = Brush.Parse("#8D54B1");
     private static readonly IBrush Red = Brush.Parse("#FF617B");
     private static readonly IBrush Walnut = Brush.Parse("#8D54B1");
-    private static readonly IBrush CardPaper = Brush.Parse("#FFF9ED");
+    private static readonly IBrush CardPaper = Brushes.White;
     private static readonly IBrush CardInk = Brush.Parse("#17201D");
     private static readonly IBrush CardRed = Brush.Parse("#B63D3D");
 
@@ -50,12 +54,15 @@ public sealed class MainWindow : Window
     private readonly ComboBox _viewerSeat = new() { MinWidth = 180 };
     private readonly Button _startButton = PrimaryButton("Start session");
     private readonly ContentControl _tableHost = new();
-    private readonly TextBlock _actionTitle = new() { TextWrapping = TextWrapping.Wrap, Foreground = Ink, FontSize = 21, FontFamily = PixelArt.Font };
-    private readonly TextBlock _actionHelp = new() { Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _actionTitle = new() { TextWrapping = TextWrapping.Wrap, Foreground = Ink, FontSize = 18, FontFamily = PixelArt.Font };
+    private readonly TextBlock _actionHelp = new() { FontFamily = FontFamily.Default, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _actionButtons = new() { ItemWidth = double.NaN, ItemHeight = double.NaN };
     private readonly StackPanel _eventList = new() { Spacing = 1 };
     private readonly TextBlock _sessionError = new() { Foreground = Red, FontSize = 12, TextWrapping = TextWrapping.Wrap };
     private readonly TabControl _tabs;
+    private readonly ContentControl _screenHost = new();
+    private readonly LayoutTransformControl _scaleHost = new();
+    private readonly Grid _tableScreen;
 
     private GameSession? _session;
     private int? _viewer;
@@ -63,6 +70,25 @@ public sealed class MainWindow : Window
     private bool _tableTransitioning;
     private long _sessionGeneration;
     private string? _renderKey;
+    private readonly TableMotionTracker _motionTracker = new();
+    private readonly PixelMotion _motion = new();
+    private BidAnnouncement? _bidAnnouncement;
+    private CardFlights? _cardFlights;
+    private DeckDeal? _deckDeal;
+    private HandGlide? _handGlide;
+    private readonly TrickCollectionState _trickCollection = new();
+    private readonly TableInputState _input = new();
+    private readonly string _preferencesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BidEuchre", "preferences.json");
+    private GamePreferences _preferences = new();
+    private readonly string _campaignPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BidEuchre", "campaign.json");
+    private readonly CampaignFlow _campaign;
+    private readonly Button _menuButton = QuietButton(MenuLabel);
+    // The live session when it is a campaign match; free-play tables leave this null.
+    private GameSession? _campaignSession;
+    private TextBlock _scoreEyebrow = Eyebrow("TEAMS · TO 40");
+    private const string MenuLabel = "← Menu";
+    private const string ForfeitLabel = "Forfeit match?";
+    private TableMotionCue _motionCue = TableMotionCue.None;
 
     public MainWindow()
     {
@@ -75,6 +101,11 @@ public sealed class MainWindow : Window
         FontFamily = PixelArt.Font;
         RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        SizeChanged += (_, _) => { _bidAnnouncement?.Cancel(); _cardFlights?.Cancel(); _deckDeal?.Cancel(); _handGlide?.Reset(); };
+        _preferences = GamePreferences.Load(_preferencesPath);
+        ApplyGraphics();
+        _campaign = new CampaignFlow(_campaignPath, screen => _screenHost.Content = screen,
+            StartCampaignMatchAsync, ShowMenu, _motion);
 
         StyleInput(_tableName);
         StyleInput(_pace);
@@ -87,6 +118,11 @@ public sealed class MainWindow : Window
         {
             if (_viewerSeat.SelectedItem is ViewerOption option)
             {
+                _input.BeginViewChange();
+                _motion.Cancel();
+                _bidAnnouncement?.Cancel();
+                _cardFlights?.Cancel(); _deckDeal?.Cancel();
+                SyncNativeInput();
                 _viewer = option.Seat;
                 _renderKey = null;
                 await RefreshGameAsync();
@@ -100,22 +136,37 @@ public sealed class MainWindow : Window
             Foreground = Ink,
             ItemsSource = new[]
             {
-                new TabItem { Header = "Play", Content = _playHost },
+                new TabItem { Header = "Table", Content = _playHost },
                 new TabItem { Header = "Engines", Content = BuildEnginePage() },
                 new TabItem { Header = "Rules", Content = BuildRulesPage() }
             }
         };
 
-        Content = new Grid
+        _tabs.SelectionChanged += (_, _) =>
+        {
+            if (_tabs.SelectedIndex != 0) { _bidAnnouncement?.Cancel(); _cardFlights?.Cancel(); _deckDeal?.Cancel(); }
+        };
+
+        var menuButton = _menuButton;
+        menuButton.Name = "TableBackToMenu";
+        menuButton.HorizontalAlignment = HorizontalAlignment.Right;
+        menuButton.VerticalAlignment = VerticalAlignment.Top;
+        menuButton.Margin = new Thickness(0, 6, 20, 0);
+        menuButton.Click += async (_, _) => await ReturnToMenuAsync(menuButton);
+        _tableScreen = new Grid
         {
             RowDefinitions = RowDefinitions.Parse("*,Auto"),
             Children =
             {
                 _tabs,
+                menuButton,
                 Place(_status, row: 1)
             }
         };
         _status.Margin = new Thickness(20, 5, 20, 10);
+        _scaleHost.Child = _screenHost;
+        Content = _scaleHost;
+        ShowMenu();
 
         ShowSetup();
         RefreshEngineCatalog();
@@ -127,6 +178,9 @@ public sealed class MainWindow : Window
         Closed += async (_, _) =>
         {
             _refreshTimer.Stop();
+            _deckDeal?.Cancel();
+            _motion.Cancel();
+            _bidAnnouncement?.Cancel();
             var session = DetachSession();
             if (session is not null)
             {
@@ -144,6 +198,8 @@ public sealed class MainWindow : Window
 
     private Control BuildSetupPage()
     {
+        // These inputs outlive each page; release them from the previous page before reuse.
+        foreach (var input in new Control[] { _tableName, _pace }) (input.Parent as Panel)?.Children.Remove(input);
         var content = new StackPanel { Spacing = 18, MaxWidth = 980, HorizontalAlignment = HorizontalAlignment.Center };
         content.Children.Add(PageHeading("New session", "Set the table, choose a comfortable pace, and assign all four seats."));
 
@@ -226,41 +282,67 @@ public sealed class MainWindow : Window
         var back = QuietButton("← New table");
         back.Click += async (_, _) => await LeaveTableAsync(back);
 
-        var header = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto,Auto"), ColumnSpacing = 12 };
+        // A campaign match has fixed seats and can only be left through the menu's forfeit prompt.
+        var campaign = InCampaignMatch;
+        back.IsVisible = !campaign;
+
+        var header = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("Auto,*,Auto,Auto,Auto"), ColumnSpacing = 12 };
         header.Children.Add(back);
         header.Children.Add(Place(new StackPanel
         {
             Spacing = 1,
             Children =
             {
-                Eyebrow("LIVE SESSION"),
-                new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", FontSize = 26, FontFamily = PixelArt.Font, Foreground = Ink }
+                campaign
+                    ? new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 11, FontWeight = FontWeight.Bold }
+                    : Eyebrow("LIVE SESSION"),
+                new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 22, FontFamily = PixelArt.Font, Foreground = Ink }
             }
         }, column: 1));
-        header.Children.Add(Place(Field("View hand", _viewerSeat), column: 2));
-        header.Children.Add(Place(_startButton, column: 3));
-
-        var score = new StackPanel
+        if (!campaign) header.Children.Add(Place(Field("View hand", _viewerSeat), column: 2));
+        var motionButton = QuietButton($"Motion: {(_motion.Enabled ? "On" : "Off")}");
+        motionButton.FontSize = 10;
+        motionButton.Click += async (_, _) =>
         {
-            Spacing = 10,
+            _motion.SetEnabled(!_motion.Enabled);
+            if (!_motion.Enabled) { _bidAnnouncement?.Cancel(); _cardFlights?.Cancel(); _deckDeal?.Cancel(); _handGlide?.Reset(); }
+            _preferences = _preferences with { MotionEnabled = _motion.Enabled };
+            if (!_preferences.Save(_preferencesPath)) ShowError("Motion changed for this session, but the preference could not be saved.");
+            motionButton.Content = $"Motion: {(_motion.Enabled ? "On" : "Off")}";
+            _renderKey = null;
+            await RefreshGameAsync();
+        };
+        header.Children.Add(Place(motionButton, column: 3));
+        header.Children.Add(Place(_startButton, column: 4));
+
+        _bidAnnouncement?.Clear();
+        var bidDock = new ContentControl { IsVisible = false };
+        var bidOverlay = new Canvas { IsHitTestVisible = false };
+        _bidAnnouncement = new BidAnnouncement(bidOverlay, _tableHost, bidDock);
+        _cardFlights?.Cancel(); _deckDeal?.Cancel();
+        _cardFlights = new CardFlights(bidOverlay);
+        _deckDeal = new DeckDeal(bidOverlay, _tableHost, SyncNativeInput);
+        _handGlide = new HandGlide(bidOverlay);
+        var handInfo = CardPanel(new StackPanel { Spacing = 8, Children = { _phaseText, _contractText, _dealerText } }, 12);
+        var guide = CardPanel(new StackPanel
+        {
+            Spacing = 12,
             Children =
             {
-                Eyebrow("TEAMS · TO 40"),
+                GuideLine("HIGH", "Highest wins"), GuideLine("LOW", "Lowest wins"),
+                GuideLine("TRUMP", "Follow suit. Trump wins."),
+                GuideLine("PARTNER’S BEST", "3 players · exchange 1 card"),
+                GuideLine("ALONE", "3 players · no partner")
+            }
+        }, 12);
+        var score = new StackPanel
+        {
+            Spacing = 8,
+            Children =
+            {
+                (_scoreEyebrow = Eyebrow("TEAMS · TO 40")),
                 ScorePanel("TEAM 1 · 1 + 3", _teamZeroScore, Green),
-                ScorePanel("TEAM 2 · 2 + 4", _teamOneScore, Amber),
-                CardPanel(new StackPanel { Spacing = 8, Children = { _phaseText, _contractText, _dealerText } }, 12),
-                CardPanel(new StackPanel
-                {
-                    Spacing = 12,
-                    Children =
-                    {
-                        Eyebrow("CONTRACT GUIDE"),
-                        GuideLine("HIGH", "Highest wins"), GuideLine("LOW", "Lowest wins"),
-                        GuideLine("TRUMP", "Follow suit. Trump wins."),
-                        GuideLine("PARTNER’S BEST", "3 players · exchange 1 card"),
-                        GuideLine("ALONE", "3 players · no partner")
-                    }
-                }, 12)
+                ScorePanel("TEAM 2 · 2 + 4", _teamOneScore, Amber)
             }
         };
 
@@ -276,7 +358,7 @@ public sealed class MainWindow : Window
                 _sessionError
             }
         });
-        actionPanel.MinHeight = 160;
+        actionPanel.Padding = new Thickness(14);
         var logScroll = new ScrollViewer
         {
             MaxHeight = 150,
@@ -288,26 +370,37 @@ public sealed class MainWindow : Window
             Spacing = 10,
             Children = { Eyebrow("TABLE LOG · EVERY CARD"), logScroll }
         });
-        var bottomRail = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,*"), ColumnSpacing = 12 };
-        bottomRail.Children.Add(actionPanel);
-        bottomRail.Children.Add(Place(logPanel, column: 1));
-        var stage = new Grid { RowDefinitions = RowDefinitions.Parse("*,Auto"), RowSpacing = 12 };
-        stage.Children.Add(_tableHost);
-        stage.Children.Add(Place(bottomRail, row: 1));
-        var gameGrid = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("230,*"), ColumnSpacing = 14, MinWidth = 900 };
-        gameGrid.Children.Add(score);
-        gameGrid.Children.Add(Place(stage, column: 1));
+        var rail = new StackPanel
+        {
+            Spacing = 12,
+            Children =
+            {
+                score, bidDock, actionPanel, handInfo,
+                new Expander { Header = "CONTRACT GUIDE", Foreground = Ink, FontSize = 11, Content = guide },
+                new Expander { Header = "TABLE LOG", Foreground = Ink, FontSize = 11, Content = logPanel }
+            }
+        };
+        var gameGrid = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("260,*"), ColumnSpacing = 14 };
+        var railScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Content = rail
+        };
+        railScroll.ScrollChanged += (_, args) =>
+        {
+            if (args.OffsetDelta.X != 0 || args.OffsetDelta.Y != 0) _bidAnnouncement?.Cancel();
+        };
+        gameGrid.Children.Add(railScroll);
+        gameGrid.Children.Add(Place(_tableHost, column: 1));
+        // Keep a finite viewport: the board scales to the window instead of forcing
+        // the primary action controls below a full-height, scrollable table.
         var page = new Grid
         {
             Margin = new Thickness(16), RowDefinitions = RowDefinitions.Parse("Auto,*"), RowSpacing = 12,
             Children = { header, Place(gameGrid, row: 1) }
         };
-        return new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            Content = page
-        };
+        return new Grid { Children = { page, bidOverlay } };
     }
 
     private Control BuildEnginePage()
@@ -427,30 +520,8 @@ public sealed class MainWindow : Window
                     isBot ? PlayerKind.Bot : PlayerKind.Human,
                     isBot ? engines[engineIndex].Id : null);
             }).ToArray();
-            var pace = _pace.SelectedItem as PaceOption ?? PaceOption.All[1];
-            var session = new GameSession(
-                Guid.NewGuid().ToString("N")[..10],
-                string.IsNullOrWhiteSpace(_tableName.Text) ? "Bid Euchre Table" : _tableName.Text!.Trim(),
-                seats,
-                _catalog,
-                seed: null,
-                botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds));
-            _session = session;
-            _sessionGeneration++;
-
-            var viewers = seats.Where(seat => seat.Kind is PlayerKind.Human)
-                .Select(seat => new ViewerOption(seat.Seat, $"Seat {seat.Seat + 1}: {seat.Name}"))
-                .ToList();
-            if (viewers.Count == 0)
-            {
-                viewers.Add(new ViewerOption(null, "Spectator"));
-            }
-            _viewerSeat.ItemsSource = viewers;
-            _viewerSeat.SelectedIndex = 0;
-            _viewer = viewers[0].Seat;
-            _playHost.Content = BuildGamePage();
-            _renderKey = null;
-            await RefreshGameAsync();
+            await OpenSessionAsync(seats,
+                string.IsNullOrWhiteSpace(_tableName.Text) ? "Bid Euchre Table" : _tableName.Text!.Trim(), options: null);
         }
         catch (Exception exception)
         {
@@ -461,6 +532,85 @@ public sealed class MainWindow : Window
             _tableTransitioning = false;
             button.IsEnabled = true;
         }
+    }
+
+    private bool InCampaignMatch => _session is not null && ReferenceEquals(_session, _campaignSession);
+
+    private async Task<GameSession> OpenSessionAsync(IReadOnlyList<SeatConfiguration> seats, string name, MatchOptions? options)
+    {
+        var pace = _pace.SelectedItem as PaceOption ?? PaceOption.All[1];
+        var session = new GameSession(
+            Guid.NewGuid().ToString("N")[..10],
+            name,
+            seats,
+            _catalog,
+            seed: null,
+            botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds),
+            matchOptions: options);
+        _session = session;
+        _campaignSession = options is null ? null : session;
+        _sessionGeneration++;
+
+        var viewers = seats.Where(seat => seat.Kind is PlayerKind.Human)
+            .Select(seat => new ViewerOption(seat.Seat, $"Seat {seat.Seat + 1}: {seat.Name}"))
+            .ToList();
+        if (viewers.Count == 0)
+        {
+            viewers.Add(new ViewerOption(null, "Spectator"));
+        }
+        _viewerSeat.ItemsSource = viewers;
+        _viewerSeat.SelectedIndex = 0;
+        _viewer = viewers[0].Seat;
+        _playHost.Content = BuildGamePage();
+        _renderKey = null;
+        await RefreshGameAsync();
+        return session;
+    }
+
+    // Opens and starts one campaign match. Throws when the table cannot start, so the run is not charged for it.
+    private async Task StartCampaignMatchAsync(MatchOptions options)
+    {
+        if (_tableTransitioning) throw new InvalidOperationException("The table is busy.");
+        _tableTransitioning = true;
+        try
+        {
+            ClearStatus();
+            var previous = DetachSession();
+            if (previous is not null) await previous.DisposeAsync();
+
+            SeatConfiguration Bot(int seat, string name) => new(seat, name, PlayerKind.Bot, EngineCatalog.BuiltInEngineId);
+            var session = await OpenSessionAsync(
+                [new SeatConfiguration(0, "You", PlayerKind.Human, null), Bot(1, "West"), Bot(2, "Partner"), Bot(3, "East")],
+                "Campaign", options);
+            _menuButton.Content = MenuLabel;
+            ShowTable();
+            await StartSessionAsync();
+            if (!session.Started)
+            {
+                if (ReferenceEquals(DetachSession(), session)) await session.DisposeAsync();
+                ShowSetup();
+                throw new InvalidOperationException("The campaign match could not start.");
+            }
+        }
+        finally
+        {
+            _tableTransitioning = false;
+        }
+    }
+
+    // Records the result at once, then swaps to the result screen after the last trick has been seen.
+    private void CompleteCampaignMatch(GameSession session, GameView view)
+    {
+        _campaign.MatchCompleted(view.GameWinner == 0, view.Scores);
+        DispatcherTimer.RunOnce(async () =>
+        {
+            if (!ReferenceEquals(session, _session)) return;
+            DetachSession();
+            try { await session.DisposeAsync(); }
+            catch (Exception exception) { ShowError(exception.Message); }
+            ShowSetup();
+            _campaign.ShowPendingResult();
+        }, TimeSpan.FromMilliseconds(2200));
     }
 
     private async Task LeaveTableAsync(Button button)
@@ -509,7 +659,7 @@ public sealed class MainWindow : Window
         _startButton.Content = "Starting engines…";
         try
         {
-            await session.StartAsync();
+            await session.StartAsync(waitForDeal: _motion.Enabled);
             if (generation == _sessionGeneration && ReferenceEquals(session, _session))
             {
                 await RefreshGameAsync();
@@ -531,6 +681,7 @@ public sealed class MainWindow : Window
         var session = _session;
         var generation = _sessionGeneration;
         var viewer = _viewer;
+        var revision = _input.Revision;
         if (_refreshing || session is null)
         {
             return;
@@ -540,7 +691,7 @@ public sealed class MainWindow : Window
         {
             var view = await session.GetViewAsync(viewer);
             if (generation != _sessionGeneration ||
-                viewer != _viewer ||
+                viewer != _viewer || revision != _input.Revision ||
                 !ReferenceEquals(session, _session))
             {
                 return;
@@ -552,7 +703,13 @@ public sealed class MainWindow : Window
                     return;
                 }
                 _renderKey = "waiting";
+                _motionTracker.Update(null, $"{session.Id}:{viewer}");
+                _bidAnnouncement?.Clear();
+                _cardFlights?.Cancel(); _deckDeal?.Cancel();
+                _contractText.IsVisible = true;
                 RenderWaitingTable();
+                _input.CompleteView(revision);
+                SyncNativeInput();
                 return;
             }
 
@@ -562,17 +719,47 @@ public sealed class MainWindow : Window
                 return;
             }
             _renderKey = renderKey;
+            _motionCue = _motionTracker.Update(view, $"{session.Id}:{viewer}");
+            var lastTrick = view.CompletedTricks.LastOrDefault();
+            var motionEnabled = _motion.Enabled && _tabs.SelectedIndex == 0;
+            var collectTrick = _trickCollection.Observe($"{session.Id}:{viewer}", view.HandNumber,
+                lastTrick?.Number ?? 0, _motionCue.WinnerSeat is not null && view.CurrentTrick.Count == 0, motionEnabled);
 
             _startButton.IsVisible = false;
             _teamZeroScore.Text = view.Scores[0].ToString();
             _teamOneScore.Text = view.Scores[1].ToString();
-            _phaseText.Text = $"{SplitWords(view.Phase.ToString()).ToUpperInvariant()} · HAND {view.HandNumber}";
+            _scoreEyebrow.Text = $"TEAMS · TO {view.TargetScore}";
+            _phaseText.Text = $"{(session.WaitingForDeal ? "DEALING" : SplitWords(view.Phase.ToString()).ToUpperInvariant())} · HAND {view.HandNumber}";
             _contractText.Text = ContractName(view);
             _dealerText.Text = $"Seat {view.Dealer + 1} deals · {view.TricksByTeam[0]}–{view.TricksByTeam[1]} tricks";
             _sessionError.Text = session.LastError ?? string.Empty;
+            if (!motionEnabled || view.Phase != GamePhase.Bidding) _deckDeal?.Cancel();
+            _deckDeal?.BeginFrame();
+            _cardFlights?.BeginFrame();
+            _handGlide?.BeginFrame($"{session.Id}:{viewer}:{view.HandNumber}");
             _tableHost.Content = BuildTable(view);
+            if (motionEnabled && _motionCue.Deal && view.Phase == GamePhase.Bidding)
+                _deckDeal?.Start(view.Dealer, () => _ = FinishDealAsync(session, view.HandNumber));
+            else if (session.WaitingForDeal && _deckDeal?.Running != true)
+                _ = FinishDealAsync(session, view.HandNumber);
+            var collectionKey = _trickCollection.Key;
+            _cardFlights?.EndFrame(motionEnabled, collectTrick ? lastTrick?.Winner : null,
+                collectTrick ? () =>
+                {
+                    _trickCollection.Complete(collectionKey);
+                    _renderKey = null;
+                    Dispatcher.UIThread.Post(async () => await RefreshGameAsync());
+                } : null);
+            foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             RenderEvents(view.Events);
+            UpdateBidAnnouncement(view);
+            _input.CompleteView(revision);
+            SyncNativeInput();
+            if (view.Phase is GamePhase.GameComplete && _campaign.InMatch && ReferenceEquals(session, _campaignSession))
+            {
+                CompleteCampaignMatch(session, view);
+            }
         }
         catch (ObjectDisposedException)
         {
@@ -588,14 +775,52 @@ public sealed class MainWindow : Window
         }
     }
 
+    private void UpdateBidAnnouncement(GameView view)
+    {
+        var auction = view.Phase is GamePhase.Bidding or GamePhase.ChoosingContract;
+        if (auction && view.HighBid is { } bid && view.Bidder is { } bidder)
+        {
+            _contractText.IsVisible = false;
+            var player = view.Players.FirstOrDefault(player => player.Seat == bidder)?.Name ?? $"Seat {bidder + 1}";
+            _bidAnnouncement?.Update(BidName(bid), player, _motionCue.HighBidChanged && _motion.Enabled);
+        }
+        else
+        {
+            _contractText.IsVisible = true;
+            _bidAnnouncement?.Clear();
+        }
+    }
+
+    private async Task FinishDealAsync(GameSession session, int handNumber)
+    {
+        try
+        {
+            await session.CompleteDealAsync(handNumber);
+            if (!ReferenceEquals(session, _session)) return;
+            _renderKey = null;
+            await RefreshGameAsync();
+            SyncNativeInput();
+        }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void SyncNativeInput()
+    {
+        _tableHost.IsVisible = !_input.Loading;
+        _tableHost.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true;
+        _actionButtons.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true;
+        _viewerSeat.IsEnabled = !_input.Locked;
+    }
+
     private Control BuildTable(GameView view)
     {
+        _motion.SetContract(view.Contract);
         return PixelTable(view.Players.Select(player => PlayerPanel(player, view)).ToArray(), TrickPanel(view));
     }
 
     // A fixed logical table scales as one unit, so the four seats never push
     // the trick or action controls out of place at the minimum window size.
-    private static Control PixelTable(Control[] players, Control center)
+    private Control PixelTable(Control[] players, Control center)
     {
         var canvas = new Canvas { Width = 900, Height = 600 };
         for (var seat = 0; seat < 4; seat++)
@@ -603,7 +828,7 @@ public sealed class MainWindow : Window
             var panel = players[seat];
             panel.Width = seat is 1 or 3 ? 190 : 410;
             Canvas.SetLeft(panel, seat switch { 1 => 0, 3 => 710, _ => 245 });
-            Canvas.SetTop(panel, seat switch { 2 => 4, 0 => 438, _ => 175 });
+            Canvas.SetTop(panel, seat switch { 2 => 4, 0 => 420, _ => 175 });
             canvas.Children.Add(panel);
         }
         center.Width = 220;
@@ -612,9 +837,10 @@ public sealed class MainWindow : Window
         canvas.Children.Add(center);
         return new Border
         {
-            Background = PixelArt.Table, BorderBrush = Line, BorderThickness = new Thickness(3),
+            BorderBrush = Line, BorderThickness = new Thickness(3),
             Padding = new Thickness(6),
-            Child = new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = canvas }
+            Child = new Grid { ClipToBounds = true, Children = { PixelArt.TableScene(_motion),
+                new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = canvas } } }
         };
     }
 
@@ -640,36 +866,43 @@ public sealed class MainWindow : Window
             } }
             }
         };
-        var cards = new WrapPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            MaxWidth = player.Seat is 1 or 3 ? 140 : 410
-        };
+        _cardFlights?.PlayerSeat(player.Seat, tag);
+        _deckDeal?.Player(player.Seat, tag);
+        if (_motionCue.WinnerSeat == player.Seat) _motion.Pulse(tag);
+        else if (_motionCue.TurnSeat == player.Seat) _motion.Nudge(tag);
+        var cards = new List<Control>();
+        var glide = _motion.Enabled && _tabs.SelectedIndex == 0 && _deckDeal?.Running != true;
+        Control Slot(string key, Control card) => _handGlide?.Card($"{player.Seat}:{key}", card, glide) ?? card;
         if (player.Cards is null)
         {
             for (var index = 0; index < player.CardCount; index++)
             {
-                cards.Children.Add(CardBack());
+                var back = FanCardBack();
+                if (index == player.CardCount / 2)
+                    _cardFlights?.HandCard($"{player.Seat}:back", back,
+                        HandFan.Angle(player.Seat, index, player.CardCount));
+                _deckDeal?.Card(player.Seat, index, back, HandFan.Angle(player.Seat, index, player.CardCount));
+                cards.Add(Slot($"#{index}", back));
             }
         }
         else
         {
+            var index = 0;
             foreach (var card in player.Cards)
             {
                 var legal = current && view.LegalActions.Cards.Contains(card);
-                cards.Children.Add(CardButton(card, legal, view));
+                var button = CardButton(card, legal, view);
+                _cardFlights?.HandCard($"{player.Seat}:{card.Code}", button,
+                    HandFan.Angle(player.Seat, index, player.Cards.Count));
+                _deckDeal?.Card(player.Seat, index, button, HandFan.Angle(player.Seat, index, player.Cards.Count));
+                cards.Add(Slot(card.Code, button));
+                index++;
             }
         }
 
-        return new StackPanel
-        {
-            Margin = new Thickness(4),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-            Spacing = 5,
-            Opacity = player.IsSittingOut ? 0.5 : 1,
-            Children = { tag, cards }
-        };
+        var panel = HandFan.Arrange(player.Seat, tag, cards, _motion);
+        panel.Opacity = player.IsSittingOut ? 0.5 : 1;
+        return panel;
     }
 
     private Control TrickPanel(GameView view)
@@ -679,15 +912,23 @@ public sealed class MainWindow : Window
         if (plays.Count == 0 && view.CompletedTricks.Count > 0)
         {
             completed = view.CompletedTricks[^1];
-            plays = completed.Plays;
+            plays = _trickCollection.Hidden ? [] : completed.Plays;
         }
 
-        var cards = new Grid { Width = 188, Height = 234 };
+        var cards = new Grid { Width = 188, Height = 200 };
         foreach (var play in plays)
         {
             var card = CardFace(play.Card);
             card.HorizontalAlignment = play.Seat switch { 1 => HorizontalAlignment.Left, 3 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center };
             card.VerticalAlignment = play.Seat switch { 2 => VerticalAlignment.Top, 0 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center };
+            if (completed?.Winner == play.Seat)
+            {
+                card.BorderBrush = Gold;
+                card.BorderThickness = new Thickness(3);
+                if (_motionCue.WinnerSeat is not null) _motion.Pulse(card, 1.065);
+            }
+            var key = $"{play.Seat}:{play.Card.Code}";
+            _cardFlights?.PlayedCard(key, card, _motionCue.AddedPlays.Contains(key), () => CardFace(play.Card));
             cards.Children.Add(card);
         }
 
@@ -695,6 +936,7 @@ public sealed class MainWindow : Window
         {
             Text = completed is null
                 ? (plays.Count == 0 ? "Cards played here" : "Current trick")
+                : _trickCollection.Hidden ? "Trick collected"
                 : $"{view.Players[completed.Winner].Name} won trick {completed.Number}",
             Foreground = completed is null ? Brush.Parse("#AFC4B8") : Gold,
             FontSize = 11,
@@ -716,7 +958,7 @@ public sealed class MainWindow : Window
             {
                 VerticalAlignment = VerticalAlignment.Center,
                 Spacing = 8,
-                Children = { cards, label }
+                Children = { label, cards }
             }
         };
     }
@@ -724,10 +966,16 @@ public sealed class MainWindow : Window
     private void RenderActions(GameView view)
     {
         _actionButtons.Children.Clear();
+        if (_session?.WaitingForDeal == true)
+        {
+            _actionTitle.Text = "Dealing cards";
+            _actionHelp.Text = "Bidding begins when everyone has their six cards.";
+            return;
+        }
         if (view.Phase is GamePhase.HandComplete)
         {
             _actionTitle.Text = "Hand complete";
-            _actionHelp.Text = "The final trick stays on the table. Review every card in the log, then deal again.";
+            _actionHelp.Text = "Tricks are collected by their winners. Review every card in the log, then deal again.";
             var next = ActionButton("Deal next hand");
             next.Click += async (_, _) => await StartNextHandAsync(next);
             _actionButtons.Children.Add(next);
@@ -736,7 +984,7 @@ public sealed class MainWindow : Window
         if (view.Phase is GamePhase.GameComplete)
         {
             _actionTitle.Text = $"Team {view.GameWinner + 1} wins";
-            _actionHelp.Text = "The race to 40 is complete.";
+            _actionHelp.Text = $"The race to {view.TargetScore} is complete.";
             return;
         }
         if (view.CurrentSeat != _viewer)
@@ -821,7 +1069,7 @@ public sealed class MainWindow : Window
                 BorderBrush = Line,
                 BorderThickness = new Thickness(0, 0, 0, 1),
                 Padding = new Thickness(2, 7),
-                Child = new TextBlock { Text = item, Foreground = Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap }
+                Child = new TextBlock { Text = item, Foreground = Muted, FontFamily = FontFamily.Default, FontSize = 12, TextWrapping = TextWrapping.Wrap }
             });
         }
     }
@@ -830,10 +1078,8 @@ public sealed class MainWindow : Window
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null)
-        {
-            return;
-        }
+        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        SyncNativeInput();
         ClearStatus();
         try
         {
@@ -848,24 +1094,23 @@ public sealed class MainWindow : Window
             if (generation == _sessionGeneration && ReferenceEquals(session, _session))
             {
                 ShowError(exception.Message);
+                await RefreshGameAsync();
             }
         }
+        finally { _input.CompleteAction(revision); SyncNativeInput(); }
     }
 
     private async Task StartNextHandAsync(Button button)
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null)
-        {
-            return;
-        }
-
+        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        SyncNativeInput();
         button.IsEnabled = false;
         ClearStatus();
         try
         {
-            await session.StartNextHandAsync();
+            await session.StartNextHandAsync(waitForDeal: _motion.Enabled);
             if (generation == _sessionGeneration && ReferenceEquals(session, _session))
             {
                 _renderKey = null;
@@ -877,9 +1122,11 @@ public sealed class MainWindow : Window
             if (generation == _sessionGeneration && ReferenceEquals(session, _session))
             {
                 ShowError(exception.Message);
+                await RefreshGameAsync();
                 button.IsEnabled = true;
             }
         }
+        finally { _input.CompleteAction(revision); SyncNativeInput(); }
     }
 
     private async Task LoadEngineAsync(Button button)
@@ -963,7 +1210,7 @@ public sealed class MainWindow : Window
             Width = 62,
             Height = 88,
             Margin = new Thickness(2),
-            Padding = new Thickness(3),
+            Padding = new Thickness(0),
             Background = CardPaper,
             Foreground = red ? CardRed : CardInk,
             BorderBrush = legal ? Gold : Brush.Parse("#D8CDB9"),
@@ -976,17 +1223,43 @@ public sealed class MainWindow : Window
             Opacity = 1,
             Content = PixelArt.CardContent(card)
         };
+        // Card art has its own paper/ink palette. Fluent's dark button hover and
+        // pressed template must not replace the paper behind transparent artwork.
+        var surface = new Border
+        {
+            Background = CardPaper, BorderBrush = button.BorderBrush,
+            BorderThickness = button.BorderThickness, CornerRadius = button.CornerRadius,
+            Padding = button.Padding,
+            Child = new ContentPresenter
+            {
+                Content = button.Content,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Stretch
+            }
+        };
+        button.Template = new FuncControlTemplate<Button>((_, _) => surface);
         Avalonia.Automation.AutomationProperties.SetName(button, $"{RankText(card.Rank)} of {card.Suit}");
         if (legal)
         {
             button.Cursor = new Cursor(StandardCursorType.Hand);
-            button.PointerEntered += (_, _) => button.RenderTransform = new TranslateTransform(0, -6);
-            button.PointerExited += (_, _) =>
+            var lift = new TranslateTransform();
+            if (_motion.Enabled) lift.Transitions = new Transitions
             {
-                if (!button.IsFocused) button.RenderTransform = null;
+                new DoubleTransition { Property = TranslateTransform.YProperty,
+                    Duration = TimeSpan.FromMilliseconds(120), Easing = new CubicEaseOut() }
             };
-            button.GotFocus += (_, _) => button.RenderTransform = new TranslateTransform(0, -6);
-            button.LostFocus += (_, _) => button.RenderTransform = null;
+            button.RenderTransform = lift;
+            void UpdateHighlight()
+            {
+                var highlighted = button.IsPointerOver || button.IsKeyboardFocusWithin;
+                lift.Y = highlighted ? -8 : 0;
+                // Highlight the wrapper; keep the selected background sprite intact.
+                surface.BorderBrush = highlighted ? Gold : button.BorderBrush;
+            }
+            button.PointerEntered += (_, _) => UpdateHighlight();
+            button.PointerExited += (_, _) => UpdateHighlight();
+            button.GotFocus += (_, _) => UpdateHighlight();
+            button.LostFocus += (_, _) => UpdateHighlight();
             button.Click += async (_, _) =>
             {
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";
@@ -1004,7 +1277,7 @@ public sealed class MainWindow : Window
             Width = 62,
             Height = 88,
             Margin = new Thickness(2),
-            Padding = new Thickness(3),
+            Padding = new Thickness(0),
             CornerRadius = new CornerRadius(2),
             BorderBrush = Brush.Parse("#D8CDB9"),
             BorderThickness = new Thickness(1),
@@ -1019,6 +1292,65 @@ public sealed class MainWindow : Window
         Child = PixelArt.Back()
     };
 
+    private static Border FanCardBack() => new()
+    {
+        Width = 62, Height = 88, Margin = new Thickness(2),
+        BorderBrush = CardPaper, BorderThickness = new Thickness(2),
+        Child = PixelArt.Back(58, 84)
+    };
+
+    private void ShowMenu()
+    {
+        _motion.SetContract(null);
+        _menuButton.Content = MenuLabel;
+        _screenHost.Content = MainMenu.Build(_campaign.Open, ShowTable, ShowSettings, _motion);
+    }
+
+    private void ShowTable()
+    {
+        _tabs.SelectedIndex = 0;
+        _screenHost.Content = _tableScreen;
+    }
+
+    private void ShowSettings() => _screenHost.Content = SettingsPage.Build(_preferences, ChangePreferences, ShowMenu, _motion);
+
+    private void ChangePreferences(GamePreferences preferences)
+    {
+        _preferences = preferences;
+        ApplyGraphics();
+        if (!_preferences.Save(_preferencesPath)) ShowError("Settings changed for this session, but could not be saved.");
+    }
+
+    private void ApplyGraphics()
+    {
+        _motion.SetEnabled(_preferences.MotionEnabled);
+        _scaleHost.LayoutTransform = new ScaleTransform(_preferences.UiScale, _preferences.UiScale);
+        WindowState = _preferences.Fullscreen ? WindowState.FullScreen : WindowState.Normal;
+        if (!_preferences.Fullscreen)
+        {
+            Width = _preferences.WindowWidth;
+            Height = _preferences.WindowHeight;
+        }
+    }
+
+    // Leaving for the menu ends any live table, exactly like starting a new one.
+    private async Task ReturnToMenuAsync(Button button)
+    {
+        if (_tableTransitioning) return;
+        // Leaving a live campaign match costs it, so the first press only asks.
+        if (InCampaignMatch && _campaign.InMatch && !Equals(button.Content, ForfeitLabel))
+        {
+            button.Content = ForfeitLabel;
+            return;
+        }
+        if (_session is not null)
+        {
+            await LeaveTableAsync(button);
+            button.IsEnabled = true;
+        }
+        ShowMenu();
+    }
+
     private void ShowSetup()
     {
         _renderKey = null;
@@ -1032,6 +1364,10 @@ public sealed class MainWindow : Window
 
     private GameSession? DetachSession()
     {
+        _bidAnnouncement?.Clear();
+        _cardFlights?.Cancel(); _deckDeal?.Cancel();
+        _input.BeginViewChange();
+        _motion.Cancel();
         var session = _session;
         if (session is not null)
         {
@@ -1066,22 +1402,23 @@ public sealed class MainWindow : Window
 
     private Control BuildWaitingTable(IReadOnlyList<PlayerView> players)
     {
+        _motion.SetContract(null);
         var panels = new Control[4];
         for (var seat = 0; seat < 4; seat++)
         {
-            panels[seat] = new StackPanel
+            var portrait = new StackPanel
             {
                 Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center,
                 Children =
                 {
                     PixelArt.Portrait(seat),
                     new TextBlock { Text = players[seat].Name, Foreground = Ink, FontSize = 11,
-                        HorizontalAlignment = HorizontalAlignment.Center },
-                    new WrapPanel { HorizontalAlignment = HorizontalAlignment.Center,
-                        MaxWidth = seat is 1 or 3 ? 140 : 350,
-                        Children = { CardBack(), CardBack(), CardBack(), CardBack(), CardBack(), CardBack() } }
+                        HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = seat is 1 or 3 ? 76 : 260,
+                        TextWrapping = TextWrapping.Wrap }
                 }
             };
+            panels[seat] = HandFan.Arrange(seat, portrait,
+                Enumerable.Range(0, 6).Select(_ => (Control)FanCardBack()).ToArray(), _motion);
         }
         return PixelTable(panels, new TextBlock
         {
@@ -1115,7 +1452,7 @@ public sealed class MainWindow : Window
         }
     };
 
-    private static void StyleInput(TextBox input)
+    internal static void StyleInput(TextBox input)
     {
         input.Background = Brush.Parse("#0D1513");
         input.Foreground = Ink;
@@ -1126,7 +1463,7 @@ public sealed class MainWindow : Window
         input.MinHeight = 38;
     }
 
-    private static void StyleInput(ComboBox input)
+    internal static void StyleInput(ComboBox input)
     {
         input.Background = Brush.Parse("#0D1513");
         input.Foreground = Ink;
@@ -1137,7 +1474,7 @@ public sealed class MainWindow : Window
         input.MinHeight = 38;
     }
 
-    private static Border Field(string label, Control control) => new()
+    internal static Border Field(string label, Control control) => new()
     {
         Child = new StackPanel
         {
@@ -1150,7 +1487,7 @@ public sealed class MainWindow : Window
         }
     };
 
-    private static Border CardPanel(Control child, double padding = 20) => new()
+    internal static Border CardPanel(Control child, double padding = 20) => new()
     {
         Background = PanelRaised,
         BorderBrush = Line,
@@ -1160,7 +1497,7 @@ public sealed class MainWindow : Window
         Child = child
     };
 
-    private static Control PageHeading(string title, string subtitle) => new StackPanel
+    internal static Control PageHeading(string title, string subtitle) => new StackPanel
     {
         Spacing = 5,
         Children =
@@ -1199,7 +1536,7 @@ public sealed class MainWindow : Window
         FontFamily = PixelArt.Font
     };
 
-    private static TextBlock Eyebrow(string text) => new()
+    internal static TextBlock Eyebrow(string text) => new()
     {
         Text = text,
         Foreground = Green,
@@ -1207,7 +1544,7 @@ public sealed class MainWindow : Window
         FontWeight = FontWeight.Bold
     };
 
-    private static Button PrimaryButton(string text) => new()
+    internal static Button PrimaryButton(string text) => new()
     {
         Content = text,
         Background = Green,
@@ -1218,7 +1555,7 @@ public sealed class MainWindow : Window
         FontWeight = FontWeight.Bold
     };
 
-    private static Button QuietButton(string text) => new()
+    internal static Button QuietButton(string text) => new()
     {
         Content = text,
         Background = Panel,
@@ -1243,7 +1580,7 @@ public sealed class MainWindow : Window
         FontSize = 12
     };
 
-    private static T Place<T>(T control, int row = 0, int column = 0) where T : Control
+    internal static T Place<T>(T control, int row = 0, int column = 0) where T : Control
     {
         Grid.SetRow(control, row);
         Grid.SetColumn(control, column);
