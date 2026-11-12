@@ -217,3 +217,9 @@ the same live game scenarios.
 The game engine is independent from the UI and bot protocol. All players—human,
 built-in bot, or external engine—ultimately submit actions to the same state
 machine and therefore use the same legality and scoring implementation.
+
+## Local hybrid bot
+
+The separate [hybrid workflow](engines/hybrid/README.md) provides native BEUCI play, private full-match self-play, resumable Mac-local training, immutable exports and authoritative screening/promotion gates. Install with `./engines/hybrid/install.sh`, build with `./engines/hybrid/build.sh`, and run the explicit hybrid tests and bounded `./engines/hybrid/scripts/smoke_cycle.sh` described there. Set `BIDEUCHRE_DOTNET` to your .NET 10 SDK executable when it is not on PATH; the scripts derive `DOTNET_ROOT` from it. CMake and training Python come from the dedicated hybrid environment.
+
+The initial champion remains the frozen C++ heuristic. Tiny training and screening runs prove the software workflow, **not improved first-to-40 match strength**. Tree and double-dummy experiments are disabled by default. [Actual results, hashes, review decisions and limits](docs/superpowers/reports/2026-11-09-hybrid-bot-validation.md) distinguish completion of the local workflow from the still-unproven strength objective.

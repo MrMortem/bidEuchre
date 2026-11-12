@@ -26,4 +26,7 @@ public sealed record GameView(
     int? GameWinner,
     LegalActionView LegalActions,
     IReadOnlyList<string> Events,
-    int TargetScore = 40);
+    int TargetScore = 40)
+{
+    public long? DealSerial { get; init; }
+}

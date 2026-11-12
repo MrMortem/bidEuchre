@@ -2,10 +2,11 @@
 set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-dotnet_command="dotnet"
-
-if [[ -x "$project_dir/.dotnet/dotnet" ]]; then
-  dotnet_command="$project_dir/.dotnet/dotnet"
+. "$project_dir/engines/hybrid/scripts/dotnet.sh"
+bideuchre_find_dotnet "$project_dir"
+# The hybrid install supplies stable local CMake independently of workflow tooling.
+if [[ -x "$project_dir/engines/hybrid/.venv/bin/cmake" ]]; then
+  export PATH="$project_dir/engines/hybrid/.venv/bin:$PATH"
 fi
 
 export DOTNET_CLI_HOME="$project_dir/.dotnet-home"

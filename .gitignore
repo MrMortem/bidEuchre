@@ -21,3 +21,10 @@ engines/cpp-heuristic/build/
 
 # macOS Finder metadata
 .DS_Store
+
+# Hybrid engine runtime artifacts
+engines/hybrid/build/
+engines/hybrid/state/
+engines/hybrid/data/
+engines/hybrid/.venv/
+engines/hybrid/python/*.egg-info/

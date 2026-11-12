@@ -683,6 +683,7 @@ are not tied to a particular random seed:
   "game": {
     "phase": "Bidding",
     "handNumber": 1,
+    "dealSerial": 1,
     "dealer": 0,
     "currentSeat": 1,
     "scores": [0, 0],
@@ -770,6 +771,7 @@ well-formed additive fields.
 | --- | --- | --- |
 | `phase` | `GamePhase` string | Current state-machine phase |
 | `handNumber` | integer | `0` before the game starts; otherwise one-based hand number |
+| `dealSerial` | integer or `null`, optional | Deal identity within a game: `0` before the first deal, then increases on every deal, including redeals. Missing or `null` in legacy payloads means unknown identity. |
 | `dealer` | integer `0..3` | Dealer seat for this hand |
 | `currentSeat` | integer `0..3` or `null` | Seat expected to act; normally equals top-level `seat` when `go` is sent |
 | `scores` | two integers | Team scores as `[team0, team1]`; scores may be negative and the game target is 40 |
@@ -1333,6 +1335,8 @@ testing, or give a derived bot a unique name.
 - Protocol version is currently `1`.
 - Engines MUST emit `protocol bideuchre 1`; hosts SHOULD verify both the game
   name and version even though the current client is permissive.
+- The optional camelCase `game.dealSerial` field is additive within BEUCI 1;
+  legacy payloads may omit it, and older readers should ignore it.
 - Engines SHOULD ignore unknown JSON properties so compatible fields can be
   added without breaking strict decoders.
 - Engines MUST NOT invent commands or structured `info` fields and assume the
