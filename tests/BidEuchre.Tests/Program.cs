@@ -10,6 +10,8 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Campaign physical identity and independent slots", () => Run(CampaignModelTests.IdentityAndSlots)),
+    ("Campaign RNG resumes and catalogue includes all features", () => Run(CampaignModelTests.RandomAndCatalogue)),
     ("Bots wait for actual deal completion on every hand", DealGateTests.BotsWait),
     ("Human bids are rejected until the deal finishes", DealGateTests.HumansWait),
     ("Dealer sends two rounds of three-card packets", () => Run(DealSequenceTests.ThreeAtATime)),
