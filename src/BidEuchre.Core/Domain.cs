@@ -169,4 +169,7 @@ public sealed record HandResult(
     int TeamOneDelta,
     string Reason);
 
+// Free play uses the defaults; the campaign shortens the race and handicaps a team.
+public sealed record MatchOptions(int TargetScore = 40, int StartingScoreTeam0 = 0, int StartingScoreTeam1 = 0);
+
 public sealed class GameRuleException(string message) : InvalidOperationException(message);

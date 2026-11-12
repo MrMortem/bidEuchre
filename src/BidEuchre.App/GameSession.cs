@@ -7,6 +7,7 @@ public sealed class GameSession : IAsyncDisposable
 {
     private readonly EngineCatalog _catalog;
     private readonly int? _seed;
+    private readonly MatchOptions? _matchOptions;
     private readonly TimeSpan _botActionDelay;
     private readonly TimeSpan _completedTrickDelay;
     private readonly Func<SeatConfiguration, EngineDescriptor, IBotDriver> _botDriverFactory;
@@ -17,6 +18,8 @@ public sealed class GameSession : IAsyncDisposable
     private Task? _botLoopTask;
     private Task? _disposeTask;
     private int? _observedTerminalHand;
+    private TaskCompletionSource? _dealReady;
+    public bool WaitingForDeal => _dealReady is { Task.IsCompleted: false };
 
     public GameSession(
         string id,
@@ -26,8 +29,10 @@ public sealed class GameSession : IAsyncDisposable
         int? seed,
         TimeSpan? botActionDelay = null,
         TimeSpan? completedTrickDelay = null,
-        Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null)
+        Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null,
+        MatchOptions? matchOptions = null)
     {
+        _matchOptions = matchOptions;
         Id = id;
         Name = name;
         Seats = seats;
@@ -49,7 +54,7 @@ public sealed class GameSession : IAsyncDisposable
     public string? LastError { get; private set; }
     public bool Started => Game is not null;
 
-    public async Task StartAsync(CancellationToken cancellationToken = default)
+    public async Task StartAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
     {
         using var startup = CreateStartupCancellation(cancellationToken);
         await _gate.WaitAsync(startup.Token);
@@ -72,8 +77,9 @@ public sealed class GameSession : IAsyncDisposable
             }
 
             ThrowIfClosing();
-            Game = new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed);
+            Game = new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions);
             Game.StartGame();
+            _dealReady = waitForDeal ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             LastError = null;
             StartBotLoopLocked();
         }
@@ -111,6 +117,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            if (WaitingForDeal) throw new GameRuleException("Wait for dealing to finish before bidding.");
             EnsureHumanTurn(request.Seat);
             var completedTricksBefore = Game!.CompletedTricks.Count;
             try
@@ -139,7 +146,7 @@ public sealed class GameSession : IAsyncDisposable
         }
     }
 
-    public async Task StartNextHandAsync(CancellationToken cancellationToken = default)
+    public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
     {
         ThrowIfClosing();
         await _gate.WaitAsync(cancellationToken);
@@ -152,6 +159,7 @@ public sealed class GameSession : IAsyncDisposable
             }
 
             Game.StartNextHand();
+            _dealReady = waitForDeal ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             _observedTerminalHand = null;
             StartBotLoopLocked();
         }
@@ -159,6 +167,18 @@ public sealed class GameSession : IAsyncDisposable
         {
             _gate.Release();
         }
+    }
+
+    public async Task CompleteDealAsync(int handNumber, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (Game?.HandNumber == handNumber) _dealReady?.TrySetResult();
+        }
+        finally { _gate.Release(); }
     }
 
     public SessionSummary Summary() => new(
@@ -279,6 +299,7 @@ public sealed class GameSession : IAsyncDisposable
         var nextDelay = initialDelay;
         for (var actions = 0; actions < 200; actions++)
         {
+            if (_dealReady is { } deal) await deal.Task.WaitAsync(cancellationToken);
             int expectedSeat;
             await _gate.WaitAsync(cancellationToken);
             try
@@ -306,6 +327,7 @@ public sealed class GameSession : IAsyncDisposable
             await _gate.WaitAsync(cancellationToken);
             try
             {
+                if (WaitingForDeal) continue;
                 if (Game is null || Game.CurrentSeat != expectedSeat || !_bots.TryGetValue(expectedSeat, out var bot))
                 {
                     continue;

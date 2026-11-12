@@ -25,4 +25,5 @@ public sealed record GameView(
     int[] TricksByTeam,
     int? GameWinner,
     LegalActionView LegalActions,
-    IReadOnlyList<string> Events);
+    IReadOnlyList<string> Events,
+    int TargetScore = 40);

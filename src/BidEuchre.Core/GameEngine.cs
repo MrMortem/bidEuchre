@@ -9,13 +9,14 @@ public sealed class GameEngine
     private readonly List<CompletedTrick> _completedTricks = [];
     private readonly List<HandResult> _handHistory = [];
     private readonly List<string> _events = [];
-    private readonly int[] _scores = [0, 0];
+    private readonly int[] _scores;
+    private readonly int _targetScore;
     private readonly int[] _tricksByTeam = [0, 0];
     private Random _random;
     private int _biddingTurns;
     private Card? _pendingExchangeCard;
 
-    public GameEngine(IReadOnlyList<string> playerNames, int? randomSeed = null)
+    public GameEngine(IReadOnlyList<string> playerNames, int? randomSeed = null, MatchOptions? options = null)
     {
         if (playerNames.Count != 4)
         {
@@ -29,6 +30,15 @@ public sealed class GameEngine
 
         _playerNames = playerNames.Select(name => name.Trim()).ToArray();
         _random = randomSeed is null ? new Random() : new Random(randomSeed.Value);
+
+        options ??= new MatchOptions();
+        if (options.TargetScore < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), "The target score must be at least 1.");
+        }
+
+        _targetScore = options.TargetScore;
+        _scores = [options.StartingScoreTeam0, options.StartingScoreTeam1];
     }
 
     public GamePhase Phase { get; private set; } = GamePhase.NotStarted;
@@ -323,7 +333,8 @@ public sealed class GameEngine
                 modes,
                 suits,
                 cards),
-            _events.ToArray());
+            _events.ToArray(),
+            _targetScore);
     }
 
     private IReadOnlyList<ContractMode> GetContractModes()
@@ -438,7 +449,7 @@ public sealed class GameEngine
 
     private int? DetermineGameWinner()
     {
-        if (_scores[0] < 40 && _scores[1] < 40)
+        if (_scores[0] < _targetScore && _scores[1] < _targetScore)
         {
             return null;
         }

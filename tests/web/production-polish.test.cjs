@@ -125,3 +125,95 @@ test('bid stamps stay on screen when mobile bidding controls scroll the table aw
   assert.equal(geometry.y,422);
   assert.ok(geometry.targetX < 0,'An offscreen dock should slide out through the side');
 });
+
+test('all 24 card identities use distinct transparent face sprite cells',()=>{
+  const env=boot();
+  const cells=new Set();
+  const suits=['Clubs','Diamonds','Hearts','Spades'];
+  const ranks=['9','10','J','Q','K','A'];
+  for(const [row,suit] of suits.entries()) for(const [column,rank] of ranks.entries()) {
+    const html=env.run(`cardHtml(${JSON.stringify({rank,suit})},true)`);
+    assert.match(html,new RegExp(`aria-label="${rank} of ${suit}"`));
+    assert.match(html,/class="card-face-sprite"/);
+    assert.match(html,new RegExp(`--card-column:${column};--card-row:${row}`));
+    assert.match(html,/class="playing-card [^"]*legal/);
+    assert.doesNotMatch(html,/disabled/);
+    cells.add(`${column}:${row}`);
+  }
+  assert.equal(cells.size,24);
+  assert.match(env.run(`cardHtml({code:'AS',suit:'Spades'},false)`),/disabled/);
+});
+
+test('card sprite assets expose a separate white background and complete atlas manifest',()=>{
+  const root=path.join(__dirname,'../../assets/pixel');
+  const manifest=JSON.parse(fs.readFileSync(path.join(root,'cards.json'),'utf8'));
+  assert.deepEqual(manifest.ranks,['9','T','J','Q','K','A']);
+  assert.deepEqual(manifest.suits,['C','D','H','S']);
+  assert.equal(Object.keys(manifest.cards).length,24);
+  assert.equal(manifest.background,'card-background-white.png');
+  for(const [code,rect] of Object.entries(manifest.cards)) {
+    assert.equal(rect.x,manifest.ranks.indexOf(code[0])*manifest.cardWidth);
+    assert.equal(rect.y,manifest.suits.indexOf(code[1])*manifest.cardHeight);
+    assert.ok(fs.existsSync(path.join(root,`cards/${code}.png`)));
+  }
+});
+
+test('deal and table cancellation preserve the ambient hand wobble',()=>{
+  const env=boot();
+  const canceled=[];
+  const ambient={animationName:'hand-float',cancel:()=>canceled.push('ambient')};
+  const deal={cancel:()=>canceled.push('deal')};
+  env.scope.probe={getAnimations:()=>[ambient,deal],animate:()=>({})};
+  env.run('runMotion(probe,[],{})');
+  assert.deepEqual(canceled,['deal']);
+  canceled.length=0;
+  env.get('#game-view').getAnimations=()=>[ambient,deal];
+  env.run('cancelTableMotion()');
+  assert.deepEqual(canceled,['deal']);
+});
+
+test('contract scenery reveals only trump, reveals all for High, and clears the viewport for Low',()=>{
+  const env=boot();
+  for(const [width,height] of [[1320,860],[390,844],[1920,600]]) {
+    env.scope.viewport={width,height};
+    for(const suit of ['Hearts','Clubs','Spades','Diamonds']) {
+      env.scope.contract={mode:'Trump',trump:suit};
+      const layout=env.run('suitBackdropLayout(viewport.width,viewport.height,contract)');
+      assert.deepEqual(Array.from(layout,l=>l.active),['Hearts','Clubs','Spades','Diamonds'].map(s=>s===suit));
+      const active=layout.find(l=>l.active);
+      assert.ok(active.left+active.x >= 0 && active.left+active.x+active.width <= width);
+      assert.ok(active.top+active.y >= 0 && active.top+active.y+active.height <= height);
+    }
+    const high=env.run("suitBackdropLayout(viewport.width,viewport.height,{mode:'High'})");
+    assert.ok(high.every(l=>l.active));
+    const low=env.run("suitBackdropLayout(viewport.width,viewport.height,{mode:'Low'})");
+    assert.ok(low.every(l=>l.left+l.x+l.width < 0 || l.left+l.x > width));
+    const idle=env.run('suitBackdropLayout(viewport.width,viewport.height,null)');
+    assert.ok(idle.every(l=>l.x===0 && l.y===0 && !l.active));
+  }
+});
+
+test('dealing sends two three-card packets per seat beginning left of every dealer',()=>{
+  const env=boot();
+  for(let dealer=0;dealer<4;dealer++) {
+    const packets=env.run(`dealPackets(${dealer})`);
+    assert.equal(packets.length,8);
+    for(let index=0;index<8;index++) {
+      assert.equal(packets[index].seat,(dealer+index%4+1)%4);
+      assert.equal(packets[index].firstCard,Math.floor(index/4)*3);
+      assert.equal(packets[index].count,3);
+      if(index) assert.ok(packets[index].delay>packets[index-1].delay);
+    }
+  }
+});
+
+test('bidding stays locked until the server accepts deal completion',async()=>{
+  const env=boot(); let finish;
+  env.scope.pending=new Promise(resolve=>finish=resolve);
+  env.run("model.sessionId='a'; model.session={id:'a',dealing:true,game:{handNumber:1}}; api=async()=>pending; refreshGame=async()=>{}");
+  assert.equal(env.run('inputLocked()'),true);
+  const completion=env.run("finishServerDeal('a',1)");
+  assert.equal(env.run('inputLocked()'),true);
+  finish({}); await completion;
+  assert.equal(env.run('inputLocked()'),false);
+});

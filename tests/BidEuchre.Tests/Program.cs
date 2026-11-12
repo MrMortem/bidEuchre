@@ -4,11 +4,28 @@ using BidEuchre.App;
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Bots wait for actual deal completion on every hand", DealGateTests.BotsWait),
+    ("Human bids are rejected until the deal finishes", DealGateTests.HumansWait),
+    ("Dealer sends two rounds of three-card packets", () => Run(DealSequenceTests.ThreeAtATime)),
+    ("Motion curves run cleanly from start to finish", () => Run(MotionCurveTests.CurvesStartAndFinishCleanly)),
+    ("A landing card settles once without bouncing", () => Run(MotionCurveTests.SettleOvershootsOnce)),
+    ("Flight arcs lift only between hand and table", () => Run(MotionCurveTests.ArcLiftsOnlyInFlight)),
+    ("Dealt cards leave one at a time from a thinning deck", () => Run(MotionCurveTests.DealCardsLeaveOneAtATime)),
+    ("Contract suits slide without restarting on polls", () => Run(SuitBackdropTests.ContractTransitions)),
     ("Only new high bids announce during the auction", () => Run(TableMotionTests.HighestBidOnly)),
+    ("Completed tricks collect once and stay cleared", () => Run(TrickCollectionTests.CollectOnce)),
     ("Stale work cannot unlock a different private hand", () => Run(TableInputTests.StaleWorkCannotUnlockNewView)),
     ("Motion preferences persist and tolerate corrupt storage", () => Run(GamePreferencesTests.PersistMotion)),
+    ("Graphics preferences persist and repair unsupported values", () => Run(GamePreferencesTests.PersistGraphics)),
     ("Motion cues only describe new public events", () => Run(TableMotionTests.EventsOnly)),
     ("Motion distinguishes starting from reconnecting", () => Run(TableMotionTests.StartAndReconnect)),
+    ("Campaign antes, bosses and starting scores follow the match number", () => Run(CampaignRunTests.Structure)),
+    ("Campaign losses cost lives and end the run at zero", () => Run(CampaignRunTests.Lives)),
+    ("Campaign payout and interest follow the match result", () => Run(CampaignRunTests.Money)),
+    ("Campaign phases advance once and victory shows once", () => Run(CampaignRunTests.PhasesAndVictory)),
+    ("Campaign saves round-trip every phase", () => Run(CampaignStoreTests.RoundTrip)),
+    ("Campaign saves with impossible values are ignored", () => Run(CampaignStoreTests.RejectsInvalidSaves)),
+    ("An abandoned campaign match forfeits as a loss", () => Run(CampaignStoreTests.AbandonedMatchForfeits)),
     ("Deck contains 24 unique cards", () => Run(GameRuleTests.DeckIsCorrect)),
     ("Card notation round-trips", () => Run(GameRuleTests.CardNotationRoundTrips)),
     ("Card display ranks use familiar labels", () => Run(GameRuleTests.CardDisplayRanksAreCorrect)),
@@ -20,6 +37,9 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Partners Best exchange sits the partner out", () => Run(GameEngineTests.PartnersBestExchangeWorks)),
     ("Alone skips the sitting partner for every trick", () => Run(GameEngineTests.AloneSkipsPartner)),
     ("A complete normal hand scores both teams", () => Run(GameEngineTests.CompleteHandScores)),
+    ("Default match options keep the race to 40", () => Run(GameEngineTests.DefaultMatchOptionsAreUnchanged)),
+    ("Match options set each team's starting score", () => Run(GameEngineTests.StartingScoresApply)),
+    ("A match ends as soon as its target is reached", () => Run(GameEngineTests.MatchEndsAtTarget)),
     ("A complete hand log retains every card", () => Run(GameEngineTests.CompleteHandLogContainsEveryCard)),
     ("Illegal defender play awards the maximum", () => Run(GameEngineTests.IllegalDefenderAwardsMaximum)),
     ("Illegal bidder play sets the contract", () => Run(GameEngineTests.IllegalBidderIsSet)),
@@ -29,6 +49,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Command tokenizer handles quoting", () => Run(ProtocolTests.TokenizerHandlesQuotes)),
     ("Engine host completes a BEUCI exchange", ProtocolTests.EngineHostExchange),
     ("Disposed engine clients reject new work", ProtocolTests.DisposedClientRejectsWork),
+    ("Engine startup reports the launcher's error", ProtocolTests.StartupReportsStandardError),
+    ("Engine stderr cannot block the handshake", ProtocolTests.StandardErrorCannotBlockHandshake),
     ("Session layer completes a human-controlled hand", SessionTests.HumanSessionCompletesHand),
     ("Session layer advances a four-bot hand", SessionTests.BotSessionCompletesHand),
     ("Bot turns are paced asynchronously", SessionTests.BotTurnsArePaced),
@@ -351,6 +373,51 @@ internal static class GameEngineTests
         Assert.Equal(-3, game.Scores[1]);
     }
 
+    public static void DefaultMatchOptionsAreUnchanged()
+    {
+        var view = NewGame().CreateView();
+        Assert.Equal(40, view.TargetScore);
+        Assert.Equal(0, view.Scores[0]);
+        Assert.Equal(0, view.Scores[1]);
+    }
+
+    public static void StartingScoresApply()
+    {
+        var game = new GameEngine(Names, 42, new MatchOptions(12, -4, 6));
+        game.StartGame(dealer: 0);
+        var view = game.CreateView();
+        Assert.Equal(12, view.TargetScore);
+        Assert.Equal(-4, view.Scores[0]);
+        Assert.Equal(6, view.Scores[1]);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new GameEngine(Names, 42, new MatchOptions(0)));
+    }
+
+    public static void MatchEndsAtTarget()
+    {
+        var game = new GameEngine(Names, 42, new MatchOptions(12));
+        game.StartGame(dealer: 0);
+        for (var hand = 0; hand < 60 && game.Phase is not GamePhase.GameComplete; hand++)
+        {
+            if (game.Phase is GamePhase.HandComplete) game.StartNextHand();
+            PlayHand(game);
+            var s = game.Scores;
+            var shouldEnd = Math.Max(s[0], s[1]) >= 12 && s[0] != s[1];
+            Assert.Equal(shouldEnd, game.Phase is GamePhase.GameComplete);
+        }
+        Assert.Equal(GamePhase.GameComplete, game.Phase);
+        Assert.True(game.Scores.Max() < 40, "A to-12 match must not run on toward 40");
+    }
+
+    // Three passes force the dealer to bid; the dealer names clubs and the hand is played out.
+    private static void PlayHand(GameEngine game)
+    {
+        var seat = GameRules.NextSeat(game.Dealer);
+        for (var pass = 0; pass < 3; pass++, seat = GameRules.NextSeat(seat)) game.PlaceBid(seat, null);
+        game.PlaceBid(game.Dealer, BidLevel.Three);
+        game.ChooseContract(game.Dealer, ContractMode.Trump, Suit.Clubs);
+        PlayOut(game);
+    }
+
     private static GameEngine ActiveThreeBid()
     {
         var game = NewGame();
@@ -464,6 +531,38 @@ internal static class ProtocolTests
         Assert.False(client.IsRunning);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => client.StartAsync());
         await Assert.ThrowsAsync<ObjectDisposedException>(() => client.NewGameAsync());
+    }
+
+    public static async Task StartupReportsStandardError()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var script = Path.Combine(Path.GetTempPath(), $"engine-{Guid.NewGuid():N}.sh");
+        try
+        {
+            await File.WriteAllTextAsync(script,
+                "read command\nprintf 'Example Bot requires its runtime. Run install.sh first.\\n' >&2\nexit 127\n");
+            var catalog = new EngineCatalog();
+            var error = await Assert.ThrowsAsync<ProtocolException>(() => catalog.LoadAsync("/bin/sh", $"\"{script}\""));
+            Assert.True(error.Message.Contains("Example Bot requires its runtime. Run install.sh first."), error.Message);
+            Assert.Equal(1, catalog.List().Count);
+        }
+        finally { File.Delete(script); }
+    }
+
+    public static async Task StandardErrorCannotBlockHandshake()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        var script = Path.Combine(Path.GetTempPath(), $"engine-{Guid.NewGuid():N}.sh");
+        try
+        {
+            await File.WriteAllTextAsync(script,
+                "read command\ni=0\nwhile [ $i -lt 10000 ]; do printf 'engine diagnostic output line\\n' >&2; i=$((i+1)); done\n" +
+                "printf 'id name Test Bot\\nbeuciok\\n'\nread command\nprintf 'readyok\\n'\nread command\n");
+            await using var client = new EngineProcessClient("/bin/sh", $"\"{script}\"", TimeSpan.FromSeconds(2));
+            var identity = await client.StartAsync();
+            Assert.Equal("Test Bot", identity.Name);
+        }
+        finally { File.Delete(script); }
     }
 
     private sealed class PassBot : IBidEuchreBot

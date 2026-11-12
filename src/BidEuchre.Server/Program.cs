@@ -82,17 +82,25 @@ app.MapGet("/api/sessions/{id}", async (
     }
 
     var view = await session.GetViewAsync(seat, cancellationToken);
-    return Results.Ok(new SessionState(session.Id, session.Name, session.Started, session.Seats, view, session.LastError));
+    return Results.Ok(new SessionState(session.Id, session.Name, session.Started, session.Seats, view, session.LastError, session.WaitingForDeal));
 });
 
 app.MapPost("/api/sessions/{id}/start", async (
     string id,
+    bool? animateDeal,
     SessionManager sessions,
     CancellationToken cancellationToken) =>
 {
     var session = sessions.Get(id);
-    await session.StartAsync(cancellationToken);
+    await session.StartAsync(cancellationToken, waitForDeal: animateDeal == true);
     return Results.Ok(session.Summary());
+});
+
+app.MapPost("/api/sessions/{id}/deal-complete", async (
+    string id, int handNumber, SessionManager sessions, CancellationToken cancellationToken) =>
+{
+    await sessions.Get(id).CompleteDealAsync(handNumber, cancellationToken);
+    return Results.Ok(new { ok = true });
 });
 
 app.MapPost("/api/sessions/{id}/actions", async (
@@ -108,11 +116,12 @@ app.MapPost("/api/sessions/{id}/actions", async (
 
 app.MapPost("/api/sessions/{id}/next-hand", async (
     string id,
+    bool? animateDeal,
     SessionManager sessions,
     CancellationToken cancellationToken) =>
 {
     var session = sessions.Get(id);
-    await session.StartNextHandAsync(cancellationToken);
+    await session.StartNextHandAsync(cancellationToken, waitForDeal: animateDeal == true);
     return Results.Ok(session.Summary());
 });
 

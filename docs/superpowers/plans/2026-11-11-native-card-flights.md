@@ -1,0 +1,9 @@
+# Native hand-to-table motion polish
+
+Continue the approved pixel-art direction in the C# GUI. Replace the short arrival offset with a 440ms flight from the previous hand's measured card position and fan angle into the newly laid-out trick slot. For hidden hands, use the middle public card back as the origin. Reveal only the publicly played card.
+
+Use the existing non-interactive overlay outside the table redraw, keep the destination hidden while its flight runs, and reconnect active flights to replacement destination controls on refresh. Move along a subtle arc, turn upright, and settle with a small overshoot. Unchanged snapshots and viewer/context changes retain the existing tracker suppression. Motion-off shows the destination immediately. Cancel on resize, leaving Play, viewer change, session replacement, and motion disable. Preserve rules, bot pacing, card input, and unrelated working-tree edits.
+
+Implementation: CardFlights.cs owns measurement, flight lifecycle and cleanup; HandFan exposes the rendered angle; MainWindow registers hand and trick controls around each table render. Verify the Release Mac package, C# regression suite, and actual four-bot native play. Native animation inspection supplements the event-tracker tests; existing tests do not automatically assert rendered flight paths.
+
+Validation: Release self-contained Mac packaging succeeded; 36/36 C# tests and Mac bundle rebuild checks passed. The native four-bot preview completed hands with all final trick cards visible and no application error message. Existing private/viewer and one-shot motion regression checks remain green. The full test.sh run encountered a separate newly added web sprite assertion (card-face-sprite markup), so a full-repository pass is not claimed. Concurrent sprite and engine changes were preserved and were not committed with this work.

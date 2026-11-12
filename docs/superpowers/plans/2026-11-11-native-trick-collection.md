@@ -1,0 +1,13 @@
+# Native animation verification and trick collection
+
+Preserve the new layered card sprites while restoring and verifying the C# animations. On a newly completed trick, let the fourth card finish its 440ms arrival, hold the result until 620ms after completion, then slide and shrink the four-card group toward the winner's measured player tag over 440ms. Clear the center afterward, including the final trick. Keep the full hand log available.
+
+TrickCollectionState remembers each context/hand/trick so polls do not restart collections or redraw collected cards. Historical completed tricks clear without replay on viewer/reconnect changes. Motion-off clears immediately. A stale completion cannot clear a newer trick. Skip collecting a historical trick if catch-up already shows a new trick in progress. Briefly gate human card actions during collection; existing bot completed-trick delay is at least 1600ms, so game timing and rules stay unchanged.
+
+CardFlights uses a persistent overlay outside board redraws, registers all four winner targets, copies the current card faces, and cancels safely for resize, motion disable, tab changes, session replacement and viewer switches. The group has full measured bounds, so transformed cards render throughout the slide.
+
+Verification found a pre-existing native animation defect: Avalonia 12.1 TransformAnimator expects a Visual, but earlier RunAsync calls targeted transform objects and threw InvalidCastException. A reviewer reproduced this against the installed runtime. CardFlights now combines transform setters in one animation on its Viewbox/Canvas; PixelMotion targets the control and BidAnnouncement targets the badge. CardFlights' animation helper accepts Control to prevent transform targets at compile time.
+
+Native verification: captured actual four-card movement toward a West winner and shrinking collection, followed by an empty center. The layered court and pip sprites render in the copied cards. Four-bot hands complete with the final center empty. Regression tests cover polling, motion-off, context/new-hand changes, historical tricks, and stale completions. Final automated results are recorded in the chat; previous sprite/engine work remains intact in the shared working tree.
+
+Final verification: ./test.sh exited 0 with 40/40 C# tests, 21/21 web/asset tests, C++ heuristic, Python CFR, Prolog and Mac bundle checks passing. Solution build reported zero warnings/errors. The final self-contained osx-arm64 app was rebuilt and launched. A second review found no important regressions after the visual-target correction. Saved frames show the actual collection moving toward West and the cleared center afterward.

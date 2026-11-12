@@ -82,7 +82,7 @@ internal sealed class BidAnnouncement(Canvas overlay, Control table, ContentCont
         _badge = badge;
         dock.Opacity = 0;
         overlay.Children.Add(badge);
-        try { await animation.RunAsync(shift, source.Token); }
+        try { await animation.RunAsync(badge, source.Token); }
         catch (OperationCanceledException) { }
         finally
         {

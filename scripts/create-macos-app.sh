@@ -8,7 +8,14 @@ mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 # the bundle itself so rebuilding cannot recursively copy a previous .app.
 for entry in "$output_dir"/*; do
   [[ "$entry" == "$bundle" ]] && continue
-  cp -R "$entry" "$bundle/Contents/MacOS/"
+  if [[ "$entry" == "$output_dir/BidEuchre" ]]; then
+    # Replace the inode: overwriting a previously launched Mach-O can leave
+    # macOS validating its new pages against the cached old code signature.
+    cp "$entry" "$bundle/Contents/MacOS/.BidEuchre.new"
+    mv -f "$bundle/Contents/MacOS/.BidEuchre.new" "$bundle/Contents/MacOS/BidEuchre"
+  else
+    cp -R "$entry" "$bundle/Contents/MacOS/"
+  fi
 done
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

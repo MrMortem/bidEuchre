@@ -1,0 +1,36 @@
+{
+  "mode": "built-in image_gen",
+  "reference": "assets/pixel/table.png",
+  "prompts": [
+    {
+      "asset": "table-flames",
+      "prompt": "Edit the supplied game table background. Remove all four playing-card suit symbols: heart in top left, club in top right, spade in bottom left, diamond in bottom right. Fill only their former silhouettes with the surrounding dark midnight navy color and subtle texture. Preserve the existing chunky pixel-art purple, magenta, and electric blue flame-like ribbons around every edge, preserve their positions and style, and preserve the broad very dark quiet central playing area. No new symbols, no text, no cards, no UI, no border. Flat orthographic 16:9 landscape game background. Opaque full canvas. This is the independent base layer for compositing four separate suit sprites.",
+      "transparent": false,
+      "revision": null
+    },
+    {
+      "asset": "table-heart",
+      "prompt": "Extract just the magenta/purple HEART suit silhouette from the TOP LEFT corner of the supplied table reference into a single standalone sprite on genuine transparent alpha. Preserve its chunky stepped pixel edges, simple recognizable heart silhouette and muted dark magenta color. Tight square composition with about 8 percent transparent padding, centered upright. No flames, no ribbons, no navy background, no other suits, no border, no text, no shadow, no checkerboard. Exactly ONE heart. The sprite will be placed back over the table background.",
+      "transparent": true,
+      "revision": null
+    },
+    {
+      "asset": "table-club",
+      "prompt": "Extract just the indigo/blue CLUB suit silhouette from the TOP RIGHT corner of the supplied table reference into a single standalone sprite on genuine transparent alpha. Preserve its chunky stepped pixel edges, three rounded lobes and short stem, simple recognizable club silhouette and muted indigo/blue color. Tight square composition with about 8 percent transparent padding, centered upright. No flames, no ribbons, no navy background, no other suits, no border, no text, no shadow, no checkerboard. Exactly ONE club. The sprite will be placed back over the table background.",
+      "transparent": true,
+      "revision": "Edit this isolated club suit sprite. Change ONLY the outer silhouette edge from smooth curves to chunky retro pixel-art steps, using large clear square blocks like a low-resolution 24-by-24-pixel game icon upscaled with nearest-neighbor. Preserve the same single club silhouette, upright orientation, muted color, centered composition and genuine transparent alpha background. Keep its recognizable shape, with no tiny edge flecks or halos, no other objects, no text, no frame, no shadow. Large crisp square stair steps, not smooth vector diagonals."
+    },
+    {
+      "asset": "table-spade",
+      "prompt": "Extract just the indigo/blue SPADE suit silhouette from the BOTTOM LEFT corner of the supplied table reference into a single standalone sprite on genuine transparent alpha. Preserve its chunky stepped pixel edges, pointed top, rounded lower lobes and short stem, simple recognizable spade silhouette and muted indigo/blue color. Tight square composition with about 8 percent transparent padding, centered upright. No flames, no ribbons, no navy background, no other suits, no border, no text, no shadow, no checkerboard. Exactly ONE spade. The sprite will be placed back over the table background.",
+      "transparent": true,
+      "revision": null
+    },
+    {
+      "asset": "table-diamond",
+      "prompt": "Extract just the magenta/purple DIAMOND suit silhouette from the BOTTOM RIGHT corner of the supplied table reference into a single standalone sprite on genuine transparent alpha. Preserve its chunky stepped pixel edges, vertically elongated simple diamond silhouette and muted dark magenta color. Tight square composition with about 8 percent transparent padding, centered upright. No flames, no ribbons, no navy background, no other suits, no border, no text, no shadow, no checkerboard. Exactly ONE diamond. The sprite will be placed back over the table background.",
+      "transparent": true,
+      "revision": "Edit this isolated diamond suit sprite. Change ONLY the outer silhouette edge from smooth curves to chunky retro pixel-art steps, using large clear square blocks like a low-resolution 24-by-24-pixel game icon upscaled with nearest-neighbor. Preserve the same single diamond silhouette, upright orientation, muted color, centered composition and genuine transparent alpha background. Keep its recognizable shape, with no tiny edge flecks or halos, no other objects, no text, no frame, no shadow. Large crisp square stair steps, not smooth vector diagonals."
+    }
+  ]
+}

@@ -52,6 +52,7 @@ function bindForms() {
 function showView(name) {
   if (name !== 'game') { cancelTableMotion(); model.viewGeneration += 1; }
   document.body.classList.toggle('at-table', name === 'game');
+  updateSuitBackdrop(name === 'game' ? model.session?.game?.contract : null);
   $$('.view').forEach(view => view.classList.toggle('active', view.id === `${name}-view`));
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   if (name !== 'game') stopPolling();
@@ -224,7 +225,7 @@ async function startCurrentSession() {
   button.setAttribute('aria-busy', 'true');
   button.textContent = 'Starting bots…';
   try {
-    await api(`/api/sessions/${model.sessionId}/start`, { method: 'POST', body: '{}' });
+    await api(`/api/sessions/${model.sessionId}/start?animateDeal=${model.motionEnabled}`, { method: 'POST', body: '{}' });
     if (generation === model.viewGeneration) await refreshGame();
   } catch (error) { if (generation === model.viewGeneration) toast(error.message, true); }
   finally {
@@ -288,6 +289,7 @@ function renderGame() {
     startButton.textContent = 'Start game';
   }
 
+  updateSuitBackdrop(session.game?.contract);
   model.motionCue = tableMotion.update(session.game, `${session.id}:${model.viewerSeat}`);
 
   if (!session.started || !session.game) {
@@ -301,7 +303,7 @@ function renderGame() {
   model.renderMode = 'game';
   $('#team-zero-score').textContent = game.scores[0];
   $('#team-one-score').textContent = game.scores[1];
-  $('#phase-label').textContent = `${splitWords(game.phase)} · Hand ${game.handNumber}`;
+  $('#phase-label').textContent = `${session.dealing ? 'Dealing' : splitWords(game.phase)} · Hand ${game.handNumber}`;
   $('#contract-label').textContent = contractName(game);
   renderBidDock(game);
   $('#dealer-label').textContent = `Seat ${game.dealer + 1} deals · ${game.tricksByTeam[0]}–${game.tricksByTeam[1]} tricks`;
@@ -309,7 +311,12 @@ function renderGame() {
   $('#game-error').textContent = session.error || '';
   $('#game-error').classList.toggle('hidden', !session.error);
 
+  if (game.phase !== 'Bidding') cancelDeal();
   game.players.forEach(player => renderPlayer(player, game));
+  if (session.dealing && !model.dealAnimation) {
+    if (model.dealCompletedHand === `${session.id}:${game.handNumber}`) finishServerDeal(session.id,game.handNumber);
+    else startDeal(game);
+  } else if (model.motionCue.deal && game.phase === 'Bidding' && !model.dealAnimation) startDeal(game);
   renderTrick(game);
   renderActions(game);
   animateTableCues();
@@ -384,11 +391,7 @@ function renderPlayer(player, game) {
     </div>
     <div class="card-row">${cards}</div>`;
   position.dataset.renderKey = renderKey;
-  if (model.motionCue?.deal) {
-    position.querySelectorAll('.card-row > *').forEach((card, index) => runMotion(card,
-      [{ translate:'0 22px' }, { translate:'0 -3px', offset:.8 }, { translate:'0 0' }],
-      { duration:260, delay:index * 32 + player.seat * 15 }));
-  }
+  registerDealHand(position, player.seat);
   if (player.cards && current) {
     position.querySelectorAll('.playing-card.legal').forEach(button =>
       button.addEventListener('click', () => playOrExchange(button.dataset.card)));
@@ -460,7 +463,10 @@ function renderActions(game) {
   let titleText;
   let helpText;
 
-  if (game.phase === 'HandComplete') {
+  if (model.session?.dealing || model.dealAnimation) {
+    titleText = 'Dealing cards';
+    helpText = 'Bidding begins when everyone has their six cards.';
+  } else if (game.phase === 'HandComplete') {
     titleText = 'Hand complete';
     helpText = 'Review the score, then deal the next hand when everyone is ready.';
     buttons.push({ key: 'next-hand', label: 'Deal next hand', handler: nextHand });
@@ -572,7 +578,7 @@ function playOrExchange(card) {
 }
 
 async function nextHand() {
-  return submitGameRequest(`/api/sessions/${model.sessionId}/next-hand`, {});
+  return submitGameRequest(`/api/sessions/${model.sessionId}/next-hand?animateDeal=${model.motionEnabled}`, {});
 }
 
 async function selectViewerSeat(seat) {
@@ -582,7 +588,7 @@ async function selectViewerSeat(seat) {
   await refreshGame();
 }
 
-function inputLocked() { return model.actionPending || model.viewLoading || model.connectionLost; }
+function inputLocked() { return model.actionPending || model.viewLoading || model.connectionLost || !!model.dealAnimation || !!model.session?.dealing; }
 
 function syncInputState() {
   const locked = inputLocked();
@@ -671,12 +677,13 @@ function inlineMarkdown(value) {
 }
 
 function cardHtml(card, legal) {
-  const suit = suitSymbol(card.suit);
   const red = card.suit === 'Hearts' || card.suit === 'Diamonds';
   const rank = cardRank(card);
   const code = cardCode(card);
   const label = `${rank} of ${card.suit}`;
-  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-corner" aria-hidden="true"><strong>${rank}</strong><span>${suit}</span></span>${["J", "Q", "K"].includes(rank) ? `<span class="court court-${rank}" aria-hidden="true"></span>` : `<span class="card-pip" aria-hidden="true">${suit}</span>`}<span class="card-corner inverted" aria-hidden="true"><strong>${rank}</strong><span>${suit}</span></span></button>`;
+  const column = '9TJQKA'.indexOf(code[0]);
+  const row = 'CDHS'.indexOf(code[1]);
+  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-face-sprite" style="--card-column:${column};--card-row:${row}" aria-hidden="true"></span></button>`;
 }
 
 function portraitHtml(seat) {
@@ -767,7 +774,10 @@ function configureMotion() {
   });
   preference.addEventListener('change', update);
   window.addEventListener('resize', cancelBidAnnouncement);
+  window.addEventListener('resize', cancelDeal);
+  window.addEventListener('resize', () => updateSuitBackdrop(document.body.classList.contains('at-table') ? model.session?.game?.contract : null));
   document.addEventListener('scroll', cancelBidAnnouncement, {capture:true,passive:true});
+  document.addEventListener('scroll', cancelDeal, {capture:true,passive:true});
 }
 
 function configurePageLifecycle() {
@@ -785,7 +795,7 @@ function configurePageLifecycle() {
 
 function runMotion(element, keyframes, options = {}) {
   if (!element || document.hidden || !model.motionEnabled || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-  element.getAnimations().forEach(animation => animation.cancel());
+  element.getAnimations().filter(animation => animation.animationName !== 'hand-float').forEach(animation => animation.cancel());
   return element.animate(keyframes, { duration:260, easing:'cubic-bezier(.2,.75,.25,1)', ...options });
 }
 
@@ -805,8 +815,9 @@ function animateTableCues() {
 }
 
 function cancelTableMotion() {
+  cancelDeal();
   cancelBidAnnouncement();
-  $('#game-view')?.getAnimations({ subtree:true }).forEach(animation => animation.cancel());
+  $('#game-view')?.getAnimations({ subtree:true }).filter(animation => animation.animationName !== 'hand-float').forEach(animation => animation.cancel());
 }
 
 
@@ -887,4 +898,150 @@ function cancelBidAnnouncement() {
   active?.animation.cancel();
   active?.element.remove();
   $('#bid-dock')?.classList.remove('bid-in-flight');
+}
+
+// All suit artwork shares the same 1672 x 941 cover canvas as the flames.
+function suitBackdropLayout(width, height, contract) {
+  const scale = Math.max(width / 1672, height / 941);
+  const originX = (width - 1672 * scale) / 2;
+  const originY = (height - 941 * scale) / 2;
+  const inset = Math.min(24, Math.min(width, height) * .04);
+  return [
+    ['Hearts',59,38,157,155], ['Clubs',1439,29,190,177],
+    ['Spades',50,698,173,182], ['Diamonds',1458,695,155,191]
+  ].map(([suit,x,y,w,h],index) => {
+    const left = originX + x * scale, top = originY + y * scale;
+    const cardWidth = w * scale, cardHeight = h * scale;
+    const active = contract?.mode === 'High' || (contract?.mode === 'Trump' && contract.trump === suit);
+    const right = index === 1 || index === 3, bottom = index >= 2;
+    let shiftX = 0, shiftY = 0;
+    if (contract?.mode === 'Low') {
+      shiftX = (right ? width + cardWidth + inset : -cardWidth * 2 - inset) - left;
+    } else if (active) {
+      shiftX = (right ? Math.min(left - 32, width - cardWidth - inset) : Math.max(left + 32, inset)) - left;
+      shiftY = (bottom ? Math.min(top - 20, height - cardHeight - inset) : Math.max(top + 20, inset)) - top;
+    }
+    return {left,top,width:cardWidth,height:cardHeight,x:shiftX,y:shiftY,active};
+  });
+}
+
+function updateSuitBackdrop(contract) {
+  const layers = $$('.table-scenery > span');
+  if (!layers.length) return;
+  const layout = suitBackdropLayout(window.innerWidth, window.innerHeight, contract);
+  layers.forEach((layer,index) => {
+    const position = layout[index];
+    layer.style.setProperty('--suit-x', `${position.x}px`);
+    layer.style.setProperty('--suit-y', `${position.y}px`);
+    layer.classList.toggle('contract-active', position.active);
+  });
+}
+
+function dealPackets(dealer) {
+  return Array.from({length:8},(_,packet) => ({
+    seat:(dealer+packet%4+1)%4, firstCard:Math.floor(packet/4)*3,
+    count:3, delay:180+packet*250
+  }));
+}
+
+function registerDealHand(position,seat) {
+  const deal = model.dealAnimation;
+  if (!deal) return;
+  position.querySelectorAll('.card-row > *').forEach((card,index) => {
+    const key = `${seat}:${index}`;
+    deal.targets.set(key,card);
+    card.style.opacity = deal.landed.has(key) ? '' : '0';
+  });
+}
+
+function cancelDeal() {
+  const deal = model.dealAnimation;
+  if (!deal) return;
+  model.dealAnimation = null;
+  deal.animations.forEach(animation => animation.cancel());
+  deal.visuals.forEach(visual => visual.remove());
+  deal.targets.forEach(card => card.style.opacity = '');
+  if (deal.sessionId) finishServerDeal(deal.sessionId,deal.handNumber);
+  syncInputState();
+}
+
+function startDeal(game) {
+  cancelDeal();
+  if (!model.motionEnabled || document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (model.session?.dealing) finishServerDeal(model.sessionId,game.handNumber);
+    return;
+  }
+  const table = $('.felt-table')?.getBoundingClientRect();
+  const dealer = $(`#seat-${game.dealer} .player-tag`)?.getBoundingClientRect();
+  if (!table || !dealer || !table.width || !dealer.width) {
+    if (model.session?.dealing) finishServerDeal(model.sessionId,game.handNumber);
+    return;
+  }
+  const origin = {
+    x:(dealer.left+dealer.width/2)*.65+(table.left+table.width/2)*.35,
+    y:(dealer.top+dealer.height/2)*.65+(table.top+table.height/2)*.35
+  };
+  const deal = {targets:new Map(),landed:new Set(),animations:[],visuals:[],
+    sessionId:model.session?.dealing ? model.sessionId : null,handNumber:game.handNumber};
+  model.dealAnimation = deal;
+  game.players.forEach(player => registerDealHand($(`#seat-${player.seat}`),player.seat));
+  const deck = document.createElement('div');
+  deck.className = 'deal-deck'; deck.setAttribute('aria-hidden','true');
+  deck.innerHTML = '<span class="card-back"></span>'.repeat(4);
+  deck.style.left = `${origin.x-25}px`; deck.style.top = `${origin.y-37}px`;
+  document.body.append(deck); deal.visuals.push(deck);
+  const flights = [];
+  for (const packet of dealPackets(game.dealer)) for(let offset=0;offset<packet.count;offset++) {
+    const key = `${packet.seat}:${packet.firstCard+offset}`;
+    const target = deal.targets.get(key);
+    if (!target) continue;
+    const bounds = target.getBoundingClientRect();
+    const width = target.offsetWidth || bounds.width;
+    const height = target.offsetHeight || bounds.height;
+    const left = bounds.left + (bounds.width - width) / 2;
+    const top = bounds.top + (bounds.height - height) / 2;
+    const matrix = window.getComputedStyle(target).transform.match(/^matrix\(([^)]+)\)$/);
+    const rotation = matrix ? (() => {
+      const values = matrix[1].split(',').map(Number);
+      return Math.atan2(values[1], values[0]) * 180 / Math.PI;
+    })() : 0;
+    const visual = document.createElement('span');
+    visual.className = 'card-back deal-card'; visual.setAttribute('aria-hidden','true');
+    visual.style.width = `${width}px`; visual.style.height = `${height}px`;
+    visual.style.left = `${left}px`; visual.style.top = `${top}px`;
+    const x = origin.x-left-width/2;
+    const y = origin.y-top-height/2;
+    document.body.append(visual); deal.visuals.push(visual);
+    const animation = visual.animate([
+      {translate:`${x}px ${y}px`,opacity:0,rotate:'0deg'},
+      {translate:`${x*.94}px ${y*.94-8}px`,opacity:1,offset:.08},
+      {translate:'0 0',opacity:1,rotate:`${rotation}deg`}
+    ],{duration:340,delay:packet.delay+offset*18,easing:'cubic-bezier(.2,.75,.25,1)',fill:'both'});
+    deal.animations.push(animation);
+    flights.push(animation.finished.then(() => {
+      if (model.dealAnimation !== deal) return;
+      deal.landed.add(key);
+      const current = deal.targets.get(key);
+      if (current) current.style.opacity = '';
+      visual.remove();
+    },() => {}));
+  }
+  syncInputState();
+  Promise.all(flights).then(() => { if (model.dealAnimation === deal) cancelDeal(); });
+}
+
+async function finishServerDeal(sessionId,handNumber) {
+  const key = `${sessionId}:${handNumber}`;
+  if (model.dealCompleting === key) return;
+  model.dealCompletedHand = key;
+  model.dealCompleting = key;
+  try {
+    await api(`/api/sessions/${sessionId}/deal-complete?handNumber=${handNumber}`, {method:'POST',body:'{}'});
+    if (model.sessionId === sessionId && model.session?.game?.handNumber === handNumber) {
+      model.session.dealing = false;
+      syncInputState();
+      await refreshGame({notify:false});
+    }
+  } catch { /* Keep bidding locked; the next state refresh retries completion. */ }
+  finally { if (model.dealCompleting === key) model.dealCompleting = null; }
 }

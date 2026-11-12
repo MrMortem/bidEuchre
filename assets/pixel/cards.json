@@ -1,0 +1,168 @@
+{
+  "cardWidth": 124,
+  "cardHeight": 176,
+  "columns": 6,
+  "rows": 4,
+  "ranks": [
+    "9",
+    "T",
+    "J",
+    "Q",
+    "K",
+    "A"
+  ],
+  "suits": [
+    "C",
+    "D",
+    "H",
+    "S"
+  ],
+  "atlas": "card-faces.png",
+  "background": "card-background-white.png",
+  "cards": {
+    "9C": {
+      "x": 0,
+      "y": 0,
+      "width": 124,
+      "height": 176
+    },
+    "TC": {
+      "x": 124,
+      "y": 0,
+      "width": 124,
+      "height": 176
+    },
+    "JC": {
+      "x": 248,
+      "y": 0,
+      "width": 124,
+      "height": 176
+    },
+    "QC": {
+      "x": 372,
+      "y": 0,
+      "width": 124,
+      "height": 176
+    },
+    "KC": {
+      "x": 496,
+      "y": 0,
+      "width": 124,
+      "height": 176
+    },
+    "AC": {
+      "x": 620,
+      "y": 0,
+      "width": 124,
+      "height": 176
+    },
+    "9D": {
+      "x": 0,
+      "y": 176,
+      "width": 124,
+      "height": 176
+    },
+    "TD": {
+      "x": 124,
+      "y": 176,
+      "width": 124,
+      "height": 176
+    },
+    "JD": {
+      "x": 248,
+      "y": 176,
+      "width": 124,
+      "height": 176
+    },
+    "QD": {
+      "x": 372,
+      "y": 176,
+      "width": 124,
+      "height": 176
+    },
+    "KD": {
+      "x": 496,
+      "y": 176,
+      "width": 124,
+      "height": 176
+    },
+    "AD": {
+      "x": 620,
+      "y": 176,
+      "width": 124,
+      "height": 176
+    },
+    "9H": {
+      "x": 0,
+      "y": 352,
+      "width": 124,
+      "height": 176
+    },
+    "TH": {
+      "x": 124,
+      "y": 352,
+      "width": 124,
+      "height": 176
+    },
+    "JH": {
+      "x": 248,
+      "y": 352,
+      "width": 124,
+      "height": 176
+    },
+    "QH": {
+      "x": 372,
+      "y": 352,
+      "width": 124,
+      "height": 176
+    },
+    "KH": {
+      "x": 496,
+      "y": 352,
+      "width": 124,
+      "height": 176
+    },
+    "AH": {
+      "x": 620,
+      "y": 352,
+      "width": 124,
+      "height": 176
+    },
+    "9S": {
+      "x": 0,
+      "y": 528,
+      "width": 124,
+      "height": 176
+    },
+    "TS": {
+      "x": 124,
+      "y": 528,
+      "width": 124,
+      "height": 176
+    },
+    "JS": {
+      "x": 248,
+      "y": 528,
+      "width": 124,
+      "height": 176
+    },
+    "QS": {
+      "x": 372,
+      "y": 528,
+      "width": 124,
+      "height": 176
+    },
+    "KS": {
+      "x": 496,
+      "y": 528,
+      "width": 124,
+      "height": 176
+    },
+    "AS": {
+      "x": 620,
+      "y": 528,
+      "width": 124,
+      "height": 176
+    }
+  }
+}
