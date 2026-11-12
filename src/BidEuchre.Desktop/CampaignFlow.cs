@@ -42,7 +42,7 @@ internal sealed class CampaignFlow(
     public void MatchCompleted(bool won, int[] scores)
     {
         if (Run is not { Phase: CampaignPhase.InMatch } run) return;
-        var (next, outcome) = run.ApplyResult(won, scores[0]);
+        var (next, outcome) = run.ApplyResult(won, scores[0], scores[1]);
         Record(next);
         _pendingResult = (outcome, scores);
     }

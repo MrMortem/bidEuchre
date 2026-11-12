@@ -11,12 +11,13 @@ public sealed partial class GameEngine
     private readonly List<string> _events = [];
     private readonly int[] _scores;
     private readonly int _targetScore;
+    private readonly MatchOptions _matchOptions;
     private readonly int[] _tricksByTeam = [0, 0];
     private Random _random;
     private int _biddingTurns;
     private Card? _pendingExchangeCard;
 
-    public GameEngine(IReadOnlyList<string> playerNames, int? randomSeed = null, MatchOptions? options = null)
+    public GameEngine(IReadOnlyList<string> playerNames, int? randomSeed = null, MatchOptions? options = null, CampaignContext? campaign = null)
     {
         if (playerNames.Count != 4)
         {
@@ -37,6 +38,12 @@ public sealed partial class GameEngine
             throw new ArgumentOutOfRangeException(nameof(options), "The target score must be at least 1.");
         }
 
+        if (options.HandLimit is <= 0 || options.NegativeThreshold is >= 0)
+            throw new ArgumentOutOfRangeException(nameof(options));
+        _matchOptions = options;
+        _campaign = campaign;
+        if(campaign is not null) { _resources=campaign.Snapshot();_campaignRandom=new(_resources.RandomState);
+            _dejaValue=_resources.Inventory.Jokers.FirstOrDefault(j=>j.Id==JokerId.DejaVu)?.Value??0; }
         _targetScore = options.TargetScore;
         _scores = [options.StartingScoreTeam0, options.StartingScoreTeam1];
     }
@@ -61,6 +68,7 @@ public sealed partial class GameEngine
     {
         EnsurePhase(GamePhase.NotStarted);
         Dealer = dealer ?? _random.Next(4);
+        if(IsCampaign && Dealer==0 && Has(JokerId.SlickWilly)) Dealer=CampaignNextDealer(Dealer);
         GameRules.ValidateSeat(Dealer);
         DealHand();
     }
@@ -70,10 +78,11 @@ public sealed partial class GameEngine
         EnsurePhase(GamePhase.HandComplete);
         if (GameWinner is not null)
         {
+            if(IsCampaign) CampaignMatchEnd();
             throw new GameRuleException("The game has already been won.");
         }
 
-        Dealer = GameRules.NextSeat(Dealer);
+        Dealer = IsCampaign?CampaignNextDealer(Dealer):GameRules.NextSeat(Dealer);
         DealHand();
     }
 
@@ -90,13 +99,14 @@ public sealed partial class GameEngine
     }
 
     public IReadOnlyList<BidLevel> GetLegalBids() =>
-        Phase is GamePhase.Bidding ? GameRules.LegalRaises(HighBid) : [];
+        Phase is GamePhase.Bidding ? IsCampaign?CampaignBids(CurrentSeat!.Value).Select(b=>b.Level).Distinct().ToArray():GameRules.LegalRaises(HighBid) : [];
 
     public bool CanPass =>
         Phase is GamePhase.Bidding && !(CurrentSeat == Dealer && HighBid is null);
 
     public void PlaceBid(int seat, BidLevel? bid)
     {
+        if(IsCampaign && !_dispatchCampaign) throw new GameRuleException("Use a campaign bidding action.");
         EnsureTurn(GamePhase.Bidding, seat);
 
         if (bid is null)
@@ -115,6 +125,7 @@ public sealed partial class GameEngine
         _biddingTurns++;
         if (bid is not null)
         {
+            if(IsCampaign) { _variant=_pendingBidVariant;_pendingBidVariant=null; }
             HighBid = bid;
             Bidder = seat;
             _events.Add($"{_playerNames[seat]} bid {DisplayBid(bid.Value)}.");
@@ -134,6 +145,7 @@ public sealed partial class GameEngine
             Phase = GamePhase.ChoosingContract;
             CurrentSeat = Bidder;
             _events.Add($"{_playerNames[Bidder.Value]} won the auction.");
+            if(IsCampaign) CampaignAfterBid();
             return;
         }
 
@@ -148,7 +160,10 @@ public sealed partial class GameEngine
             throw new GameRuleException("Only the auction winner may choose the contract.");
         }
 
-        Contract = Contract.Create(HighBid!.Value, mode, trump);
+        Contract = IsCampaign && (int)HighBid! == 2
+            ? mode==ContractMode.Trump && trump is not null ? new Contract(HighBid.Value,mode,trump) : throw new GameRuleException("Bid 2 requires trump.")
+            : Contract.Create(HighBid!.Value, mode, trump);
+        if(IsCampaign) CampaignContractSelected();
         _events.Add($"{_playerNames[seat]} chose {DisplayContract(Contract)}.");
 
         if (Contract.IsPartnersBest)
@@ -163,6 +178,7 @@ public sealed partial class GameEngine
 
     public void ExchangeCard(int seat, Card card)
     {
+        if(IsCampaign && !_dispatchCampaign) throw new GameRuleException("Select a physical campaign card.");
         if (Contract?.IsPartnersBest is not true || Bidder is null)
         {
             throw new GameRuleException("Cards can only be exchanged during Partners Best.");
@@ -213,11 +229,12 @@ public sealed partial class GameEngine
             return [];
         }
 
-        return GameRules.LegalCards(_hands[seat], _currentTrick, Contract);
+        return IsCampaign ? CampaignLegalPlays(seat).Select(p=>TokenFor(p.Id)).Distinct().ToArray() : GameRules.LegalCards(_hands[seat], _currentTrick, Contract);
     }
 
     public void PlayCard(int seat, Card card)
     {
+        if(IsCampaign && !_dispatchCampaign) throw new GameRuleException("Select a physical campaign card.");
         EnsureTurn(GamePhase.Playing, seat);
         if (!GetLegalCards(seat).Contains(card))
         {
@@ -226,16 +243,17 @@ public sealed partial class GameEngine
 
         _hands[seat].Remove(card);
         _currentTrick.Add(new CardPlay(seat, card));
-        _events.Add($"{_playerNames[seat]} played {card.Code}.");
+        _events.Add($"{_playerNames[seat]} played {(IsCampaign?StateFor(card).Face.Code:card.Code)}.");
+        if(IsCampaign) CampaignOnPlay(seat,card);
 
-        var activePlayers = Contract!.PartnerSitsOut ? 3 : 4;
+        var activePlayers = IsCampaign ? Enumerable.Range(0,4).Count(CampaignActive) : Contract!.PartnerSitsOut ? 3 : 4;
         if (_currentTrick.Count < activePlayers)
         {
             CurrentSeat = NextActiveSeat(seat);
             return;
         }
 
-        var winner = GameRules.DetermineTrickWinner(_currentTrick, Contract);
+        var winner = IsCampaign?CampaignTrickWinner():GameRules.DetermineTrickWinner(_currentTrick, Contract!);
         var completed = new CompletedTrick(
             _completedTricks.Count + 1,
             _currentTrick[0].Seat,
@@ -244,7 +262,9 @@ public sealed partial class GameEngine
         _completedTricks.Add(completed);
         _tricksByTeam[GameRules.TeamForSeat(winner)]++;
         _events.Add($"{_playerNames[winner]} won trick {completed.Number}.");
+        if(IsCampaign) CampaignOnTrick(winner,_currentTrick.ToArray());
         _currentTrick.Clear();
+        _wildSuits.Clear();
 
         if (_completedTricks.Count == 6)
         {
@@ -252,6 +272,7 @@ public sealed partial class GameEngine
             return;
         }
 
+        if(IsCampaign && _variant==PlanetId.Chaos) RollChaos();
         CurrentSeat = winner;
     }
 
@@ -313,7 +334,7 @@ public sealed partial class GameEngine
             : [];
         var cards = isViewingCurrentSeat ? GetLegalCards(viewerSeat!.Value) : [];
 
-        return new GameView(
+        var result = new GameView(
             Phase,
             HandNumber,
             Dealer,
@@ -339,11 +360,22 @@ public sealed partial class GameEngine
         {
             DealSerial = DealSerial
         };
+        if(IsCampaign)
+        {
+            var cv=CreateCampaignView(viewerSeat);
+            return result with {
+                Players=result.Players.Select(p=>p with { Cards=p.Cards is null?null:p.Cards.Select(c=>StateFor(c).Face).ToArray(), IsSittingOut=!CampaignActive(p.Seat) }).ToArray(),
+                CurrentTrick=result.CurrentTrick.Select(p=>p with {Card=StateFor(p.Card).Face}).ToArray(),
+                CompletedTricks=result.CompletedTricks.Select(t=>t with {Plays=t.Plays.Select(p=>p with {Card=StateFor(p.Card).Face}).ToArray()}).ToArray(),
+                Campaign=cv
+            };
+        }
+        return result;
     }
 
     private IReadOnlyList<ContractMode> GetContractModes()
     {
-        if (HighBid is BidLevel.Three or BidLevel.PartnersBest)
+        if (HighBid is BidLevel.Three or BidLevel.PartnersBest || (int?)HighBid==2 || IsCampaign && _variant is PlanetId.Chaos or PlanetId.Telepath)
         {
             return [ContractMode.Trump];
         }
@@ -371,6 +403,11 @@ public sealed partial class GameEngine
             hand.Clear();
         }
 
+        if(IsCampaign)
+        {
+            Phase=GamePhase.Bidding;_events.Clear();_events.Add($"Hand {HandNumber}: dealer {_playerNames[Dealer]}.");
+            CampaignDealHand();return;
+        }
         var deck = GameRules.CreateDeck().ToArray();
         _random.Shuffle(deck);
         for (var index = 0; index < deck.Length; index++)
@@ -392,6 +429,7 @@ public sealed partial class GameEngine
     private int NextActiveSeat(int seat)
     {
         var next = GameRules.NextSeat(seat);
+        if(IsCampaign) { while(!CampaignActive(next)) next=GameRules.NextSeat(next);return next; }
         if (Contract?.PartnerSitsOut is true && Bidder is not null && next == GameRules.PartnerOf(Bidder.Value))
         {
             next = GameRules.NextSeat(next);
@@ -424,6 +462,7 @@ public sealed partial class GameEngine
         }
 
         deltas[defendingTeam] = defendingTricks;
+        if(IsCampaign) deltas=CampaignScore(deltas);
         CompleteHandWithDeltas(deltas, reason);
     }
 
@@ -454,6 +493,14 @@ public sealed partial class GameEngine
 
     private int? DetermineGameWinner()
     {
+        if (_matchOptions.HandLimit is { } limit || _matchOptions.NegativeThreshold is not null)
+        {
+            if (_scores[0] == _scores[1]) return null;
+            var ended = (_matchOptions.HandLimit is { } hands && HandNumber >= hands)
+                || _scores.Max() >= _targetScore
+                || (_matchOptions.NegativeThreshold is { } floor && _scores.Min() <= floor);
+            return ended ? (_scores[0] > _scores[1] ? 0 : 1) : null;
+        }
         if (_scores[0] < _targetScore && _scores[1] < _targetScore)
         {
             return null;

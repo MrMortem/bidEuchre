@@ -18,7 +18,12 @@ public sealed record MatchOutcome(
     int Payout,
     int Interest,
     int Money,
-    bool Forfeited);
+    bool Forfeited)
+{
+    public int BaseReward { get; init; }
+    public int MarginBonus { get; init; }
+    public int JokerIncome { get; init; }
+}
 
 // One campaign run. Every rule of the loop lives here so the screens only display it.
 public sealed record CampaignRun(
@@ -29,8 +34,12 @@ public sealed record CampaignRun(
     CampaignPhase Phase = CampaignPhase.Intro,
     bool VictoryShown = false)
 {
+    public CampaignSnapshot Resources { get; init; } = CampaignSnapshot.Create((ulong)Random.Shared.NextInt64());
+    public ShopState? Shop { get; init; }
+    public long LastAppliedRevision { get; init; }
     public const int StartingLives = 3;
-    public const int TargetScore = 12;
+    public const int TargetScore = 24;
+    [JsonIgnore] public int Threshold => 24 + 4 * (Ante - 1);
     public const int MatchesPerAnte = 3;
     public const int VictoryMatch = 15;
     private const int InterestStep = 5;
@@ -40,44 +49,48 @@ public sealed record CampaignRun(
     [JsonIgnore] public int MatchInAnte => (Match - 1) % MatchesPerAnte + 1;
     [JsonIgnore] public bool IsBoss => MatchInAnte == MatchesPerAnte;
     [JsonIgnore] public bool IsOver => Lives <= 0;
-    [JsonIgnore] public int PlayerStartingScore => -(Ante - 1);
+    [JsonIgnore] public int PlayerStartingScore => 0;
 
     // Placeholder boss rule until bosses get their own rule system.
-    [JsonIgnore] public int OpponentStartingScore => IsBoss ? Ante + 1 : 0;
+    [JsonIgnore] public int OpponentStartingScore => 0;
 
-    public MatchOptions NextMatch() => new(TargetScore, PlayerStartingScore, OpponentStartingScore);
+    public MatchOptions NextMatch() => new(Threshold) { NegativeThreshold = -Threshold, HandLimit = 8 };
 
     public CampaignRun StartMatch() => From(CampaignPhase.Intro) with { Phase = CampaignPhase.InMatch };
 
-    public (CampaignRun Run, MatchOutcome Outcome) ApplyResult(bool won, int playerScore) =>
-        Finish(won, playerScore, forfeited: false);
+    public (CampaignRun Run, MatchOutcome Outcome) ApplyResult(bool won, int playerScore, int opponentScore = 0, int matchEndIncome = 0) =>
+        Finish(won, playerScore, opponentScore, matchEndIncome, forfeited: false);
 
-    public (CampaignRun Run, MatchOutcome Outcome) Forfeit() => Finish(won: false, playerScore: 0, forfeited: true);
+    public (CampaignRun Run, MatchOutcome Outcome) Forfeit() => Finish(false, 0, 0, 0, forfeited: true);
 
     public CampaignRun AcknowledgeVictory() => From(CampaignPhase.Victory) with { Phase = CampaignPhase.Shop };
 
     public CampaignRun LeaveShop() => From(CampaignPhase.Shop) with { Phase = CampaignPhase.Intro };
 
-    private (CampaignRun Run, MatchOutcome Outcome) Finish(bool won, int playerScore, bool forfeited)
+    private (CampaignRun Run, MatchOutcome Outcome) Finish(bool won, int playerScore, int opponentScore, int matchEndIncome, bool forfeited)
     {
         From(CampaignPhase.InMatch);
         var livesLost = won ? 0 : IsBoss ? 2 : 1;
-        var payout = won ? Math.Max(0, playerScore - TargetScore) : 0;
-        var interest = Math.Min(InterestCap, (Money + payout) / InterestStep);
-        var money = Money + payout + interest;
+        var baseReward = won ? MatchInAnte switch { 1 => 5, 2 => 6, _ => 8 } : 0;
+        var margin = playerScore - opponentScore;
+        var marginBonus = won ? margin >= 10 ? 6 : margin >= 5 ? 4 : margin >= 1 ? 2 : 0 : 0;
+        var payout = baseReward + marginBonus;
+        var interest = Math.Min(InterestCap, (Money + payout + matchEndIncome) / InterestStep);
+        var money = Money + payout + matchEndIncome + interest;
         var lives = Lives - livesLost;
         var victory = won && Match == VictoryMatch && !VictoryShown;
         var run = this with
         {
             Lives = lives,
             Money = money,
+            Resources = Resources with { Wallets = new[] { money, Resources.Wallets[1], Resources.Wallets[2], Resources.Wallets[3] } },
             MatchesWon = MatchesWon + (won ? 1 : 0),
             // A finished run keeps the match it ended on.
             Match = lives <= 0 ? Match : Match + 1,
             Phase = victory ? CampaignPhase.Victory : CampaignPhase.Shop,
             VictoryShown = VictoryShown || victory
         };
-        return (run, new MatchOutcome(won, IsBoss, livesLost, payout, interest, money, forfeited));
+        return (run, new MatchOutcome(won, IsBoss, livesLost, payout, interest, money, forfeited) { BaseReward = baseReward, MarginBonus = marginBonus, JokerIncome = matchEndIncome });
     }
 
     private CampaignRun From(CampaignPhase expected) => Phase == expected

@@ -17,11 +17,11 @@ internal static class CampaignRunTests
         Assert.False(new CampaignRun(Match: 2).IsBoss);
         Assert.True(new CampaignRun(Match: 3).IsBoss);
         Assert.True(new CampaignRun(Match: 15).IsBoss);
-        Assert.Equal(new MatchOptions(12, 0, 0), new CampaignRun(Match: 1).NextMatch());
-        Assert.Equal(new MatchOptions(12, 0, 2), new CampaignRun(Match: 3).NextMatch());
-        Assert.Equal(new MatchOptions(12, -4, 0), new CampaignRun(Match: 13).NextMatch());
-        Assert.Equal(new MatchOptions(12, -4, 6), new CampaignRun(Match: 15).NextMatch());
-        Assert.Equal(new MatchOptions(12, -5, 0), new CampaignRun(Match: 16).NextMatch());
+        Assert.Equal(new MatchOptions(24) { NegativeThreshold = -24, HandLimit = 8 }, new CampaignRun(Match: 1).NextMatch());
+        Assert.Equal(new MatchOptions(24) { NegativeThreshold = -24, HandLimit = 8 }, new CampaignRun(Match: 3).NextMatch());
+        Assert.Equal(new MatchOptions(40) { NegativeThreshold = -40, HandLimit = 8 }, new CampaignRun(Match: 13).NextMatch());
+        Assert.Equal(new MatchOptions(40) { NegativeThreshold = -40, HandLimit = 8 }, new CampaignRun(Match: 15).NextMatch());
+        Assert.Equal(new MatchOptions(44) { NegativeThreshold = -44, HandLimit = 8 }, new CampaignRun(Match: 16).NextMatch());
     }
 
     public static void Lives()
@@ -47,12 +47,12 @@ internal static class CampaignRunTests
 
     public static void Money()
     {
-        Assert.Equal(0, AtMatch(1).ApplyResult(true, 12).Outcome.Money);
-        var (paid, o) = AtMatch(1, money: 12).ApplyResult(true, 14);
-        Assert.Equal(2, o.Payout);
-        Assert.Equal(2, o.Interest);
-        Assert.Equal(16, o.Money);
-        Assert.Equal(16, paid.Money);
+        Assert.Equal(13, AtMatch(1).ApplyResult(true, 24, 0).Outcome.Money);
+        var (paid, o) = AtMatch(1, money: 12).ApplyResult(true, 24, 20);
+        Assert.Equal(7, o.Payout);
+        Assert.Equal(3, o.Interest);
+        Assert.Equal(22, o.Money);
+        Assert.Equal(22, paid.Money);
         var (_, lost) = AtMatch(1, money: 23).ApplyResult(false, 13);
         Assert.Equal(0, lost.Payout);
         Assert.Equal(4, lost.Interest);
