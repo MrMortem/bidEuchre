@@ -2,10 +2,12 @@ using System.Text.Json.Serialization;
 using BidEuchre.Core;
 using BidEuchre.Protocol;
 using BidEuchre.App;
+using BidEuchre.Server;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<EngineCatalog>();
-builder.Services.AddSingleton<SessionManager>();
+builder.Services.AddSingleton<WebSessions>();
+builder.Services.AddHostedService<WebSessionReaper>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -16,7 +18,8 @@ var app = builder.Build();
 app.UseExceptionHandler(handler => handler.Run(async context =>
 {
     var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
-    var status = exception is KeyNotFoundException ? StatusCodes.Status404NotFound
+    var status = exception is SessionCapacityException ? StatusCodes.Status429TooManyRequests
+        : exception is KeyNotFoundException ? StatusCodes.Status404NotFound
         : exception is GameRuleException or ProtocolException or ArgumentException
             ? StatusCodes.Status400BadRequest
             : StatusCodes.Status500InternalServerError;
@@ -26,6 +29,8 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
         error = status == 500 ? "The server could not complete the request." : exception?.Message
     });
 }));
+
+app.Use(LocalRequestPolicy.InvokeAsync);
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
@@ -44,35 +49,24 @@ app.MapGet("/api/health", () => Results.Ok(new { status = "ok", product = "Bid E
 
 app.MapGet("/api/engines", (EngineCatalog catalog) => Results.Ok(catalog.List()));
 
-app.MapPost("/api/engines/load", async (
-    LoadEngineRequest request,
-    EngineCatalog catalog,
-    CancellationToken cancellationToken) =>
-{
-    if (string.IsNullOrWhiteSpace(request.Executable))
-    {
-        return Results.BadRequest(new { error = "An engine executable is required." });
-    }
-
-    var engine = await catalog.LoadAsync(request.Executable, request.Arguments, cancellationToken);
-    return Results.Created($"/api/engines/{engine.Id}", engine);
-});
+app.MapPost("/api/engines/load", () => Results.Json(
+    new { error = "External engines can only be loaded in the desktop application." }, statusCode: 403));
 
 app.MapDelete("/api/engines/{id}", (string id, EngineCatalog catalog) =>
     catalog.Remove(id) ? Results.NoContent() : Results.NotFound(new { error = "Engine was not found or is built in." }));
 
-app.MapGet("/api/sessions", (SessionManager sessions) => Results.Ok(sessions.List()));
+app.MapGet("/api/sessions", (WebSessions sessions) => Results.Ok(sessions.List()));
 
-app.MapPost("/api/sessions", (CreateSessionRequest request, SessionManager sessions) =>
+app.MapPost("/api/sessions", async (CreateSessionRequest request, WebSessions sessions) =>
 {
-    var session = sessions.Create(request);
+    var session = await sessions.CreateAsync(request);
     return Results.Created($"/api/sessions/{session.Id}", session.Summary());
 });
 
 app.MapGet("/api/sessions/{id}", async (
     string id,
     int? seat,
-    SessionManager sessions,
+    WebSessions sessions,
     CancellationToken cancellationToken) =>
 {
     var session = sessions.Get(id);
@@ -88,7 +82,7 @@ app.MapGet("/api/sessions/{id}", async (
 app.MapPost("/api/sessions/{id}/start", async (
     string id,
     bool? animateDeal,
-    SessionManager sessions,
+    WebSessions sessions,
     CancellationToken cancellationToken) =>
 {
     var session = sessions.Get(id);
@@ -97,7 +91,7 @@ app.MapPost("/api/sessions/{id}/start", async (
 });
 
 app.MapPost("/api/sessions/{id}/deal-complete", async (
-    string id, int handNumber, SessionManager sessions, CancellationToken cancellationToken) =>
+    string id, int handNumber, WebSessions sessions, CancellationToken cancellationToken) =>
 {
     await sessions.Get(id).CompleteDealAsync(handNumber, cancellationToken);
     return Results.Ok(new { ok = true });
@@ -106,7 +100,7 @@ app.MapPost("/api/sessions/{id}/deal-complete", async (
 app.MapPost("/api/sessions/{id}/actions", async (
     string id,
     GameActionRequest request,
-    SessionManager sessions,
+    WebSessions sessions,
     CancellationToken cancellationToken) =>
 {
     var session = sessions.Get(id);
@@ -117,7 +111,7 @@ app.MapPost("/api/sessions/{id}/actions", async (
 app.MapPost("/api/sessions/{id}/next-hand", async (
     string id,
     bool? animateDeal,
-    SessionManager sessions,
+    WebSessions sessions,
     CancellationToken cancellationToken) =>
 {
     var session = sessions.Get(id);
@@ -125,7 +119,7 @@ app.MapPost("/api/sessions/{id}/next-hand", async (
     return Results.Ok(session.Summary());
 });
 
-app.MapDelete("/api/sessions/{id}", async (string id, SessionManager sessions) =>
+app.MapDelete("/api/sessions/{id}", async (string id, WebSessions sessions) =>
     await sessions.RemoveAsync(id) ? Results.NoContent() : Results.NotFound(new { error = "Session was not found." }));
 
 app.MapGet("/api/rules", async (IWebHostEnvironment environment) =>

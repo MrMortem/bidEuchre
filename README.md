@@ -105,15 +105,27 @@ The browser interface remains available:
 ```
 
 Then open `http://127.0.0.1:5050`. It uses the same paced session layer as the
-native client.
+native client. This is a **local-only hot-seat interface**, with no user accounts
+or separate authorization for human seats. Every local user of the interface
+can list tables and switch between their human hands. It is not suitable for LAN
+or Internet hosting, reverse proxying, or use on a shared untrusted computer.
 
-Sessions intentionally live in memory and are cleared when the server stops.
+Requests require a loopback peer and host, and browser requests must use the
+interface's own origin. These checks remain in force if `ASPNETCORE_URLS` or
+`AllowedHosts` is overridden. API mutations require `Content-Type: application/json`.
+External process loading over HTTP is disabled; use the desktop **Engines** page.
+
+Sessions live in memory and are cleared when the server stops. The web server
+allows 32 tables and expires tables after 30 minutes without a request to that
+table, releasing any bot resources. Lobby polling does not keep a table alive.
+`WebSessions:MaxSessions` (1–128) and `WebSessions:IdleTimeoutSeconds` (1–86400)
+configure these bounds in the server configuration.
 
 ## Load an external bot
 
 ### Prolog example
 
-With `swipl` installed, open **Engines** in either GUI and enter:
+With `swipl` installed, open **Engines** in the desktop application and enter:
 
 - Executable: the absolute path to `engines/prolog/run.sh`
 - Arguments: leave blank
@@ -131,7 +143,7 @@ Build the included example first:
 dotnet build src/BidEuchre.SampleBot/BidEuchre.SampleBot.csproj
 ```
 
-Open **Engines** in either GUI and enter:
+Open **Engines** in the desktop application and enter:
 
 - Executable: the full path to `dotnet`
 - Arguments: the full path to

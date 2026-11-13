@@ -73,6 +73,12 @@ else
 fi
 
 "$dotnet_command" build "$project_dir/BidEuchre.slnx" --nologo -m:1
+"$dotnet_command" run --project "$project_dir/tests/BidEuchre.Server.Tests/BidEuchre.Server.Tests.csproj" --no-build
+if command -v node >/dev/null 2>&1; then
+    BIDEUCHRE_DOTNET="$dotnet_command" node --test "$project_dir"/tests/server/*.test.cjs
+else
+    echo "SKIP  Web server security tests (Node.js is not installed)"
+fi
 "$dotnet_command" run --project "$project_dir/tests/BidEuchre.Tests/BidEuchre.Tests.csproj" --no-build
 "$dotnet_command" run --project "$project_dir/tests/BidEuchre.Desktop.Tests/BidEuchre.Desktop.Tests.csproj" --no-build
 

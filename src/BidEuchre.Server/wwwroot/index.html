@@ -119,17 +119,8 @@
             <div id="engine-list" class="engine-list"></div>
           </section>
           <section class="panel">
-            <div class="panel-heading"><div><p class="eyebrow">External process</p><h2>Load an engine</h2></div></div>
-            <form id="load-engine-form" class="stack-form">
-              <label class="field"><span>Executable</span><input id="engine-executable" placeholder="/usr/bin/dotnet" required></label>
-              <label class="field"><span>Arguments</span><input id="engine-arguments" placeholder="/path/to/MyBot.dll"></label>
-              <p class="hint">The process is started once now for a BEUCI handshake and once per occupied bot seat when a game begins.</p>
-              <button class="button primary" type="submit">Handshake & load</button>
-            </form>
-            <div id="protocol-help" class="protocol-sample">
-              <span>Minimal handshake</span>
-              <code>← beuci<br>→ id name "My Bot"<br>→ id author "Your Name"<br>→ protocol bideuchre 1<br>→ beuciok</code>
-            </div>
+            <div class="panel-heading"><div><p class="eyebrow">Desktop feature</p><h2>External engines</h2></div></div>
+            <p>To play with an external bot, open Engines in the desktop application. The local browser interface uses the built-in TableBot.</p>
           </section>
         </div>
       </section>
