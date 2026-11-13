@@ -83,7 +83,7 @@ internal sealed class CampaignFlow(
         }
     }
 
-    private void ShowIntro() => show(CampaignScreens.Intro(Run!, BeginMatch, showMenu, TakeNote(), motion));
+    private void ShowIntro() => show(CampaignAnteScreen.Build(Run!, BeginMatch, showMenu, TakeNote(), motion));
 
     private async void BeginMatch()
     {
@@ -164,7 +164,7 @@ internal sealed class CampaignFlow(
         if (Run is null) return;
         Persist(CampaignShop.Open(Run));
         var revision = Run!.Resources.Revision;
-        show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell, slot => Discard(slot, revision), InspectDeck,
+        show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell, slot => Discard(slot, revision), slot => UseSigil(slot, revision), InspectDeck,
             () => { Persist(Run!.LeaveShop()); ShowIntro(); }), motion, TakeNote()));
     }
     private void InspectDeck()
@@ -172,20 +172,13 @@ internal sealed class CampaignFlow(
         if (Run is null) return;
         show(CampaignDeckPicker.Build(Run.Resources.Deck, 0, _ => { }, ShowShop, motion, "Shared deck · changes last for this run"));
     }
-    private void Buy(string id)
-    {
-        if (Run?.Shop?.Offers.SingleOrDefault(o => o.Id == id) is not { } offer) return;
-        if (offer.Category == FeatureCategory.Sigil)
-            ChooseFromDeck(1, $"Choose a card for the {FeatureCatalog.Get(offer.Category, offer.FeatureId).Name} Sigil", $"Buy ${offer.Price}",
-                targets => CampaignShop.Buy(Run!, id, targets[0]));
-        else Transact(() => CampaignShop.Buy(Run!, id));
-    }
-    // A Tarot used from the shop is aimed at the shared deck, since there is no hand to aim at.
+    private void Buy(string id) => Transact(() => CampaignShop.Buy(Run!, id));
+    // Items used from the shop are aimed at the shared deck, since there is no hand to aim at.
     private void BuyAndUse(string id)
     {
-        if (Run?.Shop?.Offers.SingleOrDefault(o => o.Id == id) is not { Category: FeatureCategory.Tarot } offer) return;
+        if (Run?.Shop?.Offers.SingleOrDefault(o => o.Id == id) is not { } offer || offer.Category is not (FeatureCategory.Tarot or FeatureCategory.Sigil)) return;
         var definition = FeatureCatalog.Get(offer.Category, offer.FeatureId);
-        var required = CampaignShop.TarotTargets(Enum.Parse<TarotId>(offer.FeatureId));
+        var required = offer.Category == FeatureCategory.Sigil ? 1 : CampaignShop.TarotTargets(Enum.Parse<TarotId>(offer.FeatureId));
         CampaignRun Use(CardId[] targets)
         {
             var before = Run!;
@@ -195,6 +188,18 @@ internal sealed class CampaignFlow(
         }
         if (required == 0) Transact(() => Use([]));
         else ChooseFromDeck(required, $"{definition.Name} · {definition.Description}", $"Buy & Use ${offer.Price}", Use);
+    }
+    private void UseSigil(int slot, long revision)
+    {
+        if (Run?.Resources.Revision != revision) { _note = "The shop changed. Choose a Sigil again."; ShowShop(); return; }
+        var definition = FeatureCatalog.Get(FeatureCategory.Sigil, Run.Resources.Inventory.Sigils[slot].ToString());
+        ChooseFromDeck(1, $"{definition.Name} · {definition.Description}", "Use Sigil", targets =>
+        {
+            var before = Run!;
+            var after = CampaignShop.UseSigil(before, slot, targets[0], revision);
+            _note = UseReport(definition.Name, before, after);
+            return after;
+        });
     }
     private void ChooseFromDeck(int required, string title, string confirm, Func<CardId[], CampaignRun> update)
     {
@@ -214,7 +219,9 @@ internal sealed class CampaignFlow(
         if (planets.Length > 0) return $"{name} unlocked the {planets[0]} bid!";
         // Card ids keep their place in the deck, so the same index is the same physical card.
         var changes = after.Resources.Deck.Select((card, index) => (Old: before.Resources.Deck[index], New: card)).Where(pair => pair.Old != pair.New)
-            .Select(pair => pair.New.Enhancement is { } enhancement && pair.Old.Enhancement != enhancement
+            .Select(pair => pair.New.Sigil is { } sigil && pair.Old.Sigil != sigil
+                ? $"{Card(pair.Old)} now carries {sigil}"
+                : pair.New.Enhancement is { } enhancement && pair.Old.Enhancement != enhancement
                 ? $"{Card(pair.Old)} is now {enhancement}" : $"{Card(pair.Old)} is now the {Card(pair.New)}").ToArray();
         if (changes.Length > 0) return $"{name}: {string.Join(", ", changes)}!";
         return $"Used {name}!";

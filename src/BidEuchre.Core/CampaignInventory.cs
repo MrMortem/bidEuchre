@@ -9,7 +9,8 @@ public enum TarotId { LovePotion, Nightshade, CloverTonic, CrystalElixir, Chamel
 public sealed record JokerState(JokerId Id, int Value = 0);
 public sealed record CampaignInventory(JokerState[] Jokers, TarotId[] Tarot, PlanetId[] Unlocks)
 {
+    public SigilId[] Sigils { get; init; } = [];
     public static CampaignInventory Empty => new([], [], []);
-    public CampaignInventory Copy() => new(Jokers.ToArray(), Tarot.ToArray(), Unlocks.ToArray());
+    public CampaignInventory Copy() => new(Jokers.ToArray(), Tarot.ToArray(), Unlocks.ToArray()) { Sigils = Sigils.ToArray() };
     public bool Has(JokerId id) => Jokers.Any(j => j.Id == id);
 }

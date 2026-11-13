@@ -15,6 +15,7 @@ public sealed record CampaignSnapshot(long Revision, CardState[] Deck, CampaignI
         && Inventory.Jokers is { Length: <= 5 } && Inventory.Tarot is { Length: <= 2 } && Inventory.Unlocks is not null
         && Inventory.Jokers.All(j => j is not null && Enum.IsDefined(j.Id)) && Inventory.Jokers.Select(j => j.Id).Distinct().Count() == Inventory.Jokers.Length
         && Inventory.Tarot.All(Enum.IsDefined) && Inventory.Unlocks.All(Enum.IsDefined)
+        && Inventory.Sigils is not null && Inventory.Sigils.All(Enum.IsDefined)
         && Inventory.Unlocks.Distinct().Count() == Inventory.Unlocks.Length;
 }
 public sealed class CampaignContext

@@ -54,6 +54,10 @@ public sealed record CampaignRun(
     // Placeholder boss rule until bosses get their own rule system.
     [JsonIgnore] public int OpponentStartingScore => 0;
 
+    // What each of an Ante's three matches pays before the margin bonus, and what losing it costs.
+    public static int BaseReward(int matchInAnte) => matchInAnte switch { 1 => 5, 2 => 6, _ => 8 };
+    public static int LivesAtStake(int matchInAnte) => matchInAnte == MatchesPerAnte ? 2 : 1;
+
     public MatchOptions NextMatch() => new(Threshold) { NegativeThreshold = -Threshold, HandLimit = 8 };
 
     public CampaignRun StartMatch() => From(CampaignPhase.Intro) with { Phase = CampaignPhase.InMatch };
@@ -70,8 +74,8 @@ public sealed record CampaignRun(
     private (CampaignRun Run, MatchOutcome Outcome) Finish(bool won, int playerScore, int opponentScore, int matchEndIncome, bool forfeited)
     {
         From(CampaignPhase.InMatch);
-        var livesLost = won ? 0 : IsBoss ? 2 : 1;
-        var baseReward = won ? MatchInAnte switch { 1 => 5, 2 => 6, _ => 8 } : 0;
+        var livesLost = won ? 0 : LivesAtStake(MatchInAnte);
+        var baseReward = won ? BaseReward(MatchInAnte) : 0;
         var margin = playerScore - opponentScore;
         var marginBonus = won ? margin >= 10 ? 6 : margin >= 5 ? 4 : margin >= 1 ? 2 : 0 : 0;
         var payout = baseReward + marginBonus;

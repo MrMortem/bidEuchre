@@ -824,12 +824,43 @@ public sealed class MainWindow : Window
     private Control BuildTable(GameView view)
     {
         _motion.SetContract(view.Contract);
-        return PixelTable(view.Players.Select(player => PlayerPanel(player, view)).ToArray(), TrickPanel(view));
+        return PixelTable(view.Players.Select(player => PlayerPanel(player, view)).ToArray(), TrickPanel(view), SortButtons());
+    }
+
+    // Reorders the face-up hand only; the choice is remembered like any other preference.
+    private Control SortButtons()
+    {
+        Button Choice(string label, HandSort sort)
+        {
+            var chosen = _preferences.HandSort == sort;
+            var button = QuietButton(label);
+            button.Name = $"Sort{sort}";
+            button.FontSize = 11;
+            button.FontWeight = FontWeight.Bold;
+            button.Padding = new Thickness(12, 6);
+            button.Focusable = false;
+            if (chosen) { button.Background = Gold; button.Foreground = Paper; button.BorderBrush = Gold; }
+            ToolTip.SetTip(button, $"Sort your hand by {label.ToLowerInvariant()}");
+            button.Click += async (_, _) =>
+            {
+                if (chosen) return;
+                _preferences = _preferences with { HandSort = sort };
+                if (!_preferences.Save(_preferencesPath)) ShowError("Hand sorting changed for this session, but could not be saved.");
+                _renderKey = null;
+                await RefreshGameAsync();
+            };
+            return button;
+        }
+        return new StackPanel
+        {
+            Name = "HandSortButtons", Orientation = Orientation.Horizontal, Spacing = 6,
+            Children = { Eyebrow("SORT"), Choice("Suit", HandSort.Suit), Choice("Rank", HandSort.Rank) }
+        };
     }
 
     // A fixed logical table scales as one unit, so the four seats never push
     // the trick or action controls out of place at the minimum window size.
-    private Control PixelTable(Control[] players, Control center)
+    private Control PixelTable(Control[] players, Control center, Control? handControls = null)
     {
         var canvas = new Canvas { Width = 1000, Height = 700 };
         for (var seat = 0; seat < 4; seat++)
@@ -844,6 +875,13 @@ public sealed class MainWindow : Window
         Canvas.SetLeft(center, 324);
         Canvas.SetTop(center, 202);
         canvas.Children.Add(center);
+        if (handControls is not null)
+        {
+            // Beside the bottom hand, in the corner no seat's fan reaches.
+            Canvas.SetLeft(handControls, 762);
+            Canvas.SetTop(handControls, 656);
+            canvas.Children.Add(handControls);
+        }
         return new Border
         {
             BorderBrush = Line,
@@ -890,7 +928,7 @@ public sealed class MainWindow : Window
         Control Slot(string key, Control card) => _handGlide?.Card($"{player.Seat}:{key}", card, glide) ?? card;
         if (view.Campaign is { } campaign)
         {
-            var visible = campaign.Players[player.Seat].VisibleCards;
+            var visible = HandOrder.Sort(campaign.Players[player.Seat].VisibleCards, card => card.Face, _preferences.HandSort, view.Contract);
             for (var i = 0; i < player.CardCount; i++)
             {
                 if (i < visible.Count)
@@ -921,7 +959,7 @@ public sealed class MainWindow : Window
         else
         {
             var index = 0;
-            foreach (var card in player.Cards)
+            foreach (var card in HandOrder.Sort(player.Cards, card => card, _preferences.HandSort, view.Contract))
             {
                 var legal = current && view.LegalActions.Cards.Contains(card);
                 var button = CardButton(card, legal, view);

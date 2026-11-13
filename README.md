@@ -241,8 +241,10 @@ even after a failed bid.
 Between matches the shop offers two $4 Jokers, a $3 Planet, a $3 Tarot, and a $3
 Sigil. Hold up to five distinct Jokers and two Tarot. Sell Jokers for $2; discard
 Tarot to free space. Planet purchases permanently unlock your bidding options;
-Partners Best and Alone start locked for you. Sigil purchases immediately target
-any card in the shared deck. Use stored Tarot on your bidding turn before bidding,
+Partners Best and Alone start locked for you. For Sigils, Buy stores one for later;
+Buy & Use applies it immediately to a chosen card in the shared deck. Select a
+stored Sigil in the shop and press Use to apply it without another charge.
+Use stored Tarot on your bidding turn before bidding,
 passing, or using Panic Button. Panic Button costs eight team points, consumes a
 hand, and forces a fresh deal if the match continues.
 

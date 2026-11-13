@@ -24,6 +24,16 @@ internal static class CampaignRunTests
         Assert.Equal(new MatchOptions(44) { NegativeThreshold = -44, HandLimit = 8 }, new CampaignRun(Match: 16).NextMatch());
     }
 
+    public static void Stakes()
+    {
+        Assert.Equal(5, CampaignRun.BaseReward(1));
+        Assert.Equal(6, CampaignRun.BaseReward(2));
+        Assert.Equal(8, CampaignRun.BaseReward(3));
+        Assert.Equal(1, CampaignRun.LivesAtStake(1));
+        Assert.Equal(1, CampaignRun.LivesAtStake(2));
+        Assert.Equal(2, CampaignRun.LivesAtStake(3));
+    }
+
     public static void Lives()
     {
         var (win, _) = AtMatch(1).ApplyResult(true, 12);

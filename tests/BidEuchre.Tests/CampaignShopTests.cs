@@ -80,6 +80,69 @@ internal static class CampaignShopTests
         var joker = start with { Shop = new(0, [new ShopOffer("j", FeatureCategory.Joker, "Alpha", 4)]) };
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(joker, "j", []));
     }
+    public static void BuyAndUseSigil()
+    {
+        var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
+        { Shop = new(0, [new("s", FeatureCategory.Sigil, "Fish", 3)]) };
+        run.Resources.Deck[5] = run.Resources.Deck[5] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Coin };
+        var target = run.Resources.Deck[5].Id;
+        var used = CampaignShop.BuyAndUse(run, "s", [target]);
+        Assert.Equal(27, used.Money);
+        Assert.Equal(27, used.Resources.Wallets[0]);
+        Assert.Equal(SigilId.Fish, used.Resources.Deck[5].Sigil!.Value);
+        Assert.Equal(EnhancementId.Glass, used.Resources.Deck[5].Enhancement!.Value);
+        Assert.Equal(1, used.Resources.Deck.Count(c => c.Sigil == SigilId.Fish));
+        Assert.Equal(SigilId.Coin, run.Resources.Deck[5].Sigil!.Value);
+        Assert.True(used.Shop!.Offers[0].Sold);
+        Assert.Equal(run.Resources.Revision + 1, used.Resources.Revision);
+        Assert.Equal(run.Resources.RandomState, used.Resources.RandomState);
+        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(used, "s", [target]));
+        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(run, "s", []));
+        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(run, "s", [new CardId(99)]));
+        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(run, "s", [target, run.Resources.Deck[0].Id]));
+        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(run with { Money = 2 }, "s", [target]));
+    }
+    public static void StoreAndUseSigil()
+    {
+        var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
+        { Shop = new(0, [new("s", FeatureCategory.Sigil, "Fish", 3)]) };
+        var bought = CampaignShop.Buy(run, "s");
+        Assert.Equal(27, bought.Money);
+        Assert.Equal(SigilId.Fish, bought.Resources.Inventory.Sigils.Single());
+        Assert.True(bought.Resources.Deck.SequenceEqual(run.Resources.Deck));
+        Assert.Equal(0, run.Resources.Inventory.Sigils.Length);
+        var copy = bought.Resources.Copy();
+        copy.Inventory.Sigils[0] = SigilId.Coin;
+        Assert.Equal(SigilId.Fish, bought.Resources.Inventory.Sigils[0]);
+        var path = Path.Combine(Path.GetTempPath(), $"sigil-{Guid.NewGuid():N}.json");
+        try
+        {
+            Assert.True(CampaignStore.Save(bought, path));
+            var loaded = CampaignStore.Load(path)!;
+            Assert.Equal(SigilId.Fish, loaded.Resources.Inventory.Sigils.Single());
+            var target = loaded.Resources.Deck[7].Id;
+            loaded.Resources.Deck[7] = loaded.Resources.Deck[7] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Coin };
+            var used = CampaignShop.UseSigil(loaded, 0, target, loaded.Resources.Revision);
+            Assert.Equal(27, used.Money);
+            Assert.Equal(SigilId.Fish, used.Resources.Deck[7].Sigil!.Value);
+            Assert.Equal(EnhancementId.Glass, used.Resources.Deck[7].Enhancement!.Value);
+            Assert.Equal(0, used.Resources.Inventory.Sigils.Length);
+            Assert.Equal(1, loaded.Resources.Inventory.Sigils.Length);
+            Assert.Equal(loaded.Resources.Revision + 1, used.Resources.Revision);
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(used, 0, target));
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded, 0, target, loaded.Resources.Revision - 1));
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded, 0, new CardId(99)));
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded.LeaveShop(), 0, target));
+            Assert.True(CampaignStore.Save(used, path));
+            Assert.Equal(SigilId.Fish, CampaignStore.Load(path)!.Resources.Deck[7].Sigil!.Value);
+            // Saves from before stored Sigils existed still load with an empty inventory.
+            var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+            json["Run"]!["Resources"]!["Inventory"]!.AsObject().Remove("Sigils");
+            File.WriteAllText(path, json.ToJsonString());
+            Assert.Equal(0, CampaignStore.Load(path)!.Resources.Inventory.Sigils.Length);
+        }
+        finally { File.Delete(path); }
+    }
     public static void Poker()
     {
         var five = PokerEvaluator.Best([new(Suit.Clubs, Rank.Ace), new(Suit.Clubs, Rank.Ace), new(Suit.Clubs, Rank.Ace), new(Suit.Clubs, Rank.Ace), new(Suit.Clubs, Rank.Ace), new(Suit.Clubs, Rank.Nine)]);

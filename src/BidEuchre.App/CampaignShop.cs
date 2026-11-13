@@ -46,8 +46,10 @@ public static class CampaignShop
                 if (inventory.Tarot.Length >= 2) throw new GameRuleException("Tarot inventory full. Discard a card first.");
                 inventory = inventory with { Tarot = [.. inventory.Tarot, Enum.Parse<TarotId>(offer.FeatureId)] }; break;
             case FeatureCategory.Sigil:
-                if (sigilTarget is null || !resources.Deck.Any(c => c.Id == sigilTarget)) throw new GameRuleException("Choose a card from the shared deck.");
-                resources = resources with { Deck = resources.Deck.Select(c => c.Id == sigilTarget ? c with { Sigil = Enum.Parse<SigilId>(offer.FeatureId) } : c).ToArray() }; break;
+                var sigil = Enum.Parse<SigilId>(offer.FeatureId);
+                if (sigilTarget is { } target) resources = ApplySigil(resources, sigil, target);
+                else inventory = inventory with { Sigils = [.. inventory.Sigils, sigil] };
+                break;
             default: throw new GameRuleException("This item cannot be purchased.");
         }
         resources.Wallets[0] = run.Money - offer.Price;
@@ -57,14 +59,19 @@ public static class CampaignShop
     public static int TarotTargets(TarotId tarot) => tarot == TarotId.DevilishDeal ? 3
         : tarot is TarotId.TaxCollector or TarotId.Astronomer or TarotId.Gambler ? 0 : 1;
 
-    /// <summary>Buys a Tarot and plays it at once on cards of the shared deck, so it needs no inventory slot.
+    /// <summary>Buys a Tarot or Sigil and plays it at once on cards of the shared deck, so it needs no inventory slot.
     /// The changes last for the rest of the run.</summary>
     public static CampaignRun BuyAndUse(CampaignRun run, string offerId, IReadOnlyList<CardId> targets)
     {
         if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
         var offer = run.Shop.Offers.SingleOrDefault(o => o.Id == offerId);
         if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
-        if (offer.Category != FeatureCategory.Tarot) throw new GameRuleException("Only a Tarot can be used from the shop.");
+        if (offer.Category == FeatureCategory.Sigil)
+        {
+            if (targets.Count != 1) throw new GameRuleException("Choose a card from the shared deck.");
+            return Buy(run, offerId, targets[0]);
+        }
+        if (offer.Category != FeatureCategory.Tarot) throw new GameRuleException("Only a Tarot or Sigil can be used from the shop.");
         if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
         var tarot = Enum.Parse<TarotId>(offer.FeatureId);
         var resources = run.Resources.Copy(); var inventory = resources.Inventory; var deck = resources.Deck;
@@ -120,6 +127,23 @@ public static class CampaignShop
         if (run.Phase != CampaignPhase.Shop || !run.Resources.Inventory.Has(id)) throw new GameRuleException("That Joker cannot be sold now.");
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money + 2;
         return run with { Money = run.Money + 2, Resources = resources with { Revision = resources.Revision + 1, Inventory = resources.Inventory with { Jokers = resources.Inventory.Jokers.Where(j => j.Id != id).ToArray() } } };
+    }
+    public static CampaignRun UseSigil(CampaignRun run, int slot, CardId target, long? expectedRevision = null)
+    {
+        if (expectedRevision is { } revision && revision != run.Resources.Revision) throw new GameRuleException("The shop changed. Choose a Sigil again.");
+        var sigils = run.Resources.Inventory.Sigils;
+        if (run.Phase != CampaignPhase.Shop || slot < 0 || slot >= sigils.Length) throw new GameRuleException("No Sigil in that slot.");
+        var resources = ApplySigil(run.Resources, sigils[slot], target);
+        return run with { Resources = resources with
+        {
+            Revision = resources.Revision + 1,
+            Inventory = resources.Inventory with { Sigils = sigils.Where((_, i) => i != slot).ToArray() }
+        } };
+    }
+    private static CampaignSnapshot ApplySigil(CampaignSnapshot resources, SigilId sigil, CardId target)
+    {
+        if (!resources.Deck.Any(c => c.Id == target)) throw new GameRuleException("Choose a card from the shared deck.");
+        return resources with { Deck = resources.Deck.Select(c => c.Id == target ? c with { Sigil = sigil } : c).ToArray() };
     }
     public static CampaignRun DiscardTarot(CampaignRun run, int slot, long? expectedRevision = null)
     {

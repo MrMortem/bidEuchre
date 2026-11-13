@@ -16,6 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="BidEuchre.Desktop.Tests" />
     <ProjectReference Include="../BidEuchre.App/BidEuchre.App.csproj" />
   </ItemGroup>
 

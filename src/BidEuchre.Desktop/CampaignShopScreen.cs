@@ -14,7 +14,7 @@ namespace BidEuchre.Desktop;
 
 /// <summary>What the shop screen can ask of the run. Each one redraws the shop when it is done.</summary>
 internal sealed record ShopActions(Action<string> Buy, Action<string> BuyAndUse, Action<JokerId> Sell,
-    Action<int> Discard, Action Inspect, Action Next);
+    Action<int> Discard, Action<int> UseSigil, Action Inspect, Action Next);
 
 /// <summary>The shop between matches. Offers are drawn as cards: Jokers on the top row, then a Sigil,
 /// a Tarot and a Planet. Pressing a card selects it and puts its text and its buttons in the side panel.</summary>
@@ -143,6 +143,19 @@ internal static class CampaignShopScreen
             Children = { offers, detail }
         });
         panel.Children.Add(owned);
+        if (inventory.Sigils.Length > 0)
+        {
+            var ownedSigils = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 880, HorizontalAlignment = HorizontalAlignment.Center };
+            for (var index = 0; index < inventory.Sigils.Length; index++)
+            {
+                var slot = index;
+                var definition = FeatureCatalog.Get(FeatureCategory.Sigil, inventory.Sigils[index].ToString());
+                ownedSigils.Children.Add(Selectable(Small(definition, SigilInk), SigilInk, $"OwnedSigil{slot}", "Your Sigil: " + definition.Name, () => Detail(
+                    "YOUR SIGIL", SigilInk, definition.Name, definition.Description, "Use it on a card of the shared deck. Replaces that card's current Sigil.",
+                    MenuParts.Button("Use", true, motion, $"UseSigil{slot}", () => actions.UseSigil(slot), true, 264))));
+            }
+            panel.Children.Add(Shelf($"YOUR SIGILS {inventory.Sigils.Length}", ownedSigils));
+        }
         panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center,
@@ -156,7 +169,7 @@ internal static class CampaignShopScreen
         return MenuParts.Scene(motion, panel, new ScrollViewer { Content = panel });
     }
 
-    // Jokers and Sigils are bought. A Tarot can also be played at once on the shared deck, which
+    // A Tarot or Sigil can also be played at once on the shared deck, which
     // needs no free slot. A Planet has nothing to hold: buying it unlocks its bid.
     private static Control OfferDetail(CampaignRun run, ShopOffer offer, FeatureDefinition definition, ShopActions actions, PixelMotion motion)
     {
@@ -173,16 +186,15 @@ internal static class CampaignShopScreen
         var buttons = new List<Control> { buy };
         var hint = offer.Category switch
         {
-            FeatureCategory.Sigil => "Buying it asks which card of the shared deck carries it.",
+            FeatureCategory.Sigil => "Buy it to store for later, or use it now on a card of the shared deck.",
             FeatureCategory.Planet => "Buying it unlocks this bid for the rest of the run.",
             FeatureCategory.Tarot => "Buy it to play in a match, or use it now on the shared deck.",
             _ => null
         };
-        if (offer.Category == FeatureCategory.Tarot)
+        if (offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil)
         {
-            var tarot = Enum.Parse<TarotId>(offer.FeatureId);
             var use = MenuParts.Button($"Buy & Use ${offer.Price}", true, motion, $"BuyUse{offer.Id}", () => actions.BuyAndUse(offer.Id), true, 264);
-            use.IsEnabled = afford && !(tarot == TarotId.Astronomer && inventory.Unlocks.Length == 8);
+            use.IsEnabled = afford && !(offer.Category == FeatureCategory.Tarot && offer.FeatureId == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == 8);
             buttons.Add(use);
         }
         var problem = !afford ? $"You need ${offer.Price - run.Money} more."
@@ -243,13 +255,13 @@ internal static class CampaignShopScreen
         };
     }
 
-    private static Border Small(FeatureDefinition definition, IBrush ink) => new()
+    internal static Border Small(FeatureDefinition definition, IBrush ink) => new()
     {
         Width = SmallCard, Height = SmallCard, Background = MainWindow.Panel, BorderBrush = ink, BorderThickness = new Thickness(3),
         CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = PixelArt.CampaignIcon(definition)
     };
 
-    private static Border EmptySlot() => new()
+    internal static Border EmptySlot() => new()
     {
         Width = SmallCard, Height = SmallCard, CornerRadius = new CornerRadius(4), Opacity = .55, Margin = new Thickness(0, Lift, 0, 0),
         Background = Brush.Parse("#33100B28"), BorderBrush = MainWindow.Line, BorderThickness = new Thickness(2)
@@ -285,9 +297,18 @@ internal static class CampaignDeckPicker
             ok.IsEnabled = chosen.Count == required;
         }
 
-        var cards = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 8 * (CardWidth + 16), HorizontalAlignment = HorizontalAlignment.Center };
-        foreach (var card in deck)
+        // Keep each printed suit on its own row, including after Tarot changes a card's face.
+        var cards = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
+        var suitRows = new Dictionary<Suit, StackPanel>();
+        foreach (var suit in Enum.GetValues<Suit>())
         {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, MinHeight = CardHeight + 47 };
+            suitRows.Add(suit, row);
+            cards.Children.Add(row);
+        }
+        foreach (var card in deck.OrderBy(card => card.Face.Suit).ThenBy(card => card.Face.Rank).ThenBy(card => card.Id.Value))
+        {
+            var row = suitRows[card.Face.Suit];
             var frame = new Border
             {
                 Width = CardWidth + 6, Height = CardHeight + 6, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(3),
@@ -306,9 +327,10 @@ internal static class CampaignDeckPicker
             }
             if (card.Enhancement is { } enhancement) Mark(FeatureCategory.Enhancement, enhancement.ToString(), Gold);
             if (card.Sigil is { } sigil) Mark(FeatureCategory.Sigil, sigil.ToString(), Brush.Parse("#7BE0A0"));
-            var cell = new StackPanel { Spacing = 3, Margin = new Thickness(5, 4), Children = { frame, marks } };
+            // The art layers ignore hit testing; the template needs a surface across the card face.
+            var cell = new StackPanel { Background = Brushes.Transparent, Spacing = 3, Margin = new Thickness(5, 4), Children = { motion.Float(frame, card.Id.Value), marks } };
             if (tips.Children.Count > 0) { ToolTip.SetTip(cell, tips); ToolTip.SetShowDelay(cell, 120); }
-            if (required == 0) { cards.Children.Add(cell); continue; }
+            if (required == 0) { row.Children.Add(cell); continue; }
 
             var button = new Button
             {
@@ -328,7 +350,7 @@ internal static class CampaignDeckPicker
                 }
                 Refresh();
             };
-            cards.Children.Add(button);
+            row.Children.Add(button);
         }
 
         var heading = CampaignShopScreen.Label(title, Gold, 20);
@@ -340,6 +362,9 @@ internal static class CampaignDeckPicker
         panel.Children.Add(cards);
         buttons.Children.Add(MenuParts.Button("Back", false, motion, "CancelDeckChoice", cancel, true, 260));
         panel.Children.Add(buttons);
-        return MenuParts.Scene(motion, panel, new ScrollViewer { Content = panel });
+        return MenuParts.Scene(motion, panel, new ScrollViewer
+        {
+            Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+        });
     }
 }

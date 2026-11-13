@@ -48,18 +48,6 @@ internal static class CampaignScreens
             buttons, null);
     }
 
-    public static Control Intro(CampaignRun run, Action start, Action back, string? note, PixelMotion motion)
-    {
-        var lines = new List<Control> { Line($"MATCH {run.MatchInAnte} OF 3", Green) };
-        if (run.IsBoss) lines.Add(Line("BOSS MATCH · LOSING COSTS 2 LIVES", Danger));
-        lines.Add(Line($"♥ {run.Lives}   ${run.Money}", Ink, 20));
-        lines.Add(Line(
-            $"BOTH TEAMS START AT 0 · ±{run.Threshold} POINTS · 8 HANDS (TIES CONTINUE)",
-            Muted));
-        return Frame(motion, $"ANTE {run.Ante}", lines,
-            Buttons(motion, lines.Count, ScreenButton(motion, "Start Match", start, primary: true), ScreenButton(motion, "Main Menu", back)), note);
-    }
-
     public static Control Result(CampaignRun run, MatchOutcome outcome, int[]? scores, Action next, string? note, PixelMotion motion)
     {
         var lines = new List<Control>();
