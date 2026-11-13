@@ -78,9 +78,10 @@ public sealed class MainWindow : Window
     private HandGlide? _handGlide;
     private readonly TrickCollectionState _trickCollection = new();
     private readonly TableInputState _input = new();
-    private readonly string _preferencesPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BidEuchre", "preferences.json");
+    private static string DataDirectory => Environment.GetEnvironmentVariable("BIDEUCHRE_DATA_DIRECTORY") ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    private readonly string _preferencesPath = Path.Combine(DataDirectory, "BidEuchre", "preferences.json");
     private GamePreferences _preferences = new();
-    private readonly string _campaignPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "BidEuchre", "campaign.json");
+    private readonly string _campaignPath = Path.Combine(DataDirectory, "BidEuchre", "campaign.json");
     private readonly CampaignFlow _campaign;
     private readonly Button _menuButton = QuietButton(MenuLabel);
     // The live session when it is a campaign match; free-play tables leave this null.
@@ -546,7 +547,9 @@ public sealed class MainWindow : Window
             _catalog,
             seed: null,
             botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds),
-            matchOptions: options);
+            matchOptions: options,
+            campaign: options is null?null:new CampaignContext(_campaign.Run!.Resources),
+            checkpoint: options is null?null:_campaign.Checkpoint);
         _session = session;
         _campaignSession = options is null ? null : session;
         _sessionGeneration++;
@@ -728,7 +731,7 @@ public sealed class MainWindow : Window
             _startButton.IsVisible = false;
             _teamZeroScore.Text = view.Scores[0].ToString();
             _teamOneScore.Text = view.Scores[1].ToString();
-            _scoreEyebrow.Text = $"TEAMS · TO {view.TargetScore}";
+            _scoreEyebrow.Text = view.Campaign is null?$"TEAMS · TO {view.TargetScore}":$"TEAMS · ±{view.TargetScore} · 8 HANDS";
             _phaseText.Text = $"{(session.WaitingForDeal ? "DEALING" : SplitWords(view.Phase.ToString()).ToUpperInvariant())} · HAND {view.HandNumber}";
             _contractText.Text = ContractName(view);
             _dealerText.Text = $"Seat {view.Dealer + 1} deals · {view.TricksByTeam[0]}–{view.TricksByTeam[1]} tricks";
@@ -873,7 +876,25 @@ public sealed class MainWindow : Window
         var cards = new List<Control>();
         var glide = _motion.Enabled && _tabs.SelectedIndex == 0 && _deckDeal?.Running != true;
         Control Slot(string key, Control card) => _handGlide?.Card($"{player.Seat}:{key}", card, glide) ?? card;
-        if (player.Cards is null)
+        if(view.Campaign is {} campaign)
+        {
+            var visible=campaign.Players[player.Seat].VisibleCards;
+            for(var i=0;i<player.CardCount;i++)
+            {
+                if(i<visible.Count)
+                {
+                    var card=visible[i];
+                    var choices=campaign.LegalActions.Where(c=>c is CampaignCommand.Play p&&p.Id==card.Id || c is CampaignCommand.Exchange e&&e.Id==card.Id).ToArray();
+                    var button=CardButton(card.Face,choices.Length==1,view,choices.Length==1?()=>SendCampaignActionAsync(campaign,choices[0]):null);
+                    ToolTip.SetTip(button,$"#{card.Id.Value+1} · {card.Enhancement?.ToString()??"No enhancement"} · {card.Sigil?.ToString()??"No Sigil"}");
+                    var key=$"id{card.Id.Value}";
+                    _cardFlights?.HandCard($"{player.Seat}:{key}",button,HandFan.Angle(player.Seat,i,player.CardCount));
+                    _deckDeal?.Card(player.Seat,i,button,HandFan.Angle(player.Seat,i,player.CardCount));cards.Add(Slot(key,button));
+                }
+                else {var back=FanCardBack();_deckDeal?.Card(player.Seat,i,back,HandFan.Angle(player.Seat,i,player.CardCount));cards.Add(Slot($"#{i}",back));}
+            }
+        }
+        else if (player.Cards is null)
         {
             for (var index = 0; index < player.CardCount; index++)
             {
@@ -987,6 +1008,13 @@ public sealed class MainWindow : Window
             _actionHelp.Text = $"The race to {view.TargetScore} is complete.";
             return;
         }
+        if(view.Campaign is {} campaign)
+        {
+            _actionTitle.Text=campaign.PendingChoice??"Campaign actions";
+            _actionHelp.Text="Shared deck effects follow the card. Your Jokers and bidding unlocks last for this run.";
+            _actionButtons.Children.Add(CampaignTableControls.Build(campaign,command=>SendCampaignActionAsync(campaign,command)));
+            return;
+        }
         if (view.CurrentSeat != _viewer)
         {
             var current = view.CurrentSeat is null ? null : view.Players[view.CurrentSeat.Value];
@@ -1072,6 +1100,20 @@ public sealed class MainWindow : Window
                 Child = new TextBlock { Text = item, Foreground = Muted, FontFamily = FontFamily.Default, FontSize = 12, TextWrapping = TextWrapping.Wrap }
             });
         }
+    }
+
+    private async Task SendCampaignActionAsync(CampaignGameView view,CampaignCommand command)
+    {
+        var session=_session;if(session is null||!_input.TryBeginAction(out var revision))return;
+        SyncNativeInput();
+        try
+        {
+            await session.ExecuteCampaignAsync(new CampaignActionRequest(_viewer!.Value,view.Revision,view.DealSerial,command));
+            _renderKey=null;
+        }
+        catch(Exception error){ShowError(error.Message);}
+        finally{_input.CompleteAction(revision);SyncNativeInput();}
+        await RefreshGameAsync();
     }
 
     private async Task SendActionAsync(GameActionRequest request)
@@ -1202,7 +1244,7 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Button CardButton(Card card, bool legal, GameView view)
+    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction=null)
     {
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         var button = new Button
@@ -1262,6 +1304,7 @@ public sealed class MainWindow : Window
             button.LostFocus += (_, _) => UpdateHighlight();
             button.Click += async (_, _) =>
             {
+                if(campaignAction is not null){await campaignAction();return;}
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";
                 await SendActionAsync(new GameActionRequest(_viewer!.Value, type, null, null, null, card.Code));
             };

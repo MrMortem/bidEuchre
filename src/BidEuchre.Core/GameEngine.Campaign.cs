@@ -27,6 +27,7 @@ public sealed partial class GameEngine
     private int _rollerValue;
     private int _dejaValue;
     private int[] _handWalletStart = new int[4];
+    public int? CampaignActor => _pendingActor??CurrentSeat;
     public bool IsCampaign => _campaign is not null;
     public CampaignSnapshot ExportCampaignSnapshot() => _resources with
     {
@@ -160,7 +161,7 @@ public sealed partial class GameEngine
                     _pendingChoice=Has(JokerId.Cheater)?"Choose a player to reveal a card":null;_pendingActor=_pendingChoice is null?null:0;break;
                 case CampaignCommand.ChooseRevealSeat reveal:
                     var chosen=_hands[reveal.Seat][_campaignRandom.NextInt(_hands[reveal.Seat].Count)];_reveals.Add((0,IdFor(chosen)));
-                    _events.Add($"Cheater: revealed {StateFor(chosen).Face.Code} to you.");_pendingChoice=null;_pendingActor=null;break;
+                    _events.Add("Cheater revealed one card privately.");_pendingChoice=null;_pendingActor=null;break;
                 case CampaignCommand.RevealPartnerCard reveal:
                     _reveals.Add((Bidder!.Value,reveal.Id));_pendingChoice=null;_pendingActor=null;_telepathDone=true;break;
                 case CampaignCommand.SelectOpponent duel: _duelOpponent=duel.Seat;_pendingChoice=null;_pendingActor=null;break;
@@ -221,10 +222,17 @@ public sealed partial class GameEngine
         if(_variant==PlanetId.Chaos) RollChaos();
     }
     private void RollChaos() { Contract=Contract! with {Mode=ContractMode.Trump,Trump=(Suit)_campaignRandom.NextInt(4)};_events.Add($"Chaos trump: {Contract.Trump}."); }
-    private void CampaignOnPlay(int seat,Card token) { }
-    private void CampaignOnTrick(int winner,IReadOnlyList<CardPlay> plays) { }
-    private int[] CampaignScore(int[] normal) => normal;
-    private void CampaignMatchEnd() { }
-    private void UseTarot(int seat,CampaignCommand.UseTarot tarot) => throw new GameRuleException("Tarot not available.");
-    private void ResolvePoker() { _pokerRevealed=true; }
+    private void CampaignOnPlay(int seat,Card token) => ResolvePlayedCard(seat,token);
+    private void CampaignOnTrick(int winner,IReadOnlyList<CardPlay> plays) => ResolveWonTrick(winner,plays);
+    private int[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
+    private void CampaignMatchEnd() => ResolveMatchEnd();
+    private void UseTarot(int seat,CampaignCommand.UseTarot tarot) => ResolveTarot(seat,tarot);
+    private void ResolvePoker()
+    {
+        _pokerRevealed=true;
+        var values=Enumerable.Range(0,4).Select(s=>PokerEvaluator.Best(_hands[s].Select(c=>StateFor(c).Face).ToArray())).ToArray();
+        var best=values.Max()!;
+        foreach(var team in Enumerable.Range(0,4).Where(s=>values[s].CompareTo(best)==0).Select(s=>s%2).Distinct())_jokerPoints[team]+=4;
+        _events.Add("Poker: all hands revealed; best hand awards 4 points per winning team.");
+    }
 }

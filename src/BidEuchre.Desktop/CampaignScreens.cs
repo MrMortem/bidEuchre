@@ -54,7 +54,7 @@ internal static class CampaignScreens
         if (run.IsBoss) lines.Add(Line("BOSS MATCH · LOSING COSTS 2 LIVES", Danger));
         lines.Add(Line($"♥ {run.Lives}   ${run.Money}", Ink, 20));
         lines.Add(Line(
-            $"YOUR TEAM STARTS AT {run.PlayerStartingScore} · OPPONENTS AT {run.OpponentStartingScore} · FIRST TO {CampaignRun.TargetScore}",
+            $"BOTH TEAMS START AT 0 · ±{run.Threshold} POINTS · 8 HANDS (TIES CONTINUE)",
             Muted));
         return Frame(motion, $"ANTE {run.Ante}", lines,
             Buttons(motion, lines.Count, ScreenButton(motion, "Start Match", start, primary: true), ScreenButton(motion, "Main Menu", back)), note);
@@ -67,7 +67,8 @@ internal static class CampaignScreens
         if (outcome.Forfeited) lines.Add(Line("Match forfeited", Danger));
         lines.Add(Line(outcome.LivesLost > 0 ? $"LIVES −{outcome.LivesLost} · ♥ {Math.Max(0, run.Lives)}" : $"♥ {run.Lives}",
             outcome.LivesLost > 0 ? Danger : Green));
-        lines.Add(Line($"PAYOUT +${outcome.Payout}", Muted));
+        lines.Add(Line($"BASE +${outcome.BaseReward} · WIN MARGIN +${outcome.MarginBonus}", Muted));
+        lines.Add(Line("Card and Joker money is included in your balance.", Muted));
         lines.Add(Line($"INTEREST +${outcome.Interest}", Muted));
         lines.Add(Line($"TOTAL ${outcome.Money}", Ink, 20));
         return Frame(motion, outcome.Won ? "MATCH WON" : "MATCH LOST", lines,

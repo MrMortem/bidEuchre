@@ -10,6 +10,20 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Campaign Joker scoring matches hand-calculated sweep fixtures", () => Run(CampaignJokerScoringTests.LiteralScoring)),
+    ("Campaign every Joker and Sigil can complete a hand", () => Run(CampaignCatalogueTests.EveryJokerAndSigilCompletes)),
+    ("Campaign special contracts resolve their setup phases", () => Run(CampaignCatalogueTests.SpecialContracts)),
+    ("Campaign Stinky deals preserve all physical cards", () => Run(CampaignCatalogueTests.StinkyAndWild)),
+    ("Campaign sessions checkpoint and reject stale actions", CampaignSessionTests.CheckpointsAndStaleCommands),
+    ("Campaign shop purchases exclude sold stock and retain resources", () => Run(CampaignShopTests.Purchases)),
+    ("Campaign Poker handles five of a kind", () => Run(CampaignShopTests.Poker)),
+    ("Campaign card points money and Frog retrigger", () => Run(CampaignEffectsTests.PointsAndMoney)),
+    ("Campaign bounded Bouncy combinations and Golden attribution", () => Run(CampaignEffectsTests.GlassAndReplay)),
+    ("Campaign Tarot mutates permanent cards and consumes inventory", () => Run(CampaignEffectsTests.TarotMutation)),
+    ("Campaign duplicate physical cards and private views", () => Run(CampaignEngineTests.DuplicateAndPrivacy)),
+    ("Campaign Panic and bounded complete match", () => Run(CampaignEngineTests.PanicAndFullMatch)),
+    ("Campaign resources migrate and survive saves", () => Run(CampaignSaveTests.ResourcesAndMigration)),
+    ("Campaign thresholds and overtime", () => Run(CampaignMatchTests.Endings)),
     ("Campaign physical identity and independent slots", () => Run(CampaignModelTests.IdentityAndSlots)),
     ("Campaign RNG resumes and catalogue includes all features", () => Run(CampaignModelTests.RandomAndCatalogue)),
     ("Bots wait for actual deal completion on every hand", DealGateTests.BotsWait),

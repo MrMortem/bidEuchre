@@ -53,3 +53,5 @@ public sealed record SessionState(
     GameView? Game,
     string? Error,
     bool Dealing = false);
+
+public sealed record CampaignActionRequest(int Seat, long ExpectedRevision, long ExpectedDealSerial, CampaignCommand Command);

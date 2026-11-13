@@ -78,7 +78,6 @@ public sealed partial class GameEngine
         EnsurePhase(GamePhase.HandComplete);
         if (GameWinner is not null)
         {
-            if(IsCampaign) CampaignMatchEnd();
             throw new GameRuleException("The game has already been won.");
         }
 
@@ -487,6 +486,7 @@ public sealed partial class GameEngine
         Phase = GameWinner is null ? GamePhase.HandComplete : GamePhase.GameComplete;
         if (GameWinner is not null)
         {
+            if(IsCampaign) CampaignMatchEnd();
             _events.Add($"Team {GameWinner.Value + 1} won the game.");
         }
     }

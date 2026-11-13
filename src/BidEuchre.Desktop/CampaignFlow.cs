@@ -152,12 +152,42 @@ internal sealed class CampaignFlow(
         ShowShop();
     }, showMenu, motion));
 
-    private void ShowShop() => show(CampaignScreens.Shop(Run!, () =>
+    public bool Checkpoint(CampaignSnapshot snapshot)
     {
-        if (Run is not { Phase: CampaignPhase.Shop } run) return;
-        Persist(run.LeaveShop());
-        ShowIntro();
-    }, motion));
+        if(Run is not {Phase:CampaignPhase.InMatch} run || snapshot.Revision<run.LastAppliedRevision)return false;
+        Run=run with {Resources=snapshot.Copy(),Money=snapshot.Wallets[0],LastAppliedRevision=snapshot.Revision};
+        var saved=CampaignStore.Save(Run,savePath);if(!saved)_note="Could not save progress.";return saved;
+    }
+
+    private void ShowShop()
+    {
+        if(Run is null)return;
+        Persist(CampaignShop.Open(Run));
+        show(CampaignShopScreen.Build(Run!,Buy,Sell,Discard,()=>{Persist(Run!.LeaveShop());ShowIntro();},motion,TakeNote()));
+    }
+    private void Buy(string id)
+    {
+        if(Run?.Shop is not {} shop)return;
+        if(id=="inspect") {show(CampaignDeckPicker.Build(Run.Resources.Deck,_=>{},ShowShop,motion,"Shared deck · modifications last for this run"));return;}
+        var offer=shop.Offers.Single(o=>o.Id==id);
+        if(offer.Category==FeatureCategory.Sigil)
+        {
+            var revision=Run.Resources.Revision;
+            show(CampaignDeckPicker.Build(Run.Resources.Deck,target=>
+            {
+                if(Run?.Resources.Revision!=revision){_note="The shop changed. Choose again.";ShowShop();return;}
+                Transact(()=>CampaignShop.Buy(Run,id,target));
+            },ShowShop,motion));
+        }
+        else Transact(()=>CampaignShop.Buy(Run!,id));
+    }
+    private void Sell(JokerId id)=>Transact(()=>CampaignShop.SellJoker(Run!,id));
+    private void Discard(int slot)=>Transact(()=>CampaignShop.DiscardTarot(Run!,slot));
+    private void Transact(Func<CampaignRun> update)
+    {
+        try{Persist(update());}catch(GameRuleException error){_note=error.Message;}
+        ShowShop();
+    }
 
     // A failed save never stops play; the next screen says progress was not saved.
     private void Persist(CampaignRun run)
