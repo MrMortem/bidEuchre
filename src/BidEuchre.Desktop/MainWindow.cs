@@ -842,18 +842,18 @@ public sealed class MainWindow : Window
     // the trick or action controls out of place at the minimum window size.
     private Control PixelTable(Control[] players, Control center)
     {
-        var canvas = new Canvas { Width = 900, Height = 600 };
+        var canvas = new Canvas { Width = 1000, Height = 700 };
         for (var seat = 0; seat < 4; seat++)
         {
             var panel = players[seat];
-            panel.Width = seat is 1 or 3 ? 190 : 410;
-            Canvas.SetLeft(panel, seat switch { 1 => 0, 3 => 710, _ => 245 });
-            Canvas.SetTop(panel, seat switch { 2 => 4, 0 => 420, _ => 175 });
+            panel.Width = seat is 1 or 3 ? 230 : 500;
+            Canvas.SetLeft(panel, seat switch { 1 => 0, 3 => 770, _ => 250 });
+            Canvas.SetTop(panel, seat switch { 2 => 0, 0 => 492, _ => 180 });
             canvas.Children.Add(panel);
         }
-        center.Width = 220;
-        Canvas.SetLeft(center, 340);
-        Canvas.SetTop(center, 175);
+        center.Width = 352;
+        Canvas.SetLeft(center, 324);
+        Canvas.SetTop(center, 202);
         canvas.Children.Add(center);
         return new Border
         {
@@ -864,7 +864,7 @@ public sealed class MainWindow : Window
             {
                 ClipToBounds = true,
                 Children = { PixelArt.TableScene(_motion),
-                new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = canvas } }
+                new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both, Child = canvas } }
             }
         };
     }
@@ -959,10 +959,11 @@ public sealed class MainWindow : Window
             plays = _trickCollection.Hidden ? [] : completed.Plays;
         }
 
-        var cards = new Grid { Width = 188, Height = 200 };
+        var cards = new Grid { Width = 330, Height = 250 };
         foreach (var play in plays)
         {
             var card = CardFace(play.Card);
+            card.ZIndex = play.Seat switch { 2 => 0, 1 => 1, 3 => 2, _ => 3 };
             card.HorizontalAlignment = play.Seat switch { 1 => HorizontalAlignment.Left, 3 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center };
             card.VerticalAlignment = play.Seat switch { 2 => VerticalAlignment.Top, 0 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center };
             if (completed?.Winner == play.Seat)
@@ -1003,7 +1004,7 @@ public sealed class MainWindow : Window
             {
                 VerticalAlignment = VerticalAlignment.Center,
                 Spacing = 8,
-                Children = { label, cards }
+                Children = { cards, label }
             }
         };
     }
@@ -1273,8 +1274,8 @@ public sealed class MainWindow : Window
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         var button = new Button
         {
-            Width = 62,
-            Height = 88,
+            Width = 124,
+            Height = 176,
             Margin = new Thickness(2),
             Padding = new Thickness(0),
             Background = CardPaper,
@@ -1343,8 +1344,8 @@ public sealed class MainWindow : Window
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         return new Border
         {
-            Width = 62,
-            Height = 88,
+            Width = 124,
+            Height = 176,
             Margin = new Thickness(2),
             Padding = new Thickness(0),
             CornerRadius = new CornerRadius(2),
@@ -1365,12 +1366,12 @@ public sealed class MainWindow : Window
 
     private static Border FanCardBack() => new()
     {
-        Width = 62,
-        Height = 88,
+        Width = 124,
+        Height = 176,
         Margin = new Thickness(2),
         BorderBrush = CardPaper,
         BorderThickness = new Thickness(2),
-        Child = PixelArt.Back(58, 84)
+        Child = PixelArt.Back(120, 172)
     };
 
     private void ShowMenu()

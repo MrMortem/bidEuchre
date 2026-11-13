@@ -13,16 +13,17 @@ internal static class HandFan
     public static Control Arrange(int seat, Control portrait, IReadOnlyList<Control> cards, PixelMotion motion)
     {
         var side = seat is 1 or 3;
-        var panel = new Canvas { Width = side ? 190 : 410, Height = side ? 250 : 176 };
+        var panel = new Canvas { Width = side ? 230 : 500, Height = side ? 400 : 208 };
         portrait.Width = side ? 76 : 260;
+        portrait.ZIndex = 30;
         if (side && portrait is Border { Child: StackPanel content })
             content.Orientation = Avalonia.Layout.Orientation.Vertical;
-        Canvas.SetLeft(portrait, seat switch { 1 => 0, 3 => 114, _ => 75 });
-        Canvas.SetTop(portrait, side ? 80 : seat == 0 ? 104 : 0);
+        Canvas.SetLeft(portrait, seat switch { 1 => 0, 3 => 154, _ => 120 });
+        Canvas.SetTop(portrait, side ? 120 : seat == 0 ? 136 : 0);
         panel.Children.Add(portrait);
 
-        var fan = new Canvas { Width = side ? 250 : 360, Height = 110 };
-        var step = side ? 29d : 43d;
+        var fan = new Canvas { Width = side ? 400 : 500, Height = 180 };
+        var step = side ? 42d : 56d;
         var midpoint = (cards.Count - 1) / 2d;
         for (var index = 0; index < cards.Count; index++)
         {
@@ -31,11 +32,11 @@ internal static class HandFan
             // Rotation belongs to its own wrapper so hover and deal transforms survive.
             var card = new Border
             {
-                Width = 66, Height = 92, Child = motion.Float(cards[index], seat * 7 + index),
+                Width = 128, Height = 180, Child = motion.Float(cards[index], seat * 7 + index),
                 RenderTransformOrigin = new RelativePoint(.5, 1, RelativeUnit.Relative),
                 RenderTransform = new RotateTransform(offset * 6), ZIndex = index
             };
-            Canvas.SetLeft(card, fan.Width / 2 - 33 + offset * step);
+            Canvas.SetLeft(card, fan.Width / 2 - 64 + offset * step);
             Canvas.SetTop(card, 4 + offset * offset * 2);
             void UpdateLayer() => card.ZIndex = card.IsPointerOver || card.IsKeyboardFocusWithin ? 20 : layer;
             card.PointerEntered += (_, _) => UpdateLayer();
@@ -48,7 +49,7 @@ internal static class HandFan
         {
             fan.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
             fan.RenderTransform = new RotateTransform(seat == 1 ? 90 : -90);
-            Canvas.SetLeft(fan, seat == 1 ? 5 : -65);
+            Canvas.SetLeft(fan, seat == 1 ? -40 : -130);
             Canvas.SetTop(fan, 70);
         }
         else
@@ -58,8 +59,8 @@ internal static class HandFan
                 fan.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
                 fan.RenderTransform = new RotateTransform(180);
             }
-            Canvas.SetLeft(fan, 25);
-            Canvas.SetTop(fan, seat == 0 ? 0 : 66);
+            Canvas.SetLeft(fan, 0);
+            Canvas.SetTop(fan, seat == 0 ? 0 : 62);
         }
         panel.Children.Add(fan);
         return panel;
