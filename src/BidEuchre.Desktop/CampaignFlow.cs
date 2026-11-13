@@ -163,7 +163,8 @@ internal sealed class CampaignFlow(
     {
         if (Run is null) return;
         Persist(CampaignShop.Open(Run));
-        show(CampaignShopScreen.Build(Run!, Buy, Sell, Discard, () => { Persist(Run!.LeaveShop()); ShowIntro(); }, motion, TakeNote()));
+        var revision = Run!.Resources.Revision;
+        show(CampaignShopScreen.Build(Run!, Buy, Sell, slot => Discard(slot, revision), () => { Persist(Run!.LeaveShop()); ShowIntro(); }, motion, TakeNote()));
     }
     private void Buy(string id)
     {
@@ -182,7 +183,7 @@ internal sealed class CampaignFlow(
         else Transact(() => CampaignShop.Buy(Run!, id));
     }
     private void Sell(JokerId id) => Transact(() => CampaignShop.SellJoker(Run!, id));
-    private void Discard(int slot) => Transact(() => CampaignShop.DiscardTarot(Run!, slot));
+    private void Discard(int slot, long revision) => Transact(() => CampaignShop.DiscardTarot(Run!, slot, revision));
     private void Transact(Func<CampaignRun> update)
     {
         try { Persist(update()); } catch (GameRuleException error) { _note = error.Message; }

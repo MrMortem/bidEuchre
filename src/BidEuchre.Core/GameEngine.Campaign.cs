@@ -35,7 +35,8 @@ public sealed partial class GameEngine
         Deck = _resources.Deck.ToArray(),
         Wallets = _resources.Wallets.ToArray(),
         Inventory = _resources.Inventory.Copy(),
-        RandomState = _campaignRandom.State
+        RandomState = _campaignRandom.State,
+        GeneratedTarot = _resources.GeneratedTarot.Select(cards => cards.ToArray()).ToArray()
     };
     private bool Has(JokerId id) => _resources.Inventory.Has(id);
     private CardId IdFor(Card token) => new(Array.IndexOf(_identityTokens, token));
@@ -53,9 +54,11 @@ public sealed partial class GameEngine
         var deck = _resources.Deck.ToArray(); var index = Array.FindIndex(deck, c => c.Id == id);
         if (index < 0) throw new GameRuleException("Unknown physical card.");
         deck[index] = update(deck[index]);
-        if (deck.Count(c => c.Enhancement == EnhancementId.Stinky) > 18) throw new GameRuleException("At least six non-Stinky cards must remain.");
+        if (deck.Count(c => c.Enhancement == EnhancementId.Stinky) > 18 || !CanDeal(deck)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         _resources = _resources with { Deck = deck };
     }
+    private bool CanDeal(IReadOnlyList<CardState> deck, CardOverlay? candidate = null) => deck.Count(c =>
+        (candidate?.Id == c.Id ? candidate.Enhancement : _overlays.TryGetValue(c.Id, out var existing) ? existing.Enhancement : c.Enhancement) != EnhancementId.Stinky) >= 6;
     private int CampaignNextDealer(int seat)
     { do seat = GameRules.NextSeat(seat); while (seat == 0 && Has(JokerId.SlickWilly)); return seat; }
     private void CampaignDealHand()
@@ -65,7 +68,7 @@ public sealed partial class GameEngine
         _pokerRevealed = false; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
         Array.Clear(_cardPoints); Array.Clear(_jokerPoints); Array.Clear(_modifierPoints);
         _handWalletStart = _resources.Wallets.ToArray();
-        var available = _resources.Deck.Where(c => c.Enhancement != EnhancementId.Stinky).Select(c => c.Id).ToList();
+        var available = _resources.Deck.Where(c => StateFor(c.Id).Enhancement != EnhancementId.Stinky).Select(c => c.Id).ToList();
         _campaignRandom.Shuffle(available);
         var human = available.Take(6).ToArray();
         var others = _resources.Deck.Select(c => c.Id).Except(human).ToList(); _campaignRandom.Shuffle(others);
@@ -206,7 +209,7 @@ public sealed partial class GameEngine
             var state = StateFor(token);
             if (state.Enhancement == EnhancementId.Wild)
             {
-                var suits = _currentTrick.Count > 0 && following.Contains(token) && !chameleon ? new[] { EffectiveCampaignSuit(_currentTrick[0].Card) } : Enum.GetValues<Suit>();
+                var suits = _currentTrick.Count > 0 && following.Contains(token) && (!chameleon || off.Length == 0) ? new[] { EffectiveCampaignSuit(_currentTrick[0].Card) } : Enum.GetValues<Suit>();
                 foreach (var suit in suits) yield return new(state.Id, suit);
             }
             else yield return new(state.Id);
@@ -255,7 +258,16 @@ public sealed partial class GameEngine
     }
     private int[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
     private void CampaignMatchEnd() => ResolveMatchEnd();
-    private void UseTarot(int seat, CampaignCommand.UseTarot tarot) => ResolveTarot(seat, tarot);
+    private void UseTarot(int seat, CampaignCommand.UseTarot tarot)
+    {
+        var before = ExportCampaignSnapshot().Copy(); var eventCount = _events.Count; var sequence = _effectSequence;
+        try { ResolveTarot(seat, tarot); }
+        catch
+        {
+            _resources = before; _campaignRandom = new(before.RandomState); _effectSequence = sequence;
+            _events.RemoveRange(eventCount, _events.Count - eventCount); throw;
+        }
+    }
     private void ResolvePoker()
     {
         _pokerRevealed = true;

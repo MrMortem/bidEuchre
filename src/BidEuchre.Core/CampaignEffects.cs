@@ -6,7 +6,6 @@ public sealed partial class GameEngine
     private sealed record EffectPoint(int Team, int Amount, string Source);
     private readonly List<EffectPoint> _trickPoints = [];
     private int _effectSequence;
-    private bool LastTrickDouble => Has(JokerId.LastLaugh) && _completedTricks.Count is 5;
     private void Point(int seat, int amount, string source)
     { _trickPoints.Add(new(seat % 2, amount, source)); _events.Add($"Effect {++_effectSequence}: {source} {Signed(amount)} points for team {seat % 2 + 1}."); }
     private void Money(int seat, int amount, string source)
@@ -16,17 +15,29 @@ public sealed partial class GameEngine
     }
     private void GenerateTarot(int seat)
     {
-        if (seat != 0) { _events.Add($"{_playerNames[seat]} generated a Tarot (opponent items are not used)."); return; }
+        if (seat != 0)
+        {
+            var held = _resources.GeneratedTarot[seat];
+            if (held.Length >= 2) { _events.Add($"{_playerNames[seat]}'s Tarot inventory is full."); return; }
+            var generated = (TarotId)_campaignRandom.NextInt(Enum.GetValues<TarotId>().Length);
+            var inventories = _resources.GeneratedTarot.Select(cards => cards.ToArray()).ToArray();
+            inventories[seat] = [.. held, generated]; _resources = _resources with { GeneratedTarot = inventories };
+            _events.Add($"{_playerNames[seat]} generated a Tarot (stored; bots do not use items)."); return;
+        }
         var inventory = _resources.Inventory;
         if (inventory.Tarot.Length >= 2) { _events.Add("Tarot creation skipped: inventory full."); return; }
         var card = (TarotId)_campaignRandom.NextInt(Enum.GetValues<TarotId>().Length);
         _resources = _resources with { Inventory = inventory with { Tarot = [.. inventory.Tarot, card] } };
         _events.Add($"Created {FeatureCatalog.Get(FeatureCategory.Tarot, card.ToString()).Name}.");
     }
-    private void OnCardEffects(int seat, Card token, bool replay = false)
+    private void OnCardEffects(int seat, Card token, bool replay = false, int? trickNumber = null, bool finalAlreadyApplied = false)
     {
         var state = StateFor(token);
-        var repeat = 1 + (LastTrickDouble ? 1 : 0) + (state.Enhancement == EnhancementId.Lucky && Has(JokerId.LuckyDuck) ? 1 : 0);
+        var number = trickNumber ?? (_completedTricks.Count + 1);
+        var finalMultiplier = Has(JokerId.LastLaugh) && number == 6 && !finalAlreadyApplied ? 2 : 1;
+        // Schedule independent activations once. A replay never schedules another replay bonus.
+        var extra = replay ? 0 : (state.Enhancement == EnhancementId.Lucky && Has(JokerId.LuckyDuck) ? 1 : 0) + (state.Sigil == SigilId.Frog ? 1 : 0);
+        var repeat = (1 + extra) * finalMultiplier;
         for (var activation = 0; activation < repeat; activation++)
         {
             switch (state.Enhancement)
@@ -36,7 +47,7 @@ public sealed partial class GameEngine
                     if (_campaignRandom.NextInt(3) == 0) Money(seat, 3, "Lucky"); break;
                 case EnhancementId.Stone: Point(seat, 1, "Stone"); break;
                 case EnhancementId.Bouncy when !replay:
-                    foreach (var prior in _currentTrick.Take(_currentTrick.Count - 1).ToArray()) OnCardEffects(prior.Seat, prior.Card, true);
+                    foreach (var prior in _currentTrick.Take(_currentTrick.Count - 1).ToArray()) OnCardEffects(prior.Seat, prior.Card, true, number, finalAlreadyApplied: true);
                     break;
             }
             switch (state.Sigil)
@@ -51,12 +62,8 @@ public sealed partial class GameEngine
                     break;
             }
         }
-        if (!replay && state.Sigil == SigilId.Frog)
-        {
-            // Frog repeats eligible effects once; it cannot repeat itself or spawn Bouncy.
-            OnCardEffects(seat, token, true);
-        }
     }
+
     private void ResolvePlayedCard(int seat, Card token)
     {
         _lastMatchCard = IdFor(token);
@@ -75,10 +82,10 @@ public sealed partial class GameEngine
         var team = winner % 2; var final = _completedTricks.Count == 6; var lastDouble = Has(JokerId.LastLaugh) && final ? 2 : 1;
         // Deep Digger's additional on-play effects resolve only once the winner is known.
         if (winner == 0 && Has(JokerId.DeepDigger))
-            foreach (var p in plays.Where(p => MatchesSuit(StateFor(p.Card), Suit.Spades))) OnCardEffects(p.Seat, p.Card, true);
+            foreach (var p in plays.Where(p => MatchesSuit(StateFor(p.Card), Suit.Spades))) OnCardEffects(p.Seat, p.Card, true, _completedTricks.Count);
         foreach (var p in plays)
         {
-            var c = StateFor(p.Card); var count = lastDouble + (winner == 0 && Has(JokerId.DeepDigger) && MatchesSuit(c, Suit.Spades) ? 1 : 0);
+            var c = StateFor(p.Card); var count = lastDouble * (1 + (winner == 0 && Has(JokerId.DeepDigger) && MatchesSuit(c, Suit.Spades) ? 1 : 0));
             for (var i = 0; i < count; i++)
             {
                 if (c.Enhancement == EnhancementId.Golden || p.Seat == 0 && Has(JokerId.Millionaire) && MatchesSuit(c, Suit.Diamonds)) Money(winner, 1, "Golden");
@@ -119,7 +126,11 @@ public sealed partial class GameEngine
         if (Contract!.Mode is ContractMode.High or ContractMode.Low) _rollerValue += team == 0 ? 1 : -1;
         if (winner == 0 && Has(JokerId.PeoplePleaser)) Money(0, _hands[0].Count(c => StateFor(c).Face.Rank is Rank.Jack or Rank.Queen or Rank.King) * lastDouble, "People Pleaser");
         if (winner == 0 && Has(JokerId.StickyFingers) && _stickyTriggered.Add(0) && _hands[0].Count > 0)
-        { var copy = StateFor(plays.Single(p => p.Seat == 0).Card); var id = IdFor(_hands[0][0]); _overlays[id] = new(id, copy.Face, copy.Enhancement, copy.Sigil); }
+        {
+            var copy = StateFor(plays.Single(p => p.Seat == 0).Card); var id = IdFor(_hands[0][0]); var overlay = new CardOverlay(id, copy.Face, copy.Enhancement, copy.Sigil);
+            if (CanDeal(_resources.Deck, overlay)) _overlays[id] = overlay;
+            else _events.Add("Sticky Fingers copy skipped: at least six drawable cards must remain.");
+        }
         _trickPoints.Clear();
     }
     private static bool IsRed(Suit s) => s is Suit.Hearts or Suit.Diamonds;

@@ -16,6 +16,7 @@ internal static class CampaignSaveTests
             Assert.Equal(24, legacy.Resources.Deck.Length);
             var deck = legacy.Resources.Deck.ToArray();
             deck[0] = deck[0] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Frog };
+            legacy.Resources.GeneratedTarot[1] = [TarotId.TaxCollector];
             var run = legacy with { Resources = legacy.Resources with { Deck = deck } };
             Assert.True(CampaignStore.Save(run, path));
             using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
@@ -23,6 +24,7 @@ internal static class CampaignSaveTests
             var loaded = CampaignStore.Load(path)!;
             Assert.Equal(EnhancementId.Glass, loaded.Resources.Deck[0].Enhancement!.Value);
             Assert.Equal(SigilId.Frog, loaded.Resources.Deck[0].Sigil!.Value);
+            Assert.Equal(TarotId.TaxCollector, loaded.Resources.GeneratedTarot[1][0]);
             File.WriteAllText(path, "{\"Version\":999,\"Run\":{}}");
             Assert.True(CampaignStore.Load(path) is null);
         }

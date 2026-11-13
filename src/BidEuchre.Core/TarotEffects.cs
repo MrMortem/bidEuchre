@@ -2,16 +2,21 @@ namespace BidEuchre.Core;
 
 public sealed partial class GameEngine
 {
+    private bool CanEnhance(CardId id, EnhancementId enhancement)
+    {
+        var deck = _resources.Deck.Select(c => c.Id == id ? c with { Enhancement = enhancement } : c).ToArray();
+        return deck.Count(c => c.Enhancement == EnhancementId.Stinky) <= 18 && CanDeal(deck);
+    }
     private void ResolveTarot(int seat, CampaignCommand.UseTarot request)
     {
         if (seat != 0 || CurrentSeat != 0 || Phase != GamePhase.Bidding || _pendingChoice is not null) throw new GameRuleException("Use Tarot before your bidding action.");
         var inventory = _resources.Inventory;
         if (request.Slot < 0 || request.Slot >= inventory.Tarot.Length) throw new GameRuleException("No Tarot in that slot.");
-        var tarot = inventory.Tarot[request.Slot]; var targets = request.Targets.ToArray();
+        var tarot = inventory.Tarot[request.Slot]; var targets = request.Targets?.ToArray() ?? throw new GameRuleException("Choose Tarot targets.");
         var required = tarot == TarotId.DevilishDeal ? 3 : tarot is TarotId.TaxCollector or TarotId.Astronomer or TarotId.Gambler ? 0 : 1;
         if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !_hands[0].Contains(TokenFor(id)))) throw new GameRuleException("Choose the required distinct cards from your hand.");
         if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == 8) throw new GameRuleException("All bidding options are unlocked.");
-        if (tarot == TarotId.Beggar && _resources.Deck.Count(c => c.Enhancement == EnhancementId.Stinky) >= 18 && StateFor(targets[0]).Enhancement != EnhancementId.Stinky) throw new GameRuleException("At least six non-Stinky cards must remain.");
+        if (tarot == TarotId.Beggar && !CanEnhance(targets[0], EnhancementId.Stinky)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         // Validate everything before RNG, consumption, or permanent mutations.
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
@@ -30,7 +35,7 @@ public sealed partial class GameEngine
             case TarotId.DevilishDeal:
                 // Preserve feasibility even when a random enhancement chooses Stinky.
                 foreach (var id in targets.Take(2))
-                { var pool = Enum.GetValues<EnhancementId>().Where(e => e != EnhancementId.Stinky || _resources.Deck.Count(c => c.Enhancement == EnhancementId.Stinky) < 18 || StateFor(id).Enhancement == EnhancementId.Stinky).ToArray(); Enhance(id, pool[_campaignRandom.NextInt(pool.Length)]); }
+                { var pool = Enum.GetValues<EnhancementId>().Where(e => CanEnhance(id, e)).ToArray(); Enhance(id, pool[_campaignRandom.NextInt(pool.Length)]); }
                 Enhance(targets[2], EnhancementId.Cursed); break;
             default:
                 var enhancement = tarot switch

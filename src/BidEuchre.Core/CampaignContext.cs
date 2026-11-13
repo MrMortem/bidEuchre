@@ -4,9 +4,10 @@ public sealed record ContractKey(ContractMode Mode, Suit? Trump);
 public sealed record CampaignSnapshot(long Revision, CardState[] Deck, CampaignInventory Inventory,
     int[] Wallets, ulong RandomState, ContractKey? PreviousContract = null)
 {
+    public TarotId[][] GeneratedTarot { get; init; } = [[], [], [], []];
     public static CampaignSnapshot Create(ulong seed) => new(0, CampaignCards.CreateDeck().ToArray(), CampaignInventory.Empty, new int[4], seed);
-    public CampaignSnapshot Copy() => this with { Deck = Deck.ToArray(), Inventory = Inventory.Copy(), Wallets = Wallets.ToArray() };
-    public bool IsValid() => Revision >= 0 && Deck is { Length: 24 } && Inventory is not null
+    public CampaignSnapshot Copy() => this with { Deck = Deck.ToArray(), Inventory = Inventory.Copy(), Wallets = Wallets.ToArray(), GeneratedTarot = GeneratedTarot.Select(cards => cards.ToArray()).ToArray() };
+    public bool IsValid() => GeneratedTarot is { Length: 4 } && GeneratedTarot.All(cards => cards is { Length: <= 2 } && cards.All(Enum.IsDefined)) && Revision >= 0 && Deck is { Length: 24 } && Inventory is not null
         && Wallets is { Length: 4 } && Wallets.All(m => m >= 0)
         && Deck.All(c => c is not null && c.Id.Value is >= 0 and < 24 && Enum.IsDefined(c.Face.Suit) && Enum.IsDefined(c.Face.Rank)
             && (c.Enhancement is null || Enum.IsDefined(c.Enhancement.Value)) && (c.Sigil is null || Enum.IsDefined(c.Sigil.Value)))

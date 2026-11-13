@@ -59,8 +59,9 @@ public static class CampaignShop
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money + 2;
         return run with { Money = run.Money + 2, Resources = resources with { Revision = resources.Revision + 1, Inventory = resources.Inventory with { Jokers = resources.Inventory.Jokers.Where(j => j.Id != id).ToArray() } } };
     }
-    public static CampaignRun DiscardTarot(CampaignRun run, int slot)
+    public static CampaignRun DiscardTarot(CampaignRun run, int slot, long? expectedRevision = null)
     {
+        if (expectedRevision is { } revision && revision != run.Resources.Revision) throw new GameRuleException("The shop changed. Choose a Tarot again.");
         if (run.Phase != CampaignPhase.Shop || slot < 0 || slot >= run.Resources.Inventory.Tarot.Length) throw new GameRuleException("No Tarot in that slot.");
         return run with { Resources = run.Resources with { Revision = run.Resources.Revision + 1, Inventory = run.Resources.Inventory with { Tarot = run.Resources.Inventory.Tarot.Where((_, i) => i != slot).ToArray() } } };
     }

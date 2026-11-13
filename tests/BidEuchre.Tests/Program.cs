@@ -10,6 +10,15 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Campaign review additive retriggers", () => Run(CampaignReviewRegressionTests.ReplayBonusesAreAdditive)),
+    ("Campaign review final trick timing", () => Run(CampaignReviewRegressionTests.FinalTrickTiming)),
+    ("Campaign review Chameleon fallback", () => Run(CampaignReviewRegressionTests.ChameleonFallback)),
+    ("Campaign review Stinky copy feasibility", () => Run(CampaignReviewRegressionTests.StinkyCopiesStayDealable)),
+    ("Campaign review Devilish underlying state", () => Run(CampaignReviewRegressionTests.DevilishDealUsesUnderlyingState)),
+    ("Campaign review stale Tarot discard", () => Run(CampaignReviewRegressionTests.StaleDiscardDoesNotShiftTarget)),
+    ("Campaign review nonhuman Tarot tracking", () => Run(CampaignReviewRegressionTests.NonhumanTarotIsTracked)),
+    ("Campaign seeded runs integrate purchases effects and match rewards", () => Run(CampaignIntegrationTests.SeededRuns)),
+    ("Campaign all Tarot consume and apply their distinct effects", () => Run(CampaignIntegrationTests.EveryTarotConsumesOnce)),
     ("Campaign Wild Jack follows its selected effective suit", () => Run(CampaignWildTests.JackFollowsChosenSuit)),
     ("Campaign card motion uses physical identities", () => Run(CampaignPresentationTests.PhysicalMotionKeys)),
     ("Campaign Joker scoring matches hand-calculated sweep fixtures", () => Run(CampaignJokerScoringTests.LiteralScoring)),
