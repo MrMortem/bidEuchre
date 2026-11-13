@@ -19,7 +19,7 @@ public static class CampaignStore
             if (root.TryGetProperty("Version", out var version))
             {
                 if (!version.TryGetInt32(out var number) || number != 2) return null;
-                run = JsonSerializer.Deserialize<CampaignSave>(text)?.Run;
+                run = JsonSerializer.Deserialize<CampaignSave>(text, CampaignJson.Options)?.Run;
             }
             else
             {
@@ -44,7 +44,7 @@ public static class CampaignStore
         {
             var directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(new CampaignSave(2, run)));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(new CampaignSave(2, run with { Resources = run.Resources with { Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } }), CampaignJson.Options));
             File.Move(temporary, path, overwrite: true);
             return true;
         }

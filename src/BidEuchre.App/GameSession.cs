@@ -7,7 +7,7 @@ public sealed class GameSession : IAsyncDisposable
 {
     private readonly EngineCatalog _catalog;
     private readonly CampaignContext? _campaign;
-    private readonly Func<CampaignSnapshot,bool>? _checkpoint;
+    private readonly Func<CampaignSnapshot, bool>? _checkpoint;
     private readonly int? _seed;
     private readonly MatchOptions? _matchOptions;
     private readonly TimeSpan _botActionDelay;
@@ -32,10 +32,10 @@ public sealed class GameSession : IAsyncDisposable
         TimeSpan? botActionDelay = null,
         TimeSpan? completedTrickDelay = null,
         Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null,
-        MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot,bool>? checkpoint = null)
+        MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot, bool>? checkpoint = null)
     {
         _matchOptions = matchOptions;
-        _campaign=campaign;_checkpoint=checkpoint;
+        _campaign = campaign; _checkpoint = checkpoint;
         Id = id;
         Name = name;
         Seats = seats;
@@ -69,7 +69,7 @@ public sealed class GameSession : IAsyncDisposable
                 throw new GameRuleException("This session has already started.");
             }
 
-            if(_campaign is not null && Seats.Any(s=>s.Kind==PlayerKind.Bot && s.EngineId is not null && s.EngineId!=EngineCatalog.BuiltInEngineId))
+            if (_campaign is not null && Seats.Any(s => s.Kind == PlayerKind.Bot && s.EngineId is not null && s.EngineId != EngineCatalog.BuiltInEngineId))
                 throw new GameRuleException("External engines do not support campaign cards and bidding options.");
             foreach (var seat in Seats.Where(seat => seat.Kind is PlayerKind.Bot))
             {
@@ -82,11 +82,11 @@ public sealed class GameSession : IAsyncDisposable
             }
 
             ThrowIfClosing();
-            Game = new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions,_campaign);
+            Game = new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions, _campaign);
             Game.StartGame();
-            CheckpointCampaign();
             _dealReady = waitForDeal ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             LastError = null;
+            CheckpointCampaign();
             StartBotLoopLocked();
         }
         catch
@@ -154,28 +154,28 @@ public sealed class GameSession : IAsyncDisposable
 
     private void CheckpointCampaign()
     {
-        if(Game?.IsCampaign is true && _checkpoint?.Invoke(Game.ExportCampaignSnapshot()) is false)
-            LastError="Could not save progress. Changes are retained in this session only.";
+        if (Game?.IsCampaign is true && _checkpoint?.Invoke(Game.ExportCampaignSnapshot()) is false)
+            LastError = "Could not save progress. Changes are retained in this session only.";
     }
 
-    public async Task ExecuteCampaignAsync(CampaignActionRequest request,CancellationToken cancellationToken=default)
+    public async Task ExecuteCampaignAsync(CampaignActionRequest request, CancellationToken cancellationToken = default)
     {
-        ThrowIfClosing();await _gate.WaitAsync(cancellationToken);
+        ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfClosing();
-            if(Game?.IsCampaign is not true || WaitingForDeal)throw new GameRuleException("Wait for the campaign deal to finish.");
+            if (Game?.IsCampaign is not true || WaitingForDeal) throw new GameRuleException("Wait for the campaign deal to finish.");
             GameRules.ValidateSeat(request.Seat);
-            if(Seats[request.Seat].Kind!=PlayerKind.Human)throw new GameRuleException("Bot actions come from the campaign policy.");
-            var snapshot=Game.ExportCampaignSnapshot();
-            if(snapshot.Revision!=request.ExpectedRevision || Game.DealSerial!=request.ExpectedDealSerial)
+            if (Seats[request.Seat].Kind != PlayerKind.Human) throw new GameRuleException("Bot actions come from the campaign policy.");
+            var snapshot = Game.ExportCampaignSnapshot();
+            if (snapshot.Revision != request.ExpectedRevision || Game.DealSerial != request.ExpectedDealSerial)
                 throw new GameRuleException("The table changed; choose an action from the current hand.");
-            var count=Game.CompletedTricks.Count;
-            Game.ExecuteCampaignAction(request.Seat,request.Command);
-            LastError=null;CheckpointCampaign();await ObserveTerminalStateLockedAsync(_lifetime.Token);
-            StartBotLoopLocked(Game.CompletedTricks.Count>count?_completedTrickDelay:_botActionDelay);
+            var count = Game.CompletedTricks.Count;
+            Game.ExecuteCampaignAction(request.Seat, request.Command);
+            LastError = null; CheckpointCampaign(); await ObserveTerminalStateLockedAsync(_lifetime.Token);
+            StartBotLoopLocked(Game.CompletedTricks.Count > count ? _completedTrickDelay : _botActionDelay);
         }
-        finally{_gate.Release();}
+        finally { _gate.Release(); }
     }
 
     public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
@@ -339,13 +339,13 @@ public sealed class GameSession : IAsyncDisposable
             {
                 if (Game is null ||
                     Game.Phase is GamePhase.HandComplete or GamePhase.GameComplete ||
-                    (Game.IsCampaign?Game.CampaignActor:Game.CurrentSeat) is null ||
-                    !_bots.ContainsKey((Game.IsCampaign?Game.CampaignActor:Game.CurrentSeat)!.Value))
+                    (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) is null ||
+                    !_bots.ContainsKey((Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value))
                 {
                     return;
                 }
 
-                expectedSeat = (Game.IsCampaign?Game.CampaignActor:Game.CurrentSeat)!.Value;
+                expectedSeat = (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value;
             }
             finally
             {
@@ -361,7 +361,7 @@ public sealed class GameSession : IAsyncDisposable
             try
             {
                 if (WaitingForDeal) continue;
-                if (Game is null || (Game.IsCampaign?Game.CampaignActor:Game.CurrentSeat) != expectedSeat || !_bots.TryGetValue(expectedSeat, out var bot))
+                if (Game is null || (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) != expectedSeat || !_bots.TryGetValue(expectedSeat, out var bot))
                 {
                     continue;
                 }
@@ -371,11 +371,10 @@ public sealed class GameSession : IAsyncDisposable
                 {
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                     timeout.CancelAfter(TimeSpan.FromSeconds(8));
-                    if(Game.IsCampaign)
+                    if (Game.IsCampaign)
                     {
-                        var campaignView=Game.CreateCampaignView(expectedSeat);
-                        Game.ExecuteCampaignAction(expectedSeat,CampaignBotPolicy.Choose(campaignView,expectedSeat));
-                        CheckpointCampaign();
+                        var campaignView = Game.CreateCampaignView(expectedSeat);
+                        Game.ExecuteCampaignAction(expectedSeat, CampaignBotPolicy.Choose(campaignView, expectedSeat));
                     }
                     else
                     {
@@ -384,6 +383,7 @@ public sealed class GameSession : IAsyncDisposable
                         ApplyBotAction(Game, expectedSeat, action);
                     }
                     LastError = null;
+                    CheckpointCampaign();
                     await ObserveTerminalStateLockedAsync(cancellationToken);
                 }
                 catch (Exception exception) when (exception is ProtocolException or GameRuleException or OperationCanceledException)

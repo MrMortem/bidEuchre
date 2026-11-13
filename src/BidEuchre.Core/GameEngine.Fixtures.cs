@@ -43,7 +43,7 @@ public sealed partial class GameEngine
             throw new ArgumentException("Hand number and deal serial must be positive.", nameof(start));
         }
 
-        var game = new GameEngine(start.Names,options:start.Options,campaign:start.Campaign is null?null:new CampaignContext(start.Campaign))
+        var game = new GameEngine(start.Names, options: start.Options, campaign: start.Campaign is null ? null : new CampaignContext(start.Campaign))
         {
             Dealer = start.Dealer,
             HandNumber = start.HandNumber,

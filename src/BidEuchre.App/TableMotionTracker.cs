@@ -19,7 +19,9 @@ public sealed class TableMotionTracker
     {
         var last = game?.CompletedTricks.LastOrDefault();
         var frame = game is null ? null : new Frame(game.HandNumber, game.CurrentSeat, game.CompletedTricks.Count,
-            (game.CurrentTrick.Count > 0 ? game.CurrentTrick : last?.Plays ?? []).Select(play => $"{play.Seat}:{play.Card.Code}").ToHashSet(),
+            game.Campaign is { } campaign
+                ? (campaign.Trick.Count > 0 ? campaign.Trick : campaign.LastTrick).Select(play => $"{play.Seat}:id{play.Card.Id.Value}").ToHashSet()
+                : (game.CurrentTrick.Count > 0 ? game.CurrentTrick : last?.Plays ?? []).Select(play => $"{play.Seat}:{play.Card.Code}").ToHashSet(),
             last?.Winner, game.Scores.ToArray(),
             game.HighBid is { } bid && game.Bidder is { } bidder ? $"{bidder}:{bid}" : null);
         var cue = TableMotionCue.None;
@@ -31,8 +33,11 @@ public sealed class TableMotionTracker
             {
                 if (frame.Hand == old.Hand)
                 {
-                    cue = cue with { HighBidChanged = frame.Bid is not null && frame.Bid != old.Bid
-                        && game!.Phase is GamePhase.Bidding or GamePhase.ChoosingContract };
+                    cue = cue with
+                    {
+                        HighBidChanged = frame.Bid is not null && frame.Bid != old.Bid
+                        && game!.Phase is GamePhase.Bidding or GamePhase.ChoosingContract
+                    };
                     cue.AddedPlays.UnionWith(frame.Plays.Except(old.Plays));
                     if (frame.Completed > old.Completed) cue = cue with { WinnerSeat = frame.Winner };
                 }

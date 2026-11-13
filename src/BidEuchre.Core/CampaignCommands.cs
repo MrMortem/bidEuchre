@@ -1,4 +1,5 @@
 namespace BidEuchre.Core;
+
 public abstract record CampaignCommand
 {
     public sealed record Bid(BidLevel Level, PlanetId? Variant = null) : CampaignCommand;

@@ -23,7 +23,7 @@ public static class FeatureCatalog
         new("joker:twin-flame", FeatureCategory.Joker, "TwinFlame", "Twin Flame", "Team wins a trick in which human and partner played different colors: +1 point.", 4),
         new("joker:clubhouse", FeatureCategory.Joker, "Clubhouse", "Clubhouse", "Tricks containing at least one Club are worth +1 point.", 4),
         new("joker:the-undertaker", FeatureCategory.Joker, "TheUndertaker", "The Undertaker", "+1 point per 9 in tricks the team wins.", 4),
-        new("joker:roller-coaster", FeatureCategory.Joker, "RollerCoaster", "Roller Coaster", "Starts at +0; gains 1 when the team wins a High/Low trick and loses 1 when it loses one; awards its value each High/Low hand. Exact accumulator timing/lifetime is proposed below.", 4),
+        new("joker:roller-coaster", FeatureCategory.Joker, "RollerCoaster", "Roller Coaster", "Starts at 0 each match; +1 per High/Low trick your team wins, -1 per loss. Earn its current value at the end of each High/Low hand.", 4),
         new("joker:deja-vu", FeatureCategory.Joker, "DejaVu", "Déjà Vu", "Starts at +0; increases by 1 for consecutive hands calling the same trump; resets when the team fails a bid; awards its value each hand.", 4),
         new("joker:last-laugh", FeatureCategory.Joker, "LastLaugh", "Last Laugh", "Double all points and effects from the final trick of each hand.", 4),
         new("joker:vowof-silence", FeatureCategory.Joker, "VowofSilence", "Vow of Silence", "Human cannot bid; double points earned from tricks the human wins.", 4),
@@ -77,11 +77,11 @@ public static class FeatureCatalog
         new("tarot:devilish-deal", FeatureCategory.Tarot, "DevilishDeal", "Devilish Deal", "Random enhancement on each of two selected cards; a third selected card becomes Cursed.", 3),
         new("tarot:gambler", FeatureCategory.Tarot, "Gambler", "Gambler", "Two random cards become Lucky.", 3),
         new("tarot:merchant", FeatureCategory.Tarot, "Merchant", "Merchant", "Make one card Emerald.", 3),
-        new("tarot:glassblower", FeatureCategory.Tarot, "Glassblower", "Glassblower", "Make one card Glass; replaces Masquerade.", 3),
+        new("tarot:glassblower", FeatureCategory.Tarot, "Glassblower", "Glassblower", "Make one card Glass.", 3),
         new("tarot:traitor", FeatureCategory.Tarot, "Traitor", "Traitor", "Make one card Silver.", 3),
         new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Create a random Planet unlock.", 3),
         new("tarot:beggar", FeatureCategory.Tarot, "Beggar", "Beggar", "Make one card Stinky.", 3),
-        new("tarot:spring-loaded", FeatureCategory.Tarot, "SpringLoaded", "Spring Loaded", "Make one card Bouncy; replaces The Blacksmith.", 3),
+        new("tarot:spring-loaded", FeatureCategory.Tarot, "SpringLoaded", "Spring Loaded", "Make one card Bouncy.", 3),
         new("tarot:tax-collector", FeatureCategory.Tarot, "TaxCollector", "Tax Collector", "Double money, capped at $20 gained.", 3),
     });
     public static FeatureDefinition Get(FeatureCategory category, string key) => All.Single(f => f.Category == category && f.Key == key);

@@ -78,6 +78,7 @@ public sealed class MainWindow : Window
     private HandGlide? _handGlide;
     private readonly TrickCollectionState _trickCollection = new();
     private readonly TableInputState _input = new();
+    private TextBlock? _campaignStrip;
     private static string DataDirectory => Environment.GetEnvironmentVariable("BIDEUCHRE_DATA_DIRECTORY") ?? Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
     private readonly string _preferencesPath = Path.Combine(DataDirectory, "BidEuchre", "preferences.json");
     private GamePreferences _preferences = new();
@@ -280,6 +281,18 @@ public sealed class MainWindow : Window
 
     private Control BuildGamePage()
     {
+        // These controls survive sessions; detached pages still own their logical children.
+        // Release each immediate parent before constructing the next table page.
+        foreach (var control in new Control[]{_startButton,_viewerSeat,_phaseText,_contractText,_dealerText,
+            _scoreEyebrow,_teamZeroScore,_teamOneScore,_actionTitle,_actionHelp,_sessionError,_actionButtons,_eventList,_tableHost})
+        {
+            switch (control.Parent)
+            {
+                case Panel panel: panel.Children.Remove(control); break;
+                case Decorator decorator: decorator.Child = null; break;
+                case ContentControl content: content.Content = null; break;
+            }
+        }
         var back = QuietButton("← New table");
         back.Click += async (_, _) => await LeaveTableAsync(back);
 
@@ -295,7 +308,7 @@ public sealed class MainWindow : Window
             Children =
             {
                 campaign
-                    ? new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 11, FontWeight = FontWeight.Bold }
+                    ? _campaignStrip=new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 11, FontWeight = FontWeight.Bold }
                     : Eyebrow("LIVE SESSION"),
                 new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 22, FontFamily = PixelArt.Font, Foreground = Ink }
             }
@@ -398,7 +411,9 @@ public sealed class MainWindow : Window
         // the primary action controls below a full-height, scrollable table.
         var page = new Grid
         {
-            Margin = new Thickness(16), RowDefinitions = RowDefinitions.Parse("Auto,*"), RowSpacing = 12,
+            Margin = new Thickness(16),
+            RowDefinitions = RowDefinitions.Parse("Auto,*"),
+            RowSpacing = 12,
             Children = { header, Place(gameGrid, row: 1) }
         };
         return new Grid { Children = { page, bidOverlay } };
@@ -548,8 +563,8 @@ public sealed class MainWindow : Window
             seed: null,
             botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds),
             matchOptions: options,
-            campaign: options is null?null:new CampaignContext(_campaign.Run!.Resources),
-            checkpoint: options is null?null:_campaign.Checkpoint);
+            campaign: options is null ? null : new CampaignContext(_campaign.Run!.Resources),
+            checkpoint: options is null ? null : _campaign.Checkpoint);
         _session = session;
         _campaignSession = options is null ? null : session;
         _sessionGeneration++;
@@ -729,9 +744,10 @@ public sealed class MainWindow : Window
                 lastTrick?.Number ?? 0, _motionCue.WinnerSeat is not null && view.CurrentTrick.Count == 0, motionEnabled);
 
             _startButton.IsVisible = false;
+            if (view.Campaign is not null && _campaignStrip is not null) _campaignStrip.Text = _campaign.Strip;
             _teamZeroScore.Text = view.Scores[0].ToString();
             _teamOneScore.Text = view.Scores[1].ToString();
-            _scoreEyebrow.Text = view.Campaign is null?$"TEAMS · TO {view.TargetScore}":$"TEAMS · ±{view.TargetScore} · 8 HANDS";
+            _scoreEyebrow.Text = view.Campaign is null ? $"TEAMS · TO {view.TargetScore}" : $"TEAMS · ±{view.TargetScore} · 8 HANDS";
             _phaseText.Text = $"{(session.WaitingForDeal ? "DEALING" : SplitWords(view.Phase.ToString()).ToUpperInvariant())} · HAND {view.HandNumber}";
             _contractText.Text = ContractName(view);
             _dealerText.Text = $"Seat {view.Dealer + 1} deals · {view.TricksByTeam[0]}–{view.TricksByTeam[1]} tricks";
@@ -752,7 +768,8 @@ public sealed class MainWindow : Window
                     _trickCollection.Complete(collectionKey);
                     _renderKey = null;
                     Dispatcher.UIThread.Post(async () => await RefreshGameAsync());
-                } : null);
+                }
+            : null);
             foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             RenderEvents(view.Events);
@@ -840,10 +857,15 @@ public sealed class MainWindow : Window
         canvas.Children.Add(center);
         return new Border
         {
-            BorderBrush = Line, BorderThickness = new Thickness(3),
+            BorderBrush = Line,
+            BorderThickness = new Thickness(3),
             Padding = new Thickness(6),
-            Child = new Grid { ClipToBounds = true, Children = { PixelArt.TableScene(_motion),
-                new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = canvas } } }
+            Child = new Grid
+            {
+                ClipToBounds = true,
+                Children = { PixelArt.TableScene(_motion),
+                new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly, Child = canvas } }
+            }
         };
     }
 
@@ -858,7 +880,8 @@ public sealed class MainWindow : Window
             HorizontalAlignment = HorizontalAlignment.Center,
             Child = new StackPanel
             {
-                Orientation = Orientation.Horizontal, Spacing = 8,
+                Orientation = Orientation.Horizontal,
+                Spacing = 8,
                 Children = { PixelArt.Portrait(player.Seat), new TextBlock
             {
                 Text = $"{(current ? "▶ " : string.Empty)}{player.Name}{(view.Dealer == player.Seat ? "  D" : string.Empty)}{(player.IsSittingOut ? "  · sitting out" : string.Empty)}",
@@ -876,22 +899,22 @@ public sealed class MainWindow : Window
         var cards = new List<Control>();
         var glide = _motion.Enabled && _tabs.SelectedIndex == 0 && _deckDeal?.Running != true;
         Control Slot(string key, Control card) => _handGlide?.Card($"{player.Seat}:{key}", card, glide) ?? card;
-        if(view.Campaign is {} campaign)
+        if (view.Campaign is { } campaign)
         {
-            var visible=campaign.Players[player.Seat].VisibleCards;
-            for(var i=0;i<player.CardCount;i++)
+            var visible = campaign.Players[player.Seat].VisibleCards;
+            for (var i = 0; i < player.CardCount; i++)
             {
-                if(i<visible.Count)
+                if (i < visible.Count)
                 {
-                    var card=visible[i];
-                    var choices=campaign.LegalActions.Where(c=>c is CampaignCommand.Play p&&p.Id==card.Id || c is CampaignCommand.Exchange e&&e.Id==card.Id).ToArray();
-                    var button=CardButton(card.Face,choices.Length==1,view,choices.Length==1?()=>SendCampaignActionAsync(campaign,choices[0]):null);
-                    ToolTip.SetTip(button,$"#{card.Id.Value+1} · {card.Enhancement?.ToString()??"No enhancement"} · {card.Sigil?.ToString()??"No Sigil"}");
-                    var key=$"id{card.Id.Value}";
-                    _cardFlights?.HandCard($"{player.Seat}:{key}",button,HandFan.Angle(player.Seat,i,player.CardCount));
-                    _deckDeal?.Card(player.Seat,i,button,HandFan.Angle(player.Seat,i,player.CardCount));cards.Add(Slot(key,button));
+                    var card = visible[i];
+                    var choices = campaign.LegalActions.Where(c => c is CampaignCommand.Play p && p.Id == card.Id || c is CampaignCommand.Exchange e && e.Id == card.Id).ToArray();
+                    var button = CardButton(card.Face, choices.Length == 1, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : null);
+                    ToolTip.SetTip(button, $"#{card.Id.Value + 1} · {card.Enhancement?.ToString() ?? "No enhancement"} · {card.Sigil?.ToString() ?? "No Sigil"}");
+                    var key = $"id{card.Id.Value}";
+                    _cardFlights?.HandCard($"{player.Seat}:{key}", button, HandFan.Angle(player.Seat, i, player.CardCount));
+                    _deckDeal?.Card(player.Seat, i, button, HandFan.Angle(player.Seat, i, player.CardCount)); cards.Add(Slot(key, button));
                 }
-                else {var back=FanCardBack();_deckDeal?.Card(player.Seat,i,back,HandFan.Angle(player.Seat,i,player.CardCount));cards.Add(Slot($"#{i}",back));}
+                else { var back = FanCardBack(); _deckDeal?.Card(player.Seat, i, back, HandFan.Angle(player.Seat, i, player.CardCount)); cards.Add(Slot($"#{i}", back)); }
             }
         }
         else if (player.Cards is null)
@@ -948,7 +971,8 @@ public sealed class MainWindow : Window
                 card.BorderThickness = new Thickness(3);
                 if (_motionCue.WinnerSeat is not null) _motion.Pulse(card, 1.065);
             }
-            var key = $"{play.Seat}:{play.Card.Code}";
+            var physical = view.Campaign is { } cv ? (cv.Trick.Count > 0 ? cv.Trick : cv.LastTrick).FirstOrDefault(p => p.Seat == play.Seat) : null;
+            var key = physical is null ? $"{play.Seat}:{play.Card.Code}" : $"{play.Seat}:id{physical.Card.Id.Value}";
             _cardFlights?.PlayedCard(key, card, _motionCue.AddedPlays.Contains(key), () => CardFace(play.Card));
             cards.Children.Add(card);
         }
@@ -1008,11 +1032,11 @@ public sealed class MainWindow : Window
             _actionHelp.Text = $"The race to {view.TargetScore} is complete.";
             return;
         }
-        if(view.Campaign is {} campaign)
+        if (view.Campaign is { } campaign)
         {
-            _actionTitle.Text=campaign.PendingChoice??"Campaign actions";
-            _actionHelp.Text="Shared deck effects follow the card. Your Jokers and bidding unlocks last for this run.";
-            _actionButtons.Children.Add(CampaignTableControls.Build(campaign,command=>SendCampaignActionAsync(campaign,command)));
+            _actionTitle.Text = campaign.PendingChoice ?? "Campaign actions";
+            _actionHelp.Text = "Shared deck effects follow the card. Your Jokers and bidding unlocks last for this run.";
+            _actionButtons.Children.Add(CampaignTableControls.Build(campaign, command => SendCampaignActionAsync(campaign, command)));
             return;
         }
         if (view.CurrentSeat != _viewer)
@@ -1102,17 +1126,17 @@ public sealed class MainWindow : Window
         }
     }
 
-    private async Task SendCampaignActionAsync(CampaignGameView view,CampaignCommand command)
+    private async Task SendCampaignActionAsync(CampaignGameView view, CampaignCommand command)
     {
-        var session=_session;if(session is null||!_input.TryBeginAction(out var revision))return;
+        var session = _session; if (session is null || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         try
         {
-            await session.ExecuteCampaignAsync(new CampaignActionRequest(_viewer!.Value,view.Revision,view.DealSerial,command));
-            _renderKey=null;
+            await session.ExecuteCampaignAsync(new CampaignActionRequest(_viewer!.Value, view.Revision, view.DealSerial, command));
+            _renderKey = null;
         }
-        catch(Exception error){ShowError(error.Message);}
-        finally{_input.CompleteAction(revision);SyncNativeInput();}
+        catch (Exception error) { ShowError(error.Message); }
+        finally { _input.CompleteAction(revision); SyncNativeInput(); }
         await RefreshGameAsync();
     }
 
@@ -1244,7 +1268,7 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction=null)
+    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction = null)
     {
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         var button = new Button
@@ -1269,8 +1293,10 @@ public sealed class MainWindow : Window
         // pressed template must not replace the paper behind transparent artwork.
         var surface = new Border
         {
-            Background = CardPaper, BorderBrush = button.BorderBrush,
-            BorderThickness = button.BorderThickness, CornerRadius = button.CornerRadius,
+            Background = CardPaper,
+            BorderBrush = button.BorderBrush,
+            BorderThickness = button.BorderThickness,
+            CornerRadius = button.CornerRadius,
             Padding = button.Padding,
             Child = new ContentPresenter
             {
@@ -1304,7 +1330,7 @@ public sealed class MainWindow : Window
             button.LostFocus += (_, _) => UpdateHighlight();
             button.Click += async (_, _) =>
             {
-                if(campaignAction is not null){await campaignAction();return;}
+                if (campaignAction is not null) { await campaignAction(); return; }
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";
                 await SendActionAsync(new GameActionRequest(_viewer!.Value, type, null, null, null, card.Code));
             };
@@ -1331,14 +1357,19 @@ public sealed class MainWindow : Window
 
     private static Border CardBack() => new()
     {
-        Margin = new Thickness(1), BorderBrush = CardPaper, BorderThickness = new Thickness(2),
+        Margin = new Thickness(1),
+        BorderBrush = CardPaper,
+        BorderThickness = new Thickness(2),
         Child = PixelArt.Back()
     };
 
     private static Border FanCardBack() => new()
     {
-        Width = 62, Height = 88, Margin = new Thickness(2),
-        BorderBrush = CardPaper, BorderThickness = new Thickness(2),
+        Width = 62,
+        Height = 88,
+        Margin = new Thickness(2),
+        BorderBrush = CardPaper,
+        BorderThickness = new Thickness(2),
         Child = PixelArt.Back(58, 84)
     };
 
@@ -1451,7 +1482,8 @@ public sealed class MainWindow : Window
         {
             var portrait = new StackPanel
             {
-                Spacing = 6, HorizontalAlignment = HorizontalAlignment.Center,
+                Spacing = 6,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 Children =
                 {
                     PixelArt.Portrait(seat),
@@ -1465,8 +1497,11 @@ public sealed class MainWindow : Window
         }
         return PixelTable(panels, new TextBlock
         {
-            Text = "Press Start session", Foreground = Gold, FontSize = 13,
-            TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
+            Text = "Press Start session",
+            Foreground = Gold,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
             Margin = new Thickness(0, 95, 0, 0)
         });
     }

@@ -103,7 +103,9 @@ internal static class CampaignScreens
         rule.Margin = new Thickness(0, 0, 0, 8);
         var stack = new StackPanel
         {
-            Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            Spacing = 12,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         stack.Children.Add(motion.Enter(MenuParts.Title(motion, title, 46), 0, 0, -22, easing: new BackEaseOut(), duration: 360));
         stack.Children.Add(motion.Enter(rule, 140, 0, 0));
@@ -130,9 +132,14 @@ internal static class CampaignScreens
 
     private static TextBlock Line(string text, IBrush color, double size = 12) => new()
     {
-        Text = text, Foreground = color, FontSize = size, FontFamily = PixelArt.Font,
-        HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center,
-        TextWrapping = TextWrapping.Wrap, MaxWidth = 560
+        Text = text,
+        Foreground = color,
+        FontSize = size,
+        FontFamily = PixelArt.Font,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextAlignment = TextAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = 560
     };
 
     private static Button ScreenButton(PixelMotion motion, string text, Action click, bool primary = false,

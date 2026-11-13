@@ -10,11 +10,11 @@ internal static class CampaignStoreTests
             var run = new CampaignRun(2, 7, 31, 4, phase, VictoryShown: phase is CampaignPhase.Victory);
             Assert.True(CampaignStore.Save(run, path));
             var loaded = CampaignStore.Load(path)!;
-                Assert.Equal(run.Lives, loaded.Lives);
-                Assert.Equal(run.Money, loaded.Money);
-                Assert.Equal(run.Match, loaded.Match);
-                Assert.Equal(run.Phase, loaded.Phase);
-                Assert.Equal(24, loaded.Resources.Deck.Length);
+            Assert.Equal(run.Lives, loaded.Lives);
+            Assert.Equal(run.Money, loaded.Money);
+            Assert.Equal(run.Match, loaded.Match);
+            Assert.Equal(run.Phase, loaded.Phase);
+            Assert.Equal(24, loaded.Resources.Deck.Length);
         }
         Assert.True(CampaignStore.Delete(path));
         Assert.True(CampaignStore.Load(path) is null);

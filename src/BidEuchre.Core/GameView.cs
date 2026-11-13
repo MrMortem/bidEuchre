@@ -29,6 +29,6 @@ public sealed record GameView(
     int TargetScore = 40)
 {
     public long? DealSerial { get; init; }
-    [System.Text.Json.Serialization.JsonIgnore(Condition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public CampaignGameView? Campaign { get; init; }
 }

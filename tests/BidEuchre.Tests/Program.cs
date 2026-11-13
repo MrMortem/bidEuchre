@@ -10,10 +10,13 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Campaign Wild Jack follows its selected effective suit", () => Run(CampaignWildTests.JackFollowsChosenSuit)),
+    ("Campaign card motion uses physical identities", () => Run(CampaignPresentationTests.PhysicalMotionKeys)),
     ("Campaign Joker scoring matches hand-calculated sweep fixtures", () => Run(CampaignJokerScoringTests.LiteralScoring)),
     ("Campaign every Joker and Sigil can complete a hand", () => Run(CampaignCatalogueTests.EveryJokerAndSigilCompletes)),
     ("Campaign special contracts resolve their setup phases", () => Run(CampaignCatalogueTests.SpecialContracts)),
     ("Campaign Stinky deals preserve all physical cards", () => Run(CampaignCatalogueTests.StinkyAndWild)),
+    ("Campaign save failures stay visible", CampaignSessionTests.SaveFailureVisible),
     ("Campaign sessions checkpoint and reject stale actions", CampaignSessionTests.CheckpointsAndStaleCommands),
     ("Campaign shop purchases exclude sold stock and retain resources", () => Run(CampaignShopTests.Purchases)),
     ("Campaign Poker handles five of a kind", () => Run(CampaignShopTests.Poker)),

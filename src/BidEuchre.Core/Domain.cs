@@ -122,7 +122,7 @@ public sealed record Contract(BidLevel Bid, ContractMode Mode, Suit? Trump)
 
     public static Contract Create(BidLevel bid, ContractMode mode, Suit? trump)
     {
-        if (!Enum.IsDefined(bid) || bid==BidLevel.Two)
+        if (!Enum.IsDefined(bid) || bid == BidLevel.Two)
         {
             throw new GameRuleException("Unknown bid level.");
         }
