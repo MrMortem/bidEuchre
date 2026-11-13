@@ -21,6 +21,10 @@
 
   <ItemGroup>
     <AvaloniaResource Include="../../assets/pixel/*.png" Link="Pixel/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../assets/pixel/campaign-placeholders/joker/*.png" Link="Pixel/campaign/joker/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../assets/pixel/campaign-placeholders/tarot/*.png" Link="Pixel/campaign/tarot/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../assets/pixel/campaign-placeholders/planet/*.png" Link="Pixel/campaign/planet/%(Filename)%(Extension)" />
+    <AvaloniaResource Include="../../assets/pixel/campaign-placeholders/sigil/*.png" Link="Pixel/campaign/sigil/%(Filename)%(Extension)" />
     <AvaloniaResource Include="../../assets/pixel/Pixel.ttf" Link="Pixel/Pixel.ttf" />
     <None Include="../../assets/pixel/FONT-LICENSE.txt" Link="Pixel/FONT-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

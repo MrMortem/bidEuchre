@@ -123,6 +123,16 @@ internal static class PixelArt
     }
 
     public static Image Back(double width = 42, double height = 62) => Sprite(Load("back"), width, height);
+
+    public static Image CampaignIcon(FeatureDefinition definition, double size = 64)
+    {
+        var image = Sprite(Load($"campaign/{definition.Id.Replace(':', '/')}"), size, size);
+        image.HorizontalAlignment = HorizontalAlignment.Center;
+        image.VerticalAlignment = VerticalAlignment.Center;
+        image.IsHitTestVisible = false;
+        return image;
+    }
+
     public static Border Portrait(int seat) => new()
     {
         Width = 50, Height = 54, HorizontalAlignment = HorizontalAlignment.Center,

@@ -28,6 +28,7 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Campaign save failures stay visible", CampaignSessionTests.SaveFailureVisible),
     ("Campaign sessions checkpoint and reject stale actions", CampaignSessionTests.CheckpointsAndStaleCommands),
     ("Campaign shop purchases exclude sold stock and retain resources", () => Run(CampaignShopTests.Purchases)),
+    ("Campaign shop Tarot can be bought and used on the shared deck", () => Run(CampaignShopTests.BuyAndUseTarot)),
     ("Campaign Poker handles five of a kind", () => Run(CampaignShopTests.Poker)),
     ("Campaign card points money and Frog retrigger", () => Run(CampaignEffectsTests.PointsAndMoney)),
     ("Campaign bounded Bouncy combinations and Golden attribution", () => Run(CampaignEffectsTests.GlassAndReplay)),

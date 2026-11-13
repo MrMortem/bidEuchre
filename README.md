@@ -75,9 +75,10 @@ open that app in Finder to play without installing .NET. Rules, pixel artwork,
 font, and font license travel with the package. This is a local unsigned build;
 external macOS distribution still requires signing and notarization.
 
-Motion preferences are saved between launches. The native Play screen keeps
-scores and actions beside the table; expand **Table log** or **Contract guide**
-for more detail. The web client also honors the system reduced-motion setting.
+Motion preferences are saved between launches. The native table fills the
+window: Jokers, Tarot cards and the score sit in a strip along the top, and bids
+and other choices appear over the middle of the board. Engines and Rules open
+from the main menu. The web client also honors the system reduced-motion setting.
 
 The executable is written to `dist/linux-x64/BidEuchre`. The packaging script
 also accepts .NET runtime identifiers such as `win-x64`, `osx-x64`, or

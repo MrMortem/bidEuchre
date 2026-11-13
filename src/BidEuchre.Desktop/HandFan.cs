@@ -7,6 +7,20 @@ namespace BidEuchre.Desktop;
 /// <summary>Overlapping cards facing the table, with the portrait behind the hand.</summary>
 internal static class HandFan
 {
+    /// <summary>Cards on the table are drawn at this fraction of their layout size.</summary>
+    public const double CardScale = .75;
+
+    // Shrinks a fan toward the edge its portrait sits on, then turns it to face the table.
+    private static TransformGroup Facing(double height, double angle) => new()
+    {
+        Children =
+        {
+            new ScaleTransform(CardScale, CardScale),
+            new TranslateTransform(0, height * (1 - CardScale) / 2),
+            new RotateTransform(angle)
+        }
+    };
+
     public static double Angle(int seat, int index, int count) =>
         (index - (count - 1) / 2d) * 6 + (seat switch { 1 => 90, 2 => 180, 3 => -90, _ => 0 });
 
@@ -45,20 +59,15 @@ internal static class HandFan
             card.LostFocus += (_, _) => UpdateLayer();
             fan.Children.Add(card);
         }
+        fan.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
+        fan.RenderTransform = Facing(fan.Height, seat switch { 1 => 90, 2 => 180, 3 => -90, _ => 0 });
         if (side)
         {
-            fan.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
-            fan.RenderTransform = new RotateTransform(seat == 1 ? 90 : -90);
             Canvas.SetLeft(fan, seat == 1 ? -40 : -130);
             Canvas.SetTop(fan, 70);
         }
         else
         {
-            if (seat == 2)
-            {
-                fan.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
-                fan.RenderTransform = new RotateTransform(180);
-            }
             Canvas.SetLeft(fan, 0);
             Canvas.SetTop(fan, seat == 0 ? 0 : 62);
         }

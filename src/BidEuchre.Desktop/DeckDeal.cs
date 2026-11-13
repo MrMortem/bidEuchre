@@ -147,7 +147,8 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
     private static Border Back() => new()
     {
         Width = 124, Height = 176, BorderBrush = Brushes.White, BorderThickness = new Thickness(2),
-        Background = Brush.Parse("#153583"), Child = new Viewbox { Stretch = Stretch.Fill, Child = PixelArt.Back() }, IsHitTestVisible = false,
+        CornerRadius = new CornerRadius(10), ClipToBounds = true,
+        Background = Brushes.White, Child = new Viewbox { Stretch = Stretch.Fill, Child = PixelArt.Back() }, IsHitTestVisible = false,
         RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative)
     };
 }

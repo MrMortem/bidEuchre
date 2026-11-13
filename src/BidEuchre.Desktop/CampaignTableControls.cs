@@ -1,44 +1,133 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using BidEuchre.Core;
 namespace BidEuchre.Desktop;
 
+/// <summary>The campaign's share of the table: Joker and Tarot cards for the top strip, and the
+/// choices that are made with buttons rather than by pressing a card in hand.</summary>
 internal static class CampaignTableControls
 {
-    public static Control Build(CampaignGameView view, Func<CampaignCommand, Task> send)
+    public const int JokerSlots = 5, TarotSlots = 2;
+    private const double CardWidth = 72, CardHeight = 78;
+
+    /// <summary>Replaces a strip row with <paramref name="cards"/>, padded to its slot count with empty outlines.</summary>
+    public static void Fill(Panel row, int slots, IEnumerable<Control> cards)
     {
-        var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(Label($"${view.Money} · HAND {view.HandNumber}{(view.HandNumber > 8 ? " · OVERTIME" : " OF 8")} · ±{view.Threshold}"));
-        panel.Children.Add(Label("Jokers: " + (view.Inventory.Jokers.Length == 0 ? "none" : string.Join(", ", view.Inventory.Jokers.Select(j => FeatureCatalog.Get(FeatureCategory.Joker, j.Id.ToString()).Name)))));
-        if (view.PendingChoice is not null) panel.Children.Add(Label(view.PendingChoice));
-        foreach (var command in view.LegalActions)
-        {
-            var button = new Button { Content = Describe(command, view), HorizontalAlignment = HorizontalAlignment.Stretch };
-            button.Click += async (_, _) => await send(command); panel.Children.Add(button);
-        }
-        var bidding = view.LegalActions.Any(c => c is CampaignCommand.Bid or CampaignCommand.Pass or CampaignCommand.PanicButton);
-        if (view.ViewerSeat == 0 && bidding && view.PendingChoice is null)
-            for (var slot = 0; slot < view.Inventory.Tarot.Length; slot++)
-            {
-                var index = slot; var id = view.Inventory.Tarot[slot]; var definition = FeatureCatalog.Get(FeatureCategory.Tarot, id.ToString());
-                var selected = new List<CardId>(); var required = id == TarotId.DevilishDeal ? 3 : id is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
-                var body = new StackPanel { Spacing = 4 }; body.Children.Add(Label(definition.Description));
-                var use = new Button { Content = "Use " + definition.Name, IsEnabled = required == 0 };
-                if (required > 0)
-                    foreach (var card in view.Players[0].VisibleCards)
-                    {
-                        var choice = new CheckBox { Content = $"{card.Face.Code} · #{card.Id.Value + 1}", Foreground = MainWindow.Ink };
-                        choice.IsCheckedChanged += (_, _) => { if (choice.IsChecked == true) selected.Add(card.Id); else selected.Remove(card.Id); use.IsEnabled = selected.Count == required; }; body.Children.Add(choice);
-                    }
-                use.Click += async (_, _) => await send(new CampaignCommand.UseTarot(index, selected.ToArray())); body.Children.Add(use);
-                panel.Children.Add(new Expander { Header = "Tarot: " + definition.Name, Content = body });
-            }
-        if (view.LegalActions.Count == 0) panel.Children.Add(Label("Waiting for the next player."));
-        return panel;
+        row.Children.Clear();
+        row.Children.AddRange(cards);
+        while (row.Children.Count < slots) row.Children.Add(EmptySlot());
     }
-    private static TextBlock Label(string text) => new() { Text = text, Foreground = MainWindow.Ink, FontSize = 12, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3) };
+
+    public static Control Joker(JokerState joker)
+    {
+        var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
+        return Named(CardFace(definition), definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}");
+    }
+
+    /// <summary>Tarots are played before the human bids, and not while another choice is open.</summary>
+    public static bool TarotUsable(CampaignGameView view) => view.ViewerSeat == 0 && view.PendingChoice is null
+        && view.LegalActions.Any(c => c is CampaignCommand.Bid or CampaignCommand.Pass or CampaignCommand.PanicButton);
+
+    /// <summary>A Tarot card. While usable, pressing it opens its targets and a button to play it.</summary>
+    public static Control Tarot(CampaignGameView view, int slot, bool usable, Func<CampaignCommand, Task> send)
+    {
+        var id = view.Inventory.Tarot[slot];
+        var definition = FeatureCatalog.Get(FeatureCategory.Tarot, id.ToString());
+        var face = CardFace(definition);
+        if (!usable) return Named(face, definition.Name, definition.Description);
+
+        face.BorderBrush = MainWindow.Gold;
+        face.BorderThickness = new Thickness(2);
+        var selected = new List<CardId>();
+        var required = id == TarotId.DevilishDeal ? 3 : id is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
+        var flyout = new Flyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
+        var use = new Button { Content = "Use " + definition.Name, IsEnabled = required == 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var body = new StackPanel { Spacing = 4, MaxWidth = 260 };
+        body.Children.Add(Label(definition.Name, MainWindow.Gold));
+        body.Children.Add(Label(definition.Description, MainWindow.Ink));
+        if (required > 0)
+        {
+            body.Children.Add(Label(required == 1 ? "Choose a card:" : $"Choose {required} cards:", MainWindow.Muted));
+            foreach (var card in view.Players[0].VisibleCards)
+            {
+                var choice = new CheckBox { Content = $"{card.Face.Code} · #{card.Id.Value + 1}", Foreground = MainWindow.Ink };
+                choice.IsCheckedChanged += (_, _) =>
+                {
+                    if (choice.IsChecked == true) selected.Add(card.Id); else selected.Remove(card.Id);
+                    use.IsEnabled = selected.Count == required;
+                };
+                body.Children.Add(choice);
+            }
+        }
+        use.Click += async (_, _) => { flyout.Hide(); await send(new CampaignCommand.UseTarot(slot, selected.ToArray())); };
+        body.Children.Add(use);
+        flyout.Content = body;
+        var button = new Button
+        {
+            Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), Flyout = flyout,
+            Template = new FuncControlTemplate<Button>((_, _) => face)
+        };
+        Avalonia.Automation.AutomationProperties.SetName(button, "Tarot: " + definition.Name);
+        return Named(button, definition.Name, definition.Description);
+    }
+
+    public static string Title(CampaignGameView view) => view.PendingChoice
+        ?? (view.LegalActions.Count == 0 ? "Waiting for the next player"
+            : view.LegalActions.Any(c => c is CampaignCommand.Bid or CampaignCommand.Pass) ? "Make your bid"
+            : view.LegalActions.Any(c => c is CampaignCommand.ChooseContract) ? "Choose the contract"
+            : view.LegalActions.All(c => CardOf(c) is not null) ? "Play a gold-outlined card"
+            : "Your move");
+
+    /// <summary>The legal actions that need a button. A card with exactly one play or exchange is pressed in hand instead.</summary>
+    public static IEnumerable<CampaignCommand> CenterCommands(CampaignGameView view) => view.LegalActions
+        .Where(command => CardOf(command) is not { } card || view.LegalActions.Count(other => CardOf(other) == card) != 1);
+
+    private static CardId? CardOf(CampaignCommand command) => command switch
+    {
+        CampaignCommand.Play play => play.Id,
+        CampaignCommand.Exchange exchange => exchange.Id,
+        _ => null
+    };
+
+    private static Border CardFace(FeatureDefinition definition)
+    {
+        var face = new Border
+        {
+            Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(6), Background = Brushes.White,
+            BorderBrush = Brush.Parse("#D8CDB9"), BorderThickness = new Thickness(1),
+            Child = PixelArt.CampaignIcon(definition)
+        };
+        Avalonia.Automation.AutomationProperties.SetName(face, $"{definition.Category}: {definition.Name}");
+        return face;
+    }
+
+    private static Border EmptySlot() => new()
+    {
+        Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(6), Opacity = .55,
+        Background = Brush.Parse("#33100B28"), BorderBrush = MainWindow.Line, BorderThickness = new Thickness(1)
+    };
+
+    private static T Named<T>(T card, string title, string description) where T : Control
+    {
+        ToolTip.SetTip(card, new StackPanel
+        {
+            Spacing = 4, MaxWidth = 260,
+            Children = { Label(title, MainWindow.Gold), Label(description, MainWindow.Ink) }
+        });
+        ToolTip.SetShowDelay(card, 120);
+        return card;
+    }
+
+    private static TextBlock Label(string text, IBrush brush) => new()
+    {
+        Text = text, Foreground = brush, FontSize = 12, TextWrapping = TextWrapping.Wrap,
+        FontFamily = ReferenceEquals(brush, MainWindow.Gold) ? PixelArt.Font : FontFamily.Default
+    };
+
     private static string Card(CardId id, CampaignGameView view)
     { var card = view.Players.SelectMany(p => p.VisibleCards).FirstOrDefault(c => c.Id == id); return card is null ? $"card #{id.Value + 1}" : $"{card.Face.Code} · #{id.Value + 1}"; }
     public static string Describe(CampaignCommand command, CampaignGameView view) => command switch

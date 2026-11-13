@@ -10,7 +10,8 @@ namespace BidEuchre.Desktop;
 
 internal static class MainMenu
 {
-    public static Control Build(Action openCampaign, Action openTable, Action openSettings, PixelMotion motion)
+    public static Control Build(Action openCampaign, Action openTable, Action openEngines, Action openRules,
+        Action openSettings, PixelMotion motion)
     {
         var content = new StackPanel
         {
@@ -45,7 +46,9 @@ internal static class MainMenu
             {
                 Entry("Play", true, openCampaign, 0),
                 Entry("Table", false, openTable, 1),
-                Entry("Settings", false, openSettings, 2)
+                Entry("Engines", false, openEngines, 2),
+                Entry("Rules", false, openRules, 3),
+                Entry("Settings", false, openSettings, 4)
             }
         });
         content.Children.Add(motion.Enter(new TextBlock
@@ -53,7 +56,7 @@ internal static class MainMenu
             Text = "UP / DOWN TO MOVE · ENTER TO SELECT", Foreground = Muted, FontSize = 10, Opacity = .8,
             FontFamily = PixelArt.Font, HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 22, 0, 0)
-        }, 760, 0, 0));
+        }, 900, 0, 0));
 
         return MenuParts.Scene(motion, content);
     }
@@ -74,7 +77,8 @@ internal static class MainMenu
             var angle = spread * 11;
             var card = new Border
             {
-                Width = width, Height = height, Child = PixelArt.CardContent(new Card(suits[index], Rank.Jack)),
+                Width = width, Height = height, CornerRadius = new CornerRadius(6), ClipToBounds = true,
+                Child = PixelArt.CardContent(new Card(suits[index], Rank.Jack)),
                 RenderTransform = new RotateTransform(angle),
                 RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative)
             };

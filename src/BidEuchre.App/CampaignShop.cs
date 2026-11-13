@@ -53,6 +53,68 @@ public static class CampaignShop
         resources.Wallets[0] = run.Money - offer.Price;
         return run with { Money = resources.Wallets[0], Resources = resources with { Inventory = inventory, Revision = resources.Revision + 1 }, Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with { Sold = true } : o).ToArray() } };
     }
+    /// <summary>How many shared-deck cards a Tarot must be aimed at.</summary>
+    public static int TarotTargets(TarotId tarot) => tarot == TarotId.DevilishDeal ? 3
+        : tarot is TarotId.TaxCollector or TarotId.Astronomer or TarotId.Gambler ? 0 : 1;
+
+    /// <summary>Buys a Tarot and plays it at once on cards of the shared deck, so it needs no inventory slot.
+    /// The changes last for the rest of the run.</summary>
+    public static CampaignRun BuyAndUse(CampaignRun run, string offerId, IReadOnlyList<CardId> targets)
+    {
+        if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
+        var offer = run.Shop.Offers.SingleOrDefault(o => o.Id == offerId);
+        if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
+        if (offer.Category != FeatureCategory.Tarot) throw new GameRuleException("Only a Tarot can be used from the shop.");
+        if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
+        var tarot = Enum.Parse<TarotId>(offer.FeatureId);
+        var resources = run.Resources.Copy(); var inventory = resources.Inventory; var deck = resources.Deck;
+        var required = TarotTargets(tarot);
+        if (targets.Count != required || targets.Distinct().Count() != required || targets.Any(id => deck.All(c => c.Id != id)))
+            throw new GameRuleException(required == 1 ? "Choose a card from the shared deck." : $"Choose {required} different cards from the shared deck.");
+        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == 8) throw new GameRuleException("All bidding options are unlocked.");
+        // The human must always have six cards that can be dealt to them.
+        bool CanEnhance(CardId id, EnhancementId enhancement) =>
+            deck.Count(c => (c.Id == id ? enhancement : c.Enhancement) == EnhancementId.Stinky) <= 18;
+        if (tarot == TarotId.Beggar && !CanEnhance(targets[0], EnhancementId.Stinky)) throw new GameRuleException("At least six non-Stinky cards must remain.");
+        // Everything is checked before the random draws and the changes to the deck.
+        var random = new CampaignRandom(resources.RandomState);
+        var money = run.Money - offer.Price;
+        void Change(CardId id, Func<CardState, CardState> update) => deck[Array.FindIndex(deck, c => c.Id == id)] = update(deck.First(c => c.Id == id));
+        void Enhance(CardId id, EnhancementId enhancement) => Change(id, c => c with { Enhancement = enhancement });
+        switch (tarot)
+        {
+            case TarotId.LovePotion: Change(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Hearts)); break;
+            case TarotId.Nightshade: Change(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Spades)); break;
+            case TarotId.CloverTonic: Change(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Clubs)); break;
+            case TarotId.CrystalElixir: Change(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Diamonds)); break;
+            case TarotId.TaxCollector: money += Math.Min(20, money); break;
+            case TarotId.Astronomer:
+                var options = Enum.GetValues<PlanetId>().Except(inventory.Unlocks).ToArray();
+                inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[random.NextInt(options.Length)]] }; break;
+            case TarotId.Gambler:
+                var choices = deck.Select(c => c.Id).ToList(); random.Shuffle(choices);
+                foreach (var id in choices.Take(2)) Enhance(id, EnhancementId.Lucky); break;
+            case TarotId.DevilishDeal:
+                foreach (var id in targets.Take(2))
+                { var pool = Enum.GetValues<EnhancementId>().Where(e => CanEnhance(id, e)).ToArray(); Enhance(id, pool[random.NextInt(pool.Length)]); }
+                Enhance(targets[2], EnhancementId.Cursed); break;
+            default:
+                Enhance(targets[0], tarot switch
+                {
+                    TarotId.Chameleon => EnhancementId.Wild, TarotId.Grindstone => EnhancementId.Stone, TarotId.Prospector => EnhancementId.Golden,
+                    TarotId.Merchant => EnhancementId.Emerald, TarotId.Glassblower => EnhancementId.Glass, TarotId.Traitor => EnhancementId.Silver,
+                    TarotId.Beggar => EnhancementId.Stinky, TarotId.SpringLoaded => EnhancementId.Bouncy,
+                    _ => throw new GameRuleException("Unknown Tarot.")
+                }); break;
+        }
+        resources.Wallets[0] = money;
+        return run with
+        {
+            Money = money,
+            Resources = resources with { Inventory = inventory, RandomState = random.State, Revision = resources.Revision + 1 },
+            Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with { Sold = true } : o).ToArray() }
+        };
+    }
     public static CampaignRun SellJoker(CampaignRun run, JokerId id)
     {
         if (run.Phase != CampaignPhase.Shop || !run.Resources.Inventory.Has(id)) throw new GameRuleException("That Joker cannot be sold now.");
