@@ -1,0 +1,54 @@
+{
+  "generator": "built-in image_gen",
+  "reference": "preview.png (style only)",
+  "jobs": [
+    {
+      "id": "planet:lowballer",
+      "category": "planet",
+      "slug": "lowballer",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: lowballer — a small teal planet sitting low inside a wide golden orbital ring, two bright golden stars floating above; simple compact silhouette."
+    },
+    {
+      "id": "planet:chaos",
+      "category": "planet",
+      "slug": "chaos",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: chaos — a cracked violet planet with red and teal fragments spinning around a crooked golden orbit; playful cosmic disorder."
+    },
+    {
+      "id": "planet:poker",
+      "category": "planet",
+      "slug": "poker",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: poker — a violet ringed planet behind a fan of five ivory playing cards with simple tiny red and black suit shapes, a gold poker chip in front; no ranks or letters."
+    },
+    {
+      "id": "planet:duelist",
+      "category": "planet",
+      "slug": "duelist",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: duelist — two crossed silver swords with crimson and teal hilts in front of a small red planet and a thin golden orbit."
+    },
+    {
+      "id": "planet:telepath",
+      "category": "planet",
+      "slug": "telepath",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: telepath — a single large luminous teal psychic eye at the center of a violet planet with golden concentric orbital arcs."
+    },
+    {
+      "id": "planet:partners-best",
+      "category": "planet",
+      "slug": "partners-best",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: partners best — two equal teal and violet planets linked by a golden orbital loop, two tiny ivory playing cards traveling between them in opposite directions."
+    },
+    {
+      "id": "planet:alone",
+      "category": "planet",
+      "slug": "alone",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: alone — one solitary luminous cyan planet with a broad dark violet crescent shadow and one thin golden ring; strong simple isolated silhouette, no neighboring planets."
+    },
+    {
+      "id": "planet:panic-button",
+      "category": "planet",
+      "slug": "panic-button",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary planet-card inventory icon for retro pixel-art Bid Euchre game. Input image: STYLE REFERENCE ONLY, a contact sheet of existing icons; do not recreate the sheet. Create ONE square standalone icon. Match the reference's chunky low-resolution pixel art, hard pixel clusters, dark navy opaque background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Designed to read at 64 by 64 pixels. Center the subject within 12 percent safe padding and fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: panic button — a large shiny crimson emergency push button on a gold and violet circular base with a cosmic ring and two tiny gold warning sparks; no words."
+    }
+  ]
+}

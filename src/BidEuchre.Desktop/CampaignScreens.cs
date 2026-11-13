@@ -48,18 +48,6 @@ internal static class CampaignScreens
             buttons, null);
     }
 
-    public static Control Intro(CampaignRun run, Action start, Action back, string? note, PixelMotion motion)
-    {
-        var lines = new List<Control> { Line($"MATCH {run.MatchInAnte} OF 3", Green) };
-        if (run.IsBoss) lines.Add(Line("BOSS MATCH · LOSING COSTS 2 LIVES", Danger));
-        lines.Add(Line($"♥ {run.Lives}   ${run.Money}", Ink, 20));
-        lines.Add(Line(
-            $"YOUR TEAM STARTS AT {run.PlayerStartingScore} · OPPONENTS AT {run.OpponentStartingScore} · FIRST TO {CampaignRun.TargetScore}",
-            Muted));
-        return Frame(motion, $"ANTE {run.Ante}", lines,
-            Buttons(motion, lines.Count, ScreenButton(motion, "Start Match", start, primary: true), ScreenButton(motion, "Main Menu", back)), note);
-    }
-
     public static Control Result(CampaignRun run, MatchOutcome outcome, int[]? scores, Action next, string? note, PixelMotion motion)
     {
         var lines = new List<Control>();
@@ -67,7 +55,8 @@ internal static class CampaignScreens
         if (outcome.Forfeited) lines.Add(Line("Match forfeited", Danger));
         lines.Add(Line(outcome.LivesLost > 0 ? $"LIVES −{outcome.LivesLost} · ♥ {Math.Max(0, run.Lives)}" : $"♥ {run.Lives}",
             outcome.LivesLost > 0 ? Danger : Green));
-        lines.Add(Line($"PAYOUT +${outcome.Payout}", Muted));
+        lines.Add(Line($"BASE +${outcome.BaseReward} · WIN MARGIN +${outcome.MarginBonus}", Muted));
+        lines.Add(Line("Card and Joker money is included in your balance.", Muted));
         lines.Add(Line($"INTEREST +${outcome.Interest}", Muted));
         lines.Add(Line($"TOTAL ${outcome.Money}", Ink, 20));
         return Frame(motion, outcome.Won ? "MATCH WON" : "MATCH LOST", lines,
@@ -102,7 +91,9 @@ internal static class CampaignScreens
         rule.Margin = new Thickness(0, 0, 0, 8);
         var stack = new StackPanel
         {
-            Spacing = 12, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            Spacing = 12,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
         };
         stack.Children.Add(motion.Enter(MenuParts.Title(motion, title, 46), 0, 0, -22, easing: new BackEaseOut(), duration: 360));
         stack.Children.Add(motion.Enter(rule, 140, 0, 0));
@@ -129,9 +120,14 @@ internal static class CampaignScreens
 
     private static TextBlock Line(string text, IBrush color, double size = 12) => new()
     {
-        Text = text, Foreground = color, FontSize = size, FontFamily = PixelArt.Font,
-        HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center,
-        TextWrapping = TextWrapping.Wrap, MaxWidth = 560
+        Text = text,
+        Foreground = color,
+        FontSize = size,
+        FontFamily = PixelArt.Font,
+        HorizontalAlignment = HorizontalAlignment.Center,
+        TextAlignment = TextAlignment.Center,
+        TextWrapping = TextWrapping.Wrap,
+        MaxWidth = 560
     };
 
     private static Button ScreenButton(PixelMotion motion, string text, Action click, bool primary = false,

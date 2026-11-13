@@ -42,7 +42,7 @@ internal sealed class CampaignFlow(
     public void MatchCompleted(bool won, int[] scores)
     {
         if (Run is not { Phase: CampaignPhase.InMatch } run) return;
-        var (next, outcome) = run.ApplyResult(won, scores[0]);
+        var (next, outcome) = run.ApplyResult(won, scores[0], scores[1]);
         Record(next);
         _pendingResult = (outcome, scores);
     }
@@ -83,7 +83,18 @@ internal sealed class CampaignFlow(
         }
     }
 
-    private void ShowIntro() => show(CampaignScreens.Intro(Run!, BeginMatch, showMenu, TakeNote(), motion));
+    private void ShowIntro()
+    {
+        var revision = Run!.Resources.Revision;
+        show(CampaignAnteScreen.Build(Run, BeginMatch, showMenu, TakeNote(), motion,
+            (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision)));
+    }
+
+    // Stored cards are played from the shop and from the screen before a match; both come back to where they were.
+    private void ShowHome()
+    {
+        if (Run?.Phase is CampaignPhase.Intro) ShowIntro(); else ShowShop();
+    }
 
     private async void BeginMatch()
     {
@@ -94,11 +105,11 @@ internal sealed class CampaignFlow(
             Persist(run.StartMatch());
             await startMatch(run.NextMatch());
         }
-        catch (Exception)
+        catch (Exception error)
         {
             // A table that never opened is not a forfeit; MainWindow has already reported why.
             Persist(run);
-            _note = "The match could not start.";
+            _note = $"The match could not start: {error.Message}";
             ShowIntro();
         }
         finally
@@ -152,12 +163,95 @@ internal sealed class CampaignFlow(
         ShowShop();
     }, showMenu, motion));
 
-    private void ShowShop() => show(CampaignScreens.Shop(Run!, () =>
+    public bool Checkpoint(CampaignSnapshot snapshot)
     {
-        if (Run is not { Phase: CampaignPhase.Shop } run) return;
-        Persist(run.LeaveShop());
-        ShowIntro();
-    }, motion));
+        if (Run is not { Phase: CampaignPhase.InMatch } run || snapshot.Revision < run.LastAppliedRevision) return false;
+        Run = run with { Resources = snapshot.Copy(), Money = snapshot.Wallets[0], LastAppliedRevision = snapshot.Revision };
+        var saved = CampaignStore.Save(Run, savePath); if (!saved) _note = "Could not save progress."; return saved;
+    }
+
+    private void ShowShop()
+    {
+        if (Run is null) return;
+        Persist(CampaignShop.Open(Run));
+        var revision = Run!.Resources.Revision;
+        show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
+            (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
+            () => { Persist(Run!.LeaveShop()); ShowIntro(); }), motion, TakeNote()));
+    }
+    private void InspectDeck()
+    {
+        if (Run is null) return;
+        show(CampaignDeckPicker.Build(Run.Resources.Deck, 0, _ => { }, ShowShop, motion, "Shared deck · changes last for this run"));
+    }
+    private void Buy(string id) => Transact(() => CampaignShop.Buy(Run!, id));
+    // Items used from the shop are aimed at the shared deck, since there is no hand to aim at.
+    private void BuyAndUse(string id)
+    {
+        if (Run?.Shop?.Offers.SingleOrDefault(o => o.Id == id) is not { } offer || offer.Category is not (FeatureCategory.Tarot or FeatureCategory.Sigil)) return;
+        var definition = FeatureCatalog.Get(offer.Category, offer.FeatureId);
+        var required = offer.Category == FeatureCategory.Sigil ? 1 : CampaignShop.TarotTargets(Enum.Parse<TarotId>(offer.FeatureId));
+        CampaignRun Use(CardId[] targets)
+        {
+            var before = Run!;
+            var after = CampaignShop.BuyAndUse(before, id, targets);
+            _note = UseReport(definition.Name, before, after);
+            return after;
+        }
+        if (required == 0) Transact(() => Use([]));
+        else ChooseFromDeck(required, $"{definition.Name} · {definition.Description}", $"Buy & Use ${offer.Price}", Use);
+    }
+    // Outside a match a stored card is aimed at the shared deck, as one bought and used at once is.
+    private void UseItem(FeatureCategory category, int slot, long revision)
+    {
+        if (Run?.Resources.Revision != revision) { _note = "Your cards changed. Choose again."; ShowHome(); return; }
+        var inventory = Run.Resources.Inventory;
+        var sigil = category == FeatureCategory.Sigil;
+        var definition = FeatureCatalog.Get(category, sigil ? inventory.Sigils[slot].ToString() : inventory.Tarot[slot].ToString());
+        var required = sigil ? 1 : CampaignShop.TarotTargets(inventory.Tarot[slot]);
+        CampaignRun Use(CardId[] targets)
+        {
+            var before = Run!;
+            var after = sigil ? CampaignShop.UseSigil(before, slot, targets[0], revision) : CampaignShop.UseTarot(before, slot, targets, revision);
+            _note = UseReport(definition.Name, before, after);
+            return after;
+        }
+        if (required == 0) Transact(() => Use([]));
+        else ChooseFromDeck(required, $"{definition.Name} · {definition.Description}", sigil ? "Use Sigil" : "Use Tarot", Use);
+    }
+    private void ChooseFromDeck(int required, string title, string confirm, Func<CardId[], CampaignRun> update)
+    {
+        var revision = Run!.Resources.Revision;
+        show(CampaignDeckPicker.Build(Run.Resources.Deck, required, targets =>
+        {
+            if (Run?.Resources.Revision != revision) { _note = "Your cards changed. Choose again."; ShowHome(); return; }
+            Transact(() => update(targets));
+        }, ShowHome, motion, title, confirm));
+    }
+    // Says what a Tarot did, naming the outcome of the ones that draw at random. Good news ends in "!".
+    private static string UseReport(string name, CampaignRun before, CampaignRun after)
+    {
+        static string Card(CardState card) => $"{Core.Card.DisplayRank(card.Face.Rank)} of {card.Face.Suit}";
+        var planets = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks)
+            .Select(id => FeatureCatalog.Get(FeatureCategory.Planet, id.ToString()).Name).ToArray();
+        if (planets.Length > 0) return $"{name} unlocked the {planets[0]} bid!";
+        // Card ids keep their place in the deck, so the same index is the same physical card.
+        var changes = after.Resources.Deck.Select((card, index) => (Old: before.Resources.Deck[index], New: card)).Where(pair => pair.Old != pair.New)
+            .Select(pair => pair.New.Sigil is { } sigil && pair.Old.Sigil != sigil
+                ? $"{Card(pair.Old)} now carries {sigil}"
+                : pair.New.Enhancement is { } enhancement && pair.Old.Enhancement != enhancement
+                ? $"{Card(pair.Old)} is now {enhancement}" : $"{Card(pair.Old)} is now the {Card(pair.New)}").ToArray();
+        if (changes.Length > 0) return $"{name}: {string.Join(", ", changes)}!";
+        return $"Used {name}!";
+    }
+    private void Sell(JokerId id) => Transact(() => CampaignShop.SellJoker(Run!, id));
+    private void Discard(FeatureCategory category, int slot, long revision) => Transact(() => category == FeatureCategory.Sigil
+        ? CampaignShop.DiscardSigil(Run!, slot, revision) : CampaignShop.DiscardTarot(Run!, slot, revision));
+    private void Transact(Func<CampaignRun> update)
+    {
+        try { Persist(update()); } catch (GameRuleException error) { _note = error.Message; }
+        ShowHome();
+    }
 
     // A failed save never stops play; the next screen says progress was not saved.
     private void Persist(CampaignRun run)

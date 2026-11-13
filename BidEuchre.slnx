@@ -9,6 +9,7 @@
     <Project Path="src/BidEuchre.Server/BidEuchre.Server.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/BidEuchre.Desktop.Tests/BidEuchre.Desktop.Tests.csproj" />
     <Project Path="tests/BidEuchre.Tests/BidEuchre.Tests.csproj" />
   </Folder>
 </Solution>

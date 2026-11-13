@@ -1,3 +1,5 @@
+using BidEuchre.Core;
+
 using System.Text.Json;
 
 namespace BidEuchre.App;
@@ -9,7 +11,22 @@ public static class CampaignStore
     {
         try
         {
-            var run = JsonSerializer.Deserialize<CampaignRun>(File.ReadAllText(path));
+            var text = File.ReadAllText(path);
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return null;
+            CampaignRun? run;
+            if (root.TryGetProperty("Version", out var version))
+            {
+                if (!version.TryGetInt32(out var number) || number != 2) return null;
+                run = JsonSerializer.Deserialize<CampaignSave>(text, CampaignJson.Options)?.Run;
+            }
+            else
+            {
+                run = JsonSerializer.Deserialize<CampaignRun>(text);
+                if (run is not null) run = run with { Resources = CampaignSnapshot.Create(1) with { Wallets = new[] { run.Money, 0, 0, 0 } } };
+            }
+            if (run?.Resources is null || !run.Resources.IsValid()) return null;
             return run is { Lives: > 0, Match: >= 1, Money: >= 0, MatchesWon: >= 0 } && Enum.IsDefined(run.Phase)
                 ? run
                 : null;
@@ -27,7 +44,7 @@ public static class CampaignStore
         {
             var directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(run));
+            File.WriteAllText(temporary, JsonSerializer.Serialize(new CampaignSave(2, run with { Resources = run.Resources with { Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } }), CampaignJson.Options));
             File.Move(temporary, path, overwrite: true);
             return true;
         }

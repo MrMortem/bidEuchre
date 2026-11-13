@@ -6,7 +6,7 @@ internal sealed record FixtureStart(
     int Dealer,
     int[] Scores,
     int HandNumber = 1,
-    long DealSerial = 1);
+    long DealSerial = 1, CampaignSnapshot? Campaign = null, MatchOptions? Options = null, CardOverlay[]? CampaignOverlays = null);
 
 public sealed partial class GameEngine
 {
@@ -43,7 +43,7 @@ public sealed partial class GameEngine
             throw new ArgumentException("Hand number and deal serial must be positive.", nameof(start));
         }
 
-        var game = new GameEngine(start.Names)
+        var game = new GameEngine(start.Names, options: start.Options, campaign: start.Campaign is null ? null : new CampaignContext(start.Campaign))
         {
             Dealer = start.Dealer,
             HandNumber = start.HandNumber,
@@ -51,6 +51,8 @@ public sealed partial class GameEngine
             Phase = GamePhase.Bidding,
             CurrentSeat = GameRules.NextSeat(start.Dealer)
         };
+        if (start.CampaignOverlays is not null)
+            foreach (var overlay in start.CampaignOverlays) game._overlays.Add(overlay.Id, overlay);
         start.Scores.CopyTo(game._scores, 0);
         if (game.DetermineGameWinner() is not null)
         {

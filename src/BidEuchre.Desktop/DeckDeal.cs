@@ -40,7 +40,7 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
         _landed.Clear();
         Running = true;
         foreach (var card in _cards.Values) card.Card.Opacity = 0;
-        _deck = new Canvas { Width = 66, Height = 94, IsHitTestVisible = false };
+        _deck = new Canvas { Width = 132, Height = 188, IsHitTestVisible = false };
         for (var i = 0; i < 4; i++)
         {
             var back = Back();
@@ -87,12 +87,12 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
         { Cancel(); return; }
         // The deck sits between the dealer's portrait and the center of the table.
         var origin = new Point(dealerCenter.X * .65 + center.X * .35, dealerCenter.Y * .65 + center.Y * .35);
-        var deckWidth = 52d;
+        var deckWidth = 104d;
         if (_cards.TryGetValue((_dealer, 0), out var dealerCard)) deckWidth = Width(dealerCard.Card);
         if (deckWidth <= 0) return; // Wait for layout before measuring a scaled table.
         if (_deck is not null)
         {
-            _deck.RenderTransform = new ScaleTransform(deckWidth / 62, deckWidth / 62);
+            _deck.RenderTransform = new ScaleTransform(deckWidth / 124, deckWidth / 124);
             Canvas.SetLeft(_deck, origin.X - deckWidth / 2);
             Canvas.SetTop(_deck, origin.Y - deckWidth * 88 / 62 / 2);
         }
@@ -146,8 +146,9 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
     }
     private static Border Back() => new()
     {
-        Width = 62, Height = 88, BorderBrush = Brushes.White, BorderThickness = new Thickness(2),
-        Background = Brush.Parse("#153583"), Child = new Viewbox { Stretch = Stretch.Fill, Child = PixelArt.Back() }, IsHitTestVisible = false,
+        Width = 124, Height = 176, BorderBrush = Brushes.White, BorderThickness = new Thickness(2),
+        CornerRadius = new CornerRadius(10), ClipToBounds = true,
+        Background = Brushes.White, Child = new Viewbox { Stretch = Stretch.Fill, Child = PixelArt.Back() }, IsHitTestVisible = false,
         RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative)
     };
 }

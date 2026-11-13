@@ -18,6 +18,14 @@ Original retro playing-card court illustration atlas. EXACT 3 equal columns, one
 
 Original ornate playing card BACK for pixel art euchre game inspired by retro casino games. One single upright rectangular card design, ratio 2:3, centered fills canvas, ivory thin stepped border, rich cobalt blue and navy field, intricate symmetric ivory pixel diamond lattice and tiny star ornaments, central ornamental diamond medallion. Crisp low resolution pixel clusters, flat colors. Rotationally symmetric. No text no letters no numbers no perspective no shadow, no surrounding scene.
 
+### Rounded back repair (2026-11-13)
+
+Edited `back.png` with the built-in image generation tool to replace the opaque navy corner wedges with transparent alpha and a rounded ivory rim. Both clients continue to consume the shared `back.png` asset.
+
+Prompt:
+
+> Use case: background-extraction / precise-object-edit. Edit target: the supplied existing game card-back sprite. Fix ONLY its outer silhouette for rounded playing cards. Preserve the existing ivory and cobalt/navy pixel lattice, central medallion, ornament positions, rotational symmetry, and crisp pixel artwork faithfully. Remove opaque navy OUTSIDE the outer ivory border; replace it with actual transparent alpha. Repair the outer ivory border so it follows one clean rounded-rectangle silhouette on all four corners, with a uniform thin ivory rim. Single upright card sprite, tightly fitted to canvas, same 2:3 aspect ratio. Corner radius about 7% of card width. Keep the entire interior design, no added details, no shadows, no text, no perspective, no surrounding background, no checkerboard baked in. Output production PNG with actual transparent corners.
+
 ## Interchangeable card sprites
 
 `card-faces.png` is a transparent 6-column × 4-row atlas. Every cell is 124 × 176 pixels. Columns: 9, 10, J, Q, K, A. Rows: clubs, diamonds, hearts, spades. `cards.json` lists exact rectangles and `cards/<code>.png` contains individual transparent exports. `card-background-white.png` is a separate opaque white layer. `cards-preview.png` composites the full deck for inspection.

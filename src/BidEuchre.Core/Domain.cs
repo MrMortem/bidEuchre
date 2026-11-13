@@ -85,6 +85,7 @@ public readonly record struct Card(Suit Suit, Rank Rank)
 
 public enum BidLevel
 {
+    Two = 2,
     Three = 3,
     Four = 4,
     Five = 5,
@@ -114,14 +115,14 @@ public enum GamePhase
 
 public sealed record Contract(BidLevel Bid, ContractMode Mode, Suit? Trump)
 {
-    public int RequiredTricks => Bid is >= BidLevel.Three and <= BidLevel.Six ? (int)Bid : 6;
+    public int RequiredTricks => Bid is >= BidLevel.Two and <= BidLevel.Six ? (int)Bid : 6;
     public bool IsPartnersBest => Bid is BidLevel.PartnersBest;
     public bool IsAlone => Bid is BidLevel.Alone;
     internal bool PartnerSitsOut => IsPartnersBest || IsAlone;
 
     public static Contract Create(BidLevel bid, ContractMode mode, Suit? trump)
     {
-        if (!Enum.IsDefined(bid))
+        if (!Enum.IsDefined(bid) || bid == BidLevel.Two)
         {
             throw new GameRuleException("Unknown bid level.");
         }
@@ -170,6 +171,10 @@ public sealed record HandResult(
     string Reason);
 
 // Free play uses the defaults; the campaign shortens the race and handicaps a team.
-public sealed record MatchOptions(int TargetScore = 40, int StartingScoreTeam0 = 0, int StartingScoreTeam1 = 0);
+public sealed record MatchOptions(int TargetScore = 40, int StartingScoreTeam0 = 0, int StartingScoreTeam1 = 0)
+{
+    public int? NegativeThreshold { get; init; }
+    public int? HandLimit { get; init; }
+}
 
 public sealed class GameRuleException(string message) : InvalidOperationException(message);

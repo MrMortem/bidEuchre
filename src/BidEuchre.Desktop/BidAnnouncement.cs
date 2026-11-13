@@ -9,7 +9,7 @@ using Avalonia.Threading;
 
 namespace BidEuchre.Desktop;
 
-/// <summary>A replaceable, non-interactive bid stamp that flies into the side rail.</summary>
+/// <summary>A replaceable, non-interactive bid stamp that flies from the board into the top strip.</summary>
 internal sealed class BidAnnouncement(Canvas overlay, Control table, ContentControl dock)
 {
     private CancellationTokenSource? _source;
@@ -61,32 +61,44 @@ internal sealed class BidAnnouncement(Canvas overlay, Control table, ContentCont
         badge.Width = 240;
         badge.Measure(new Size(240, double.PositiveInfinity));
         var height = badge.DesiredSize.Height;
-        Canvas.SetLeft(badge, center.Value.X - 120);
-        Canvas.SetTop(badge, center.Value.Y - height / 2);
+        // The stamp fades up over the bid buttons, holds, then shrinks into its slot in the top
+        // strip, arriving at the docked badge's own size so the hand-over does not jump.
         var shift = new TranslateTransform();
-        badge.RenderTransform = shift;
-        var dockVisible = destination.Value.Y - dock.Bounds.Height / 2 >= 0 &&
-            destination.Value.Y + dock.Bounds.Height / 2 <= overlay.Bounds.Height;
-        var x = (dockVisible ? destination.Value.X : -136) - center.Value.X;
-        var y = dockVisible ? destination.Value.Y - center.Value.Y : 0;
-        var animation = new Animation
+        var size = new ScaleTransform(.9, .9);
+        badge.RenderTransform = size;
+        badge.RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative);
+        var flyer = new Border { Child = badge, RenderTransform = shift, Opacity = 0, IsHitTestVisible = false };
+        Canvas.SetLeft(flyer, center.Value.X - 120);
+        Canvas.SetTop(flyer, center.Value.Y - height / 2);
+        var docked = dock.TranslatePoint(new Point(dock.Bounds.Width, 0), overlay) is { } right
+            ? Math.Abs(right.X - (destination.Value.X - dock.Bounds.Width / 2)) : dock.Bounds.Width;
+        var shrink = docked > 0 ? Math.Clamp(docked / 240, .2, 1) : .5;
+        var x = destination.Value.X - center.Value.X;
+        var y = destination.Value.Y - center.Value.Y;
+        var duration = TimeSpan.FromMilliseconds(950);
+        var travel = new Animation
         {
-            Duration = TimeSpan.FromMilliseconds(800), Easing = new CubicEaseInOut(), FillMode = FillMode.Forward,
+            Duration = duration, Easing = new CubicEaseInOut(), FillMode = FillMode.Forward,
             Children =
             {
-                Frame(0, 0, 0), Frame(.5, 0, 0), Frame(1, x, y)
+                Move(0, 0, 0, 0), Move(.16, 0, 0, 1), Move(.5, 0, 0, 1), Move(1, x, y, 1)
             }
+        };
+        var resize = new Animation
+        {
+            Duration = duration, Easing = new CubicEaseInOut(), FillMode = FillMode.Forward,
+            Children = { Size(0, .9), Size(.16, 1), Size(.5, 1), Size(1, shrink) }
         };
         using var source = new CancellationTokenSource();
         _source = source;
-        _badge = badge;
+        _badge = flyer;
         dock.Opacity = 0;
-        overlay.Children.Add(badge);
-        try { await animation.RunAsync(badge, source.Token); }
+        overlay.Children.Add(flyer);
+        try { await Task.WhenAll(travel.RunAsync(flyer, source.Token), resize.RunAsync(badge, source.Token)); }
         catch (OperationCanceledException) { }
         finally
         {
-            overlay.Children.Remove(badge);
+            overlay.Children.Remove(flyer);
             if (ReferenceEquals(_source, source))
             {
                 _source = null;
@@ -96,10 +108,20 @@ internal sealed class BidAnnouncement(Canvas overlay, Control table, ContentCont
         }
     }
 
-    private static KeyFrame Frame(double cue, double x, double y) => new()
+    private static KeyFrame Move(double cue, double x, double y, double opacity) => new()
     {
         Cue = new Cue(cue),
-        Setters = { new Setter(TranslateTransform.XProperty, x), new Setter(TranslateTransform.YProperty, y) }
+        Setters =
+        {
+            new Setter(TranslateTransform.XProperty, x), new Setter(TranslateTransform.YProperty, y),
+            new Setter(Visual.OpacityProperty, opacity)
+        }
+    };
+
+    private static KeyFrame Size(double cue, double scale) => new()
+    {
+        Cue = new Cue(cue),
+        Setters = { new Setter(ScaleTransform.ScaleXProperty, scale), new Setter(ScaleTransform.ScaleYProperty, scale) }
     };
 
     private static Border Badge(string value, string player, bool compact) => new()

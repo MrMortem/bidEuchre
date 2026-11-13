@@ -1,0 +1,360 @@
+{
+  "generator": "built-in image_gen",
+  "use": "temporary pixel-art inventory icons",
+  "jobs": [
+    {
+      "id": "joker:threes-company",
+      "category": "joker",
+      "slug": "threes-company",
+      "prompt": "Use case: stylized-concept. Asset type: small placeholder inventory icon for a retro pixel-art Bid Euchre game. Subject: Three's Company joker — three cheerful jester faces grouped together, three different pointed hats, a tiny trio of gold dots. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art, designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette matching a retro casino game. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. This is temporary game artwork."
+    },
+    {
+      "id": "joker:high-roller",
+      "category": "joker",
+      "slug": "high-roller",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: high roller joker — a swaggering jester in sunglasses balancing a large golden die."
+    },
+    {
+      "id": "joker:lover-boy",
+      "category": "joker",
+      "slug": "lover-boy",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: lover boy joker — a charming red-haired jester hugging a bright red heart."
+    },
+    {
+      "id": "joker:snake-eyes",
+      "category": "joker",
+      "slug": "snake-eyes",
+      "prompt": "Create a small retro pixel art inventory icon for a board game: two ivory six-sided dice, each showing one black dot on the top face, next to a small coiled green cartoon snake. Square dark navy background, hard chunky pixel clusters, simple limited green gold purple colors, centered with generous padding, readable at 64 by 64 pixels. No text, no numerals, no frame."
+    },
+    {
+      "id": "joker:twin-flame",
+      "category": "joker",
+      "slug": "twin-flame",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: twin flame joker — two intertwined flames, one red and one blue, with tiny faces."
+    },
+    {
+      "id": "joker:clubhouse",
+      "category": "joker",
+      "slug": "clubhouse",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: clubhouse joker — a cozy tiny wooden clubhouse with a large green club suit emblem."
+    },
+    {
+      "id": "joker:the-undertaker",
+      "category": "joker",
+      "slug": "the-undertaker",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: the undertaker joker — a solemn undertaker in a tall black hat holding a small shovel."
+    },
+    {
+      "id": "joker:roller-coaster",
+      "category": "joker",
+      "slug": "roller-coaster",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: roller coaster joker — a bright red roller coaster cart riding a curved golden track."
+    },
+    {
+      "id": "joker:deja-vu",
+      "category": "joker",
+      "slug": "deja-vu",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: deja vu joker — two identical violet jester masks overlapping with a looping arrow."
+    },
+    {
+      "id": "joker:last-laugh",
+      "category": "joker",
+      "slug": "last-laugh",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: last laugh joker — a grinning purple jester face with gold bells and a red grin."
+    },
+    {
+      "id": "joker:vowof-silence",
+      "category": "joker",
+      "slug": "vowof-silence",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: vowof silence joker — a hooded violet jester holding one finger to closed lips."
+    },
+    {
+      "id": "joker:cure-all",
+      "category": "joker",
+      "slug": "cure-all",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: cure all joker — a teal medicine bottle with a luminous gold plus emblem and cork."
+    },
+    {
+      "id": "joker:trend-setter",
+      "category": "joker",
+      "slug": "trend-setter",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: trend setter joker — a stylish jester in a red beret and teal sunglasses with four tiny matching hearts."
+    },
+    {
+      "id": "joker:contrarian",
+      "category": "joker",
+      "slug": "contrarian",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: contrarian joker — a red fish swimming left against three small blue fish swimming right."
+    },
+    {
+      "id": "joker:consolation-prize",
+      "category": "joker",
+      "slug": "consolation-prize",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: consolation prize joker — a small silver trophy with a red ribbon and a single gold star."
+    },
+    {
+      "id": "joker:royal-council",
+      "category": "joker",
+      "slug": "royal-council",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: royal council joker — a group of four tiny royal crowned faces around a gold table."
+    },
+    {
+      "id": "joker:deep-digger",
+      "category": "joker",
+      "slug": "deep-digger",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: deep digger joker — a miner jester with a pickaxe and a purple spade suit gem."
+    },
+    {
+      "id": "joker:lucky-duck",
+      "category": "joker",
+      "slug": "lucky-duck",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: lucky duck joker — a cheerful yellow duck holding a green four-leaf clover."
+    },
+    {
+      "id": "joker:protective-bubble",
+      "category": "joker",
+      "slug": "protective-bubble",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: protective bubble joker — a small anxious jester inside a round luminous cyan protective bubble."
+    },
+    {
+      "id": "joker:penny-pincher",
+      "category": "joker",
+      "slug": "penny-pincher",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: penny pincher joker — a crab claw tightly pinching a shiny gold coin."
+    },
+    {
+      "id": "joker:bully",
+      "category": "joker",
+      "slug": "bully",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: bully joker — a burly cartoon jester with folded arms and thick red eyebrows."
+    },
+    {
+      "id": "joker:people-pleaser",
+      "category": "joker",
+      "slug": "people-pleaser",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: people pleaser joker — a smiling jester offering flowers in one hand and a gold gift in the other."
+    },
+    {
+      "id": "joker:millionaire",
+      "category": "joker",
+      "slug": "millionaire",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: millionaire joker — a dapper jester in a top hat and monocle with a large cyan diamond."
+    },
+    {
+      "id": "joker:king-midas",
+      "category": "joker",
+      "slug": "king-midas",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: king midas joker — a king with a golden hand and golden crown touching a playing card."
+    },
+    {
+      "id": "joker:sticky-fingers",
+      "category": "joker",
+      "slug": "sticky-fingers",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: sticky fingers joker — a purple gloved hand secretly lifting a small white playing card."
+    },
+    {
+      "id": "joker:medusa",
+      "category": "joker",
+      "slug": "medusa",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: medusa joker — a green Medusa face with snake hair and stone-gray eyes."
+    },
+    {
+      "id": "joker:cheese-touch",
+      "category": "joker",
+      "slug": "cheese-touch",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: cheese touch joker — a yellow wedge of holey cheese touched by a green fingertip."
+    },
+    {
+      "id": "joker:one-up",
+      "category": "joker",
+      "slug": "one-up",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: one up joker — a springy green upward arrow lifting two small playing cards."
+    },
+    {
+      "id": "joker:cheater",
+      "category": "joker",
+      "slug": "cheater",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: cheater joker — a sly purple jester peeking around a playing card with a single large eye."
+    },
+    {
+      "id": "joker:alpha",
+      "category": "joker",
+      "slug": "alpha",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: alpha joker — a confident silver wolf head wearing a tiny gold crown."
+    },
+    {
+      "id": "joker:slick-willy",
+      "category": "joker",
+      "slug": "slick-willy",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: slick willy joker — a slick-haired grinning cardsharp in a purple suit, a playing card tucked in his sleeve."
+    },
+    {
+      "id": "sigil:coin",
+      "category": "sigil",
+      "slug": "coin",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: coin sigil — a single embossed golden coin with a bold central dot."
+    },
+    {
+      "id": "sigil:bear",
+      "category": "sigil",
+      "slug": "bear",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: bear sigil — a powerful brown bear head facing forward."
+    },
+    {
+      "id": "sigil:eagle",
+      "category": "sigil",
+      "slug": "eagle",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: eagle sigil — a golden eagle with wings spread symmetrically."
+    },
+    {
+      "id": "sigil:fish",
+      "category": "sigil",
+      "slug": "fish",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: fish sigil — a bright cyan fish in profile with gold fins."
+    },
+    {
+      "id": "sigil:spider",
+      "category": "sigil",
+      "slug": "spider",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: spider sigil — a purple eight-legged spider on a small silver web."
+    },
+    {
+      "id": "sigil:snake",
+      "category": "sigil",
+      "slug": "snake",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: snake sigil — a coiled green snake with red tongue."
+    },
+    {
+      "id": "sigil:frog",
+      "category": "sigil",
+      "slug": "frog",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: frog sigil — a squat bright green frog facing forward."
+    },
+    {
+      "id": "sigil:owl",
+      "category": "sigil",
+      "slug": "owl",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: owl sigil — a violet owl with huge golden eyes."
+    },
+    {
+      "id": "sigil:duck",
+      "category": "sigil",
+      "slug": "duck",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: duck sigil — a yellow duck in profile with orange beak."
+    },
+    {
+      "id": "sigil:vulture",
+      "category": "sigil",
+      "slug": "vulture",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: vulture sigil — a hunched dark vulture with pale head and hooked beak."
+    },
+    {
+      "id": "sigil:chameleon",
+      "category": "sigil",
+      "slug": "chameleon",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: chameleon sigil — a teal and magenta chameleon with tightly curled tail."
+    },
+    {
+      "id": "sigil:peacock",
+      "category": "sigil",
+      "slug": "peacock",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: peacock sigil — a blue peacock displaying a fan of teal and golden eye feathers."
+    },
+    {
+      "id": "tarot:love-potion",
+      "category": "tarot",
+      "slug": "love-potion",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: love potion tarot — a red heart-shaped potion bottle with pink liquid and a heart suit stopper."
+    },
+    {
+      "id": "tarot:nightshade",
+      "category": "tarot",
+      "slug": "nightshade",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: nightshade tarot — a violet nightshade plant with dark berries and a spade-shaped leaf."
+    },
+    {
+      "id": "tarot:clover-tonic",
+      "category": "tarot",
+      "slug": "clover-tonic",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: clover tonic tarot — a green potion vial with a bold clover club emblem."
+    },
+    {
+      "id": "tarot:crystal-elixir",
+      "category": "tarot",
+      "slug": "crystal-elixir",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: crystal elixir tarot — a cyan crystal potion bottle with a diamond-shaped stopper."
+    },
+    {
+      "id": "tarot:chameleon",
+      "category": "tarot",
+      "slug": "chameleon",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: chameleon tarot — a rainbow-colored chameleon standing on a white playing card."
+    },
+    {
+      "id": "tarot:grindstone",
+      "category": "tarot",
+      "slug": "grindstone",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: grindstone tarot — a gray sharpening grindstone wheel on a small wooden stand with gold sparks."
+    },
+    {
+      "id": "tarot:prospector",
+      "category": "tarot",
+      "slug": "prospector",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: prospector tarot — a miner's pickaxe crossing a bright gold nugget."
+    },
+    {
+      "id": "tarot:devilish-deal",
+      "category": "tarot",
+      "slug": "devilish-deal",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: devilish deal tarot — a red devil hand offering a parchment contract sealed with a violet flame."
+    },
+    {
+      "id": "tarot:gambler",
+      "category": "tarot",
+      "slug": "gambler",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: gambler tarot — a pair of dice beside a green four-leaf clover and gold chip."
+    },
+    {
+      "id": "tarot:merchant",
+      "category": "tarot",
+      "slug": "merchant",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: merchant tarot — a hooded merchant presenting a large luminous emerald."
+    },
+    {
+      "id": "tarot:glassblower",
+      "category": "tarot",
+      "slug": "glassblower",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: glassblower tarot — an artisan's blowpipe forming a glowing cyan glass orb over orange flame."
+    },
+    {
+      "id": "tarot:traitor",
+      "category": "tarot",
+      "slug": "traitor",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: traitor tarot — a silver dagger behind a torn red royal banner."
+    },
+    {
+      "id": "tarot:astronomer",
+      "category": "tarot",
+      "slug": "astronomer",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: astronomer tarot — a golden telescope pointing toward a violet ringed planet and stars."
+    },
+    {
+      "id": "tarot:beggar",
+      "category": "tarot",
+      "slug": "beggar",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: beggar tarot — a patched brown begging pouch with a few coins and green odor wisps."
+    },
+    {
+      "id": "tarot:spring-loaded",
+      "category": "tarot",
+      "slug": "spring-loaded",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: spring loaded tarot — a silver coil spring launching a red playing card upward."
+    },
+    {
+      "id": "tarot:tax-collector",
+      "category": "tarot",
+      "slug": "tax-collector",
+      "prompt": "Use case: stylized-concept. Asset type: small temporary inventory icon for retro pixel-art Bid Euchre game. Create ONE square standalone illustration. Authentic chunky low-resolution pixel art designed to read at 64 by 64 pixels, hard pixel clusters, dark navy background, bold black-purple outlines, limited violet/crimson/teal/gold palette with subject-appropriate accents. Center the subject within 12 percent safe padding, fill most of the frame. Flat front view, no perspective, no gradients, no blur, no text, no letters, no numerals, no watermark, no card border, no interface. Subject: tax collector tarot — a purple ledger beside stacked gold coins and a red wax seal."
+    }
+  ]
+}

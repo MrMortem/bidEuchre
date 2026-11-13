@@ -74,6 +74,7 @@ fi
 
 "$dotnet_command" build "$project_dir/BidEuchre.slnx" --nologo -m:1
 "$dotnet_command" run --project "$project_dir/tests/BidEuchre.Tests/BidEuchre.Tests.csproj" --no-build
+"$dotnet_command" run --project "$project_dir/tests/BidEuchre.Desktop.Tests/BidEuchre.Desktop.Tests.csproj" --no-build
 
 if [[ -n "$prolog_engine_path" ]]; then
   "$project_dir/engines/prolog/test.sh"

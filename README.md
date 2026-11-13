@@ -75,9 +75,10 @@ open that app in Finder to play without installing .NET. Rules, pixel artwork,
 font, and font license travel with the package. This is a local unsigned build;
 external macOS distribution still requires signing and notarization.
 
-Motion preferences are saved between launches. The native Play screen keeps
-scores and actions beside the table; expand **Table log** or **Contract guide**
-for more detail. The web client also honors the system reduced-motion setting.
+Motion preferences are saved between launches. The native table fills the
+window: Jokers, stored Tarots and Sigils, and the score sit in a strip along the top, and bids
+and other choices appear over the middle of the board. Engines and Rules open
+from the main menu. The web client also honors the system reduced-motion setting.
 
 The executable is written to `dist/linux-x64/BidEuchre`. The packaging script
 also accepts .NET runtime identifiers such as `win-x64`, `osx-x64`, or
@@ -223,3 +224,46 @@ machine and therefore use the same legality and scoring implementation.
 The separate [hybrid workflow](engines/hybrid/README.md) provides native BEUCI play, private full-match self-play, resumable Mac-local training, immutable exports and authoritative screening/promotion gates. Install with `./engines/hybrid/install.sh`, build with `./engines/hybrid/build.sh`, and run the explicit hybrid tests and bounded `./engines/hybrid/scripts/smoke_cycle.sh` described there. Set `BIDEUCHRE_DOTNET` to your .NET 10 SDK executable when it is not on PATH; the scripts derive `DOTNET_ROOT` from it. CMake and training Python come from the dedicated hybrid environment.
 
 The initial champion remains the frozen C++ heuristic. Tiny training and screening runs prove the software workflow, **not improved first-to-40 match strength**. Tree and double-dummy experiments are disabled by default. [Actual results, hashes, review decisions and limits](docs/superpowers/reports/2026-11-09-hybrid-bot-validation.md) distinguish completion of the local workflow from the still-unproven strength objective.
+
+## Campaign cards and shop
+
+**Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
+card changes affect whoever draws that physical card for the rest of the run.
+Each card supports one enhancement and one Sigil; replacing either preserves
+the other. The campaign includes 10 enhancements, 31 Jokers, 8 Planet bidding
+unlocks, 12 Sigils, and 16 Tarot consumables.
+
+Both teams start each match at zero. Matches end after a fully scored hand
+reaches either ±24 points in Ante 1, increasing by four per Ante, or after eight
+hands. Ties continue. Contract success counts tricks only; effect bonuses remain
+even after a failed bid.
+
+Between matches the shop offers two $4 Jokers, a $3 Planet, a $3 Tarot, and a $3
+Sigil. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
+four slots; discard one to free space. Sell Jokers for $2. Planet purchases
+permanently unlock your bidding options; Partners Best and Alone start locked for
+you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
+it is yours to act: in the shop and on the screen before a match it is aimed at
+the shared deck, and during a match it is played on cards in your hand on any of
+your turns, whether you are about to bid, name the contract, exchange or play a
+card. Using one does not end your turn. Panic Button is offered when bidding; it
+costs eight team points, consumes a hand, and forces a fresh deal if the match
+continues.
+
+Win rewards are $5/$6/$8 for Small/Medium/Boss matches, plus $2/$4/$6 for victory
+margins of 1–4/5–9/10+. Losses keep card and Joker earnings. Interest is $1 per $5
+held after rewards, capped at $5. Match-end earnings and shop purchases are saved;
+quitting an unfinished match retains committed card/inventory/money changes and
+counts as a loss on Continue. A failed save is reported, and play can continue
+in memory.
+
+Campaign bots use the campaign's legal actions. Opponents can benefit from shared
+card effects; they do not buy or use items in this version. External engines remain
+available for ordinary Table play and are not supported for the new campaign
+profile. The catalogue's initial values have regression coverage but are not a
+claim of competitive balance or improved bot strength.
+
+For an isolated local profile, set `BIDEUCHRE_DATA_DIRECTORY` before launching.
+The app creates its `BidEuchre` subfolder there. Without the variable it uses the
+normal local application-data directory.

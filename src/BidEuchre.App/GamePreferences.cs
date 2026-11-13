@@ -7,7 +7,8 @@ public sealed record GamePreferences(
     bool Fullscreen = false,
     int WindowWidth = 1320,
     int WindowHeight = 860,
-    double UiScale = 1.0)
+    double UiScale = 1.0,
+    HandSort HandSort = HandSort.Suit)
 {
     public static IReadOnlyList<(int Width, int Height)> WindowSizes { get; } =
         [(1280, 720), (1320, 860), (1600, 900), (1920, 1080)];
@@ -22,7 +23,8 @@ public sealed record GamePreferences(
         {
             WindowWidth = size.Item1,
             WindowHeight = size.Item2,
-            UiScale = UiScales.Contains(UiScale) ? UiScale : 1.0
+            UiScale = UiScales.Contains(UiScale) ? UiScale : 1.0,
+            HandSort = Enum.IsDefined(HandSort) ? HandSort : HandSort.Suit
         };
     }
 
