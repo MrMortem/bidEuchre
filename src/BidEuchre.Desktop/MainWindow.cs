@@ -354,7 +354,7 @@ public sealed class MainWindow : Window
             Orientation = Orientation.Horizontal, Spacing = 14,
             Children =
             {
-                Slots("JOKERS", _jokerRow), Slots("TAROT", _tarotRow), status,
+                Slots("JOKERS", _jokerRow), Slots("CARDS", _tarotRow), status,
                 new Border { Width = 128, Height = StripHeight, Child = bidDock }
             }
         };
@@ -395,16 +395,16 @@ public sealed class MainWindow : Window
     // Illustrated campaign cards retain their names and rules on hover.
     private void RenderInventory(CampaignGameView? campaign)
     {
-        var usable = campaign is not null && CampaignTableControls.TarotUsable(campaign);
-        // A usable tarot sends the view's revision, so it is rebuilt whenever that moves.
+        var usable = campaign is not null && CampaignTableControls.ItemsUsable(campaign);
+        // A usable card sends the view's revision, so it is rebuilt whenever that moves.
         var key = campaign is null ? "" : JsonSerializer.Serialize(campaign.Inventory) + (usable ? $":{campaign.Revision}" : "");
         if (key == _inventoryKey) return;
         _inventoryKey = key;
         CampaignTableControls.Fill(_jokerRow, CampaignTableControls.JokerSlots,
             campaign?.Inventory.Jokers.Select((joker, slot) => _motion.Float(CampaignTableControls.Joker(joker), 40 + slot)) ?? []);
-        CampaignTableControls.Fill(_tarotRow, CampaignTableControls.TarotSlots,
-            campaign?.Inventory.Tarot.Select((_, slot) => _motion.Float(CampaignTableControls.Tarot(campaign, slot, usable,
-                command => SendCampaignActionAsync(campaign, command)), 50 + slot)) ?? []);
+        CampaignTableControls.Fill(_tarotRow, CampaignTableControls.ItemSlots,
+            campaign is null ? [] : CampaignTableControls.Items(campaign.Inventory).Select((item, index) => _motion.Float(
+                CampaignTableControls.Item(campaign, item.Category, item.Slot, usable, command => SendCampaignActionAsync(campaign, command)), 50 + index)));
     }
 
     private Control BuildEnginePage()

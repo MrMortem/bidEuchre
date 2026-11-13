@@ -99,6 +99,55 @@ foreach (var storeFirst in new[] { false, true })
     finally { shop.Close(); File.Delete(path); }
 }
 
+// Stored Tarots and Sigils share one shelf, and are played from the shop and from the Ante screen.
+{
+    var path = Path.Combine(Path.GetTempPath(), $"items-ui-{Guid.NewGuid():N}.json");
+    var screen = new Window { Width = 1280, Height = 1100 };
+    try
+    {
+        var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop);
+        run = run with { Resources = run.Resources with { Wallets = [30, 0, 0, 0], Inventory = run.Resources.Inventory with { Tarot = [TarotId.Prospector], Sigils = [SigilId.Fish] } } };
+        if (!CampaignStore.Save(run, path)) throw new Exception("Could not prepare disposable save.");
+        var flow = new CampaignFlow(path, content => screen.Content = content, _ => Task.CompletedTask, () => { }, motion);
+        flow.Open();
+        screen.Show();
+        Button Find(string name) { Dispatcher.UIThread.RunJobs(); return screen.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name); }
+        void Click(string name)
+        {
+            var button = Find(name);
+            button.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            var point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), screen)!.Value;
+            screen.MouseDown(point, MouseButton.Left);
+            screen.MouseUp(point, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+        }
+        bool Shows(string text) => screen.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == text);
+        Click("CampaignContinue");
+        if (!Shows("YOUR CARDS 2/4")) throw new Exception("The shop must show Tarots and Sigils on one shelf.");
+        Click("OwnedTarot0");
+        Click("UseTarot0");
+        Click("DeckCard5");
+        Click("ConfirmDeckChoice");
+        if (flow.Run!.Resources.Deck[5].Enhancement != EnhancementId.Golden || flow.Run.Money != 30 || flow.Run.Resources.Inventory.Tarot.Length != 0)
+            throw new Exception("A stored Tarot must be playable from the shop at no charge.");
+        if (!Shows("YOUR CARDS 1/4")) throw new Exception("The shelf must show the card as used.");
+        Click("CampaignNextMatch");
+        if (flow.Run.Phase != CampaignPhase.Intro || !Shows("YOUR CARDS 1/4")) throw new Exception("The Ante screen must show the stored cards.");
+        // The card's buttons live in a flyout, outside the window's own tree.
+        var menu = (Panel)((Avalonia.Controls.Flyout)Find("AnteItemSigil0").Flyout!).Content!;
+        menu.Children.OfType<Button>().Single(b => b.Name == "AnteUseSigil0").RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Click("DeckCard7");
+        Click("ConfirmDeckChoice");
+        var saved = CampaignStore.Load(path)!;
+        if (saved.Phase != CampaignPhase.Intro || saved.Resources.Deck[7].Sigil != SigilId.Fish || saved.Resources.Inventory.ItemCount != 0)
+            throw new Exception("A stored Sigil must be playable from the Ante screen, and saved.");
+        if (!Shows("YOUR CARDS 0/4") || Find("CampaignStartMatch") is null) throw new Exception("Using a card must return to the Ante screen.");
+        Console.WriteLine("PASS  Stored Tarots and Sigils share a shelf and are played from the shop and the Ante screen");
+    }
+    finally { screen.Close(); File.Delete(path); }
+}
+
 foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±28 POINTS"), (16, "ANTE 6", "±44 POINTS") })
 {
     var path = Path.Combine(Path.GetTempPath(), $"ante-ui-{Guid.NewGuid():N}.json");

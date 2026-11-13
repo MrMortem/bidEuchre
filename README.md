@@ -76,7 +76,7 @@ font, and font license travel with the package. This is a local unsigned build;
 external macOS distribution still requires signing and notarization.
 
 Motion preferences are saved between launches. The native table fills the
-window: Jokers, Tarot cards and the score sit in a strip along the top, and bids
+window: Jokers, stored Tarots and Sigils, and the score sit in a strip along the top, and bids
 and other choices appear over the middle of the board. Engines and Rules open
 from the main menu. The web client also honors the system reduced-motion setting.
 
@@ -239,14 +239,17 @@ hands. Ties continue. Contract success counts tricks only; effect bonuses remain
 even after a failed bid.
 
 Between matches the shop offers two $4 Jokers, a $3 Planet, a $3 Tarot, and a $3
-Sigil. Hold up to five distinct Jokers and two Tarot. Sell Jokers for $2; discard
-Tarot to free space. Planet purchases permanently unlock your bidding options;
-Partners Best and Alone start locked for you. For Sigils, Buy stores one for later;
-Buy & Use applies it immediately to a chosen card in the shared deck. Select a
-stored Sigil in the shop and press Use to apply it without another charge.
-Use stored Tarot on your bidding turn before bidding,
-passing, or using Panic Button. Panic Button costs eight team points, consumes a
-hand, and forces a fresh deal if the match continues.
+Sigil. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
+four slots; discard one to free space. Sell Jokers for $2. Planet purchases
+permanently unlock your bidding options; Partners Best and Alone start locked for
+you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
+it is yours to act: in the shop and on the screen before a match it is aimed at
+the shared deck, and during a match it is played on cards in your hand on any of
+your turns, whether you are about to bid, name the contract, exchange or play a
+card. Using one does not end your turn. Panic Button is offered when bidding; it
+costs eight team points, consumes a hand, and forces a fresh deal if the match
+continues.
 
 Win rewards are $5/$6/$8 for Small/Medium/Boss matches, plus $2/$4/$6 for victory
 margins of 1–4/5–9/10+. Losses keep card and Joker earnings. Interest is $1 per $5

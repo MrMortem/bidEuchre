@@ -23,8 +23,49 @@ internal static class CampaignShopTests
         Assert.Equal(26, owned.Money);
         var sold = CampaignShop.SellJoker(owned, owned.Resources.Inventory.Jokers[0].Id);
         Assert.Equal(28, sold.Money);
-        var full = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Beggar] } } };
-        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, run.Shop.Offers.Single(o => o.Category == FeatureCategory.Tarot).Id));
+        // Tarots and Sigils share four slots: two of each leave no room for either kind.
+        var tarotOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Tarot).Id;
+        var sigilOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Sigil).Id;
+        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Beggar], Sigils = [SigilId.Coin] } } };
+        Assert.Equal(4, CampaignShop.Buy(three, tarotOffer).Resources.Inventory.ItemCount);
+        Assert.Equal(4, CampaignShop.Buy(three, sigilOffer).Resources.Inventory.ItemCount);
+        var full = three with { Resources = three.Resources with { Inventory = three.Resources.Inventory with { Sigils = [SigilId.Coin, SigilId.Bear] } } };
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, tarotOffer));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, sigilOffer));
+        // A full inventory still lets a Sigil be bought and used on the spot.
+        Assert.Equal(4, CampaignShop.Buy(full, sigilOffer, id).Resources.Inventory.ItemCount);
+    }
+    public static void StoredCardsOutsideMatch()
+    {
+        var run = new CampaignRun(Money: 10, Phase: CampaignPhase.Shop) { Shop = new(0, []) };
+        run = run with { Resources = run.Resources with { Wallets = [10, 0, 0, 0], Inventory = run.Resources.Inventory with { Tarot = [TarotId.Prospector, TarotId.TaxCollector], Sigils = [SigilId.Fish, SigilId.Coin] } } };
+        var target = run.Resources.Deck[5].Id;
+        // A stored Tarot is played on the shared deck from the shop, at no charge.
+        var used = CampaignShop.UseTarot(run, 0, [target], run.Resources.Revision);
+        Assert.Equal(EnhancementId.Golden, used.Resources.Deck[5].Enhancement!.Value);
+        Assert.Equal(10, used.Money);
+        Assert.Equal(TarotId.TaxCollector, used.Resources.Inventory.Tarot.Single());
+        Assert.Equal(2, used.Resources.Inventory.Sigils.Length);
+        Assert.Equal(2, run.Resources.Inventory.Tarot.Length);
+        Assert.True(run.Resources.Deck[5].Enhancement is null);
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTarot(run, 0, []));
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTarot(run, 2, [target]));
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTarot(run, 0, [target], run.Resources.Revision - 1));
+        // The screen before a match takes the same plays, and money earned there is kept.
+        var intro = used.LeaveShop();
+        var taxed = CampaignShop.UseTarot(intro, 0, []);
+        Assert.Equal(20, taxed.Money);
+        Assert.Equal(20, taxed.Resources.Wallets[0]);
+        Assert.Equal(0, taxed.Resources.Inventory.Tarot.Length);
+        var marked = CampaignShop.UseSigil(taxed, 0, target);
+        Assert.Equal(SigilId.Fish, marked.Resources.Deck[5].Sigil!.Value);
+        Assert.Equal(SigilId.Coin, marked.Resources.Inventory.Sigils.Single());
+        var emptied = CampaignShop.DiscardSigil(marked, 0, marked.Resources.Revision);
+        Assert.Equal(0, emptied.Resources.Inventory.ItemCount);
+        Assert.Throws<GameRuleException>(() => CampaignShop.DiscardSigil(emptied, 0));
+        // Not during a match: the table plays them there.
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(marked.StartMatch(), 0, target));
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTarot(intro.StartMatch(), 0, []));
     }
     public static void BuyAndUseTarot()
     {
@@ -132,7 +173,7 @@ internal static class CampaignShopTests
             Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(used, 0, target));
             Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded, 0, target, loaded.Resources.Revision - 1));
             Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded, 0, new CardId(99)));
-            Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded.LeaveShop(), 0, target));
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseSigil(loaded.LeaveShop().StartMatch(), 0, target));
             Assert.True(CampaignStore.Save(used, path));
             Assert.Equal(SigilId.Fish, CampaignStore.Load(path)!.Resources.Deck[7].Sigil!.Value);
             // Saves from before stored Sigils existed still load with an empty inventory.

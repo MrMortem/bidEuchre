@@ -38,6 +38,53 @@ internal static class CampaignEffectsTests
         var golden = Start(EnhancementId.Golden); Hand(golden);
         Assert.Equal(24, golden.ExportCampaignSnapshot().Wallets.Sum());
     }
+    public static void ItemsOnAnyOwnTurn()
+    {
+        var s = CampaignSnapshot.Create(3) with { Inventory = new([], [TarotId.Glassblower, TarotId.LovePotion], []) { Sigils = [SigilId.Fish, SigilId.Coin] }, Wallets = [15, 0, 0, 0] };
+        var g = new GameEngine(["You", "W", "P", "E"], 3, null, new CampaignContext(s)); g.StartGame(3);
+        void Advance(Func<bool> until)
+        {
+            for (var step = 0; step < 200 && !until(); step++)
+            {
+                var seat = g.CampaignActor!.Value;
+                g.ExecuteCampaignAction(seat, BidEuchre.App.CampaignBotPolicy.Choose(g.CreateCampaignView(seat), seat));
+            }
+            Assert.True(until());
+        }
+        bool Mine() => g.CampaignActor == 0;
+        // A Sigil goes on a card in hand while bidding.
+        Advance(() => Mine() && g.Phase == GamePhase.Bidding);
+        var hand = g.CreateCampaignView(0).Players[0].VisibleCards;
+        var revision = g.ExportCampaignSnapshot().Revision;
+        g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, hand[0].Id));
+        Assert.Equal(SigilId.Fish, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == hand[0].Id).Sigil!.Value);
+        Assert.Equal(SigilId.Fish, g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == hand[0].Id).Sigil!.Value);
+        Assert.Equal(SigilId.Coin, g.ExportCampaignSnapshot().Inventory.Sigils.Single());
+        Assert.True(g.ExportCampaignSnapshot().Revision > revision);
+        // Only a card in the human's hand, and only a slot that holds something.
+        var away = s.Deck.Select(c => c.Id).First(id => hand.All(c => c.Id != id));
+        Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, away)));
+        Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(1, hand[0].Id)));
+        Assert.Equal(1, g.ExportCampaignSnapshot().Inventory.Sigils.Length);
+        // Not on another player's turn.
+        g.ExecuteCampaignAction(0, BidEuchre.App.CampaignBotPolicy.Choose(g.CreateCampaignView(0), 0));
+        Advance(() => !Mine() && g.CampaignActor is not null);
+        Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, hand[1].Id)));
+        Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [hand[1].Id])));
+        Assert.Equal(3, g.ExportCampaignSnapshot().Inventory.ItemCount);
+        // Both kinds are still playable once cards are being played, and the turn stays the human's.
+        Advance(() => Mine() && g.Phase == GamePhase.Playing);
+        var playing = g.CreateCampaignView(0).Players[0].VisibleCards;
+        g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [playing[0].Id]));
+        Assert.Equal(EnhancementId.Glass, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == playing[0].Id).Enhancement!.Value);
+        g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [playing[^1].Id]));
+        Assert.Equal(Suit.Hearts, g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == playing[^1].Id).Face.Suit);
+        g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, playing[0].Id));
+        Assert.Equal(0, g.ExportCampaignSnapshot().Inventory.ItemCount);
+        Assert.True(Mine() && g.Phase == GamePhase.Playing);
+        // The hand still plays out with the changed cards.
+        Advance(() => g.Phase is GamePhase.HandComplete or GamePhase.GameComplete);
+    }
     public static void TarotMutation()
     {
         var s = CampaignSnapshot.Create(3) with { Inventory = new([], [TarotId.Glassblower, TarotId.TaxCollector], []), Wallets = [15, 0, 0, 0] };

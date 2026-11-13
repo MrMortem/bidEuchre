@@ -14,7 +14,7 @@ namespace BidEuchre.Desktop;
 
 /// <summary>What the shop screen can ask of the run. Each one redraws the shop when it is done.</summary>
 internal sealed record ShopActions(Action<string> Buy, Action<string> BuyAndUse, Action<JokerId> Sell,
-    Action<int> Discard, Action<int> UseSigil, Action Inspect, Action Next);
+    Action<FeatureCategory, int> UseItem, Action<FeatureCategory, int> DiscardItem, Action Inspect, Action Next);
 
 /// <summary>The shop between matches. Offers are drawn as cards: Jokers on the top row, then a Sigil,
 /// a Tarot and a Planet. Pressing a card selects it and puts its text and its buttons in the side panel.</summary>
@@ -95,16 +95,21 @@ internal static class CampaignShopScreen
                 MenuParts.Button("Sell +$2", false, motion, $"Sell{joker.Id}", () => actions.Sell(joker.Id), true, 264))));
         }
         while (ownedJokers.Children.Count < CampaignTableControls.JokerSlots) ownedJokers.Children.Add(EmptySlot());
-        var ownedTarot = Row(8);
-        for (var index = 0; index < inventory.Tarot.Length; index++)
+        // Tarots and Sigils share one inventory, and either can be played from here on the shared deck.
+        var ownedItems = Row(8);
+        foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
-            var slot = index;
-            var definition = FeatureCatalog.Get(FeatureCategory.Tarot, inventory.Tarot[index].ToString());
-            ownedTarot.Children.Add(Selectable(Small(definition, TarotInk), TarotInk, $"OwnedTarot{slot}", "Your Tarot: " + definition.Name, () => Detail(
-                "YOUR TAROT", TarotInk, definition.Name, definition.Description, "Play it before you bid in a match.",
-                MenuParts.Button("Discard", false, motion, $"DiscardTarot{slot}", () => actions.Discard(slot), true, 264))));
+            var ink = Ink(category);
+            var use = MenuParts.Button("Use", true, motion, $"Use{category}{slot}", () => actions.UseItem(category, slot), true, 264);
+            use.IsEnabled = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == 8);
+            ownedItems.Children.Add(Selectable(Small(definition, ink), ink, $"Owned{category}{slot}", $"Your {category}: {definition.Name}", () => Detail(
+                $"YOUR {category.ToString().ToUpperInvariant()}", ink, definition.Name, definition.Description,
+                category == FeatureCategory.Sigil
+                    ? "Use it now on a card of the shared deck, or keep it to play on a card in your hand during a match. Replaces that card's current Sigil."
+                    : "Use it now on the shared deck, or keep it to play on your hand on any of your turns in a match.",
+                use, MenuParts.Button("Discard", false, motion, $"Discard{category}{slot}", () => actions.DiscardItem(category, slot), true, 264))));
         }
-        while (ownedTarot.Children.Count < CampaignTableControls.TarotSlots) ownedTarot.Children.Add(EmptySlot());
+        while (ownedItems.Children.Count < CampaignTableControls.ItemSlots) ownedItems.Children.Add(EmptySlot());
 
         var unlocked = Label($"PLANET BIDS {inventory.Unlocks.Length}/8", MainWindow.Green, 11);
         unlocked.VerticalAlignment = VerticalAlignment.Bottom;
@@ -116,7 +121,7 @@ internal static class CampaignShopScreen
             Children =
             {
                 Shelf($"YOUR JOKERS {inventory.Jokers.Length}/{CampaignTableControls.JokerSlots}", ownedJokers),
-                Shelf($"YOUR TAROT {inventory.Tarot.Length}/{CampaignTableControls.TarotSlots}", ownedTarot),
+                Shelf($"YOUR CARDS {inventory.ItemCount}/{CampaignTableControls.ItemSlots}", ownedItems),
                 unlocked
             }
         };
@@ -143,19 +148,6 @@ internal static class CampaignShopScreen
             Children = { offers, detail }
         });
         panel.Children.Add(owned);
-        if (inventory.Sigils.Length > 0)
-        {
-            var ownedSigils = new WrapPanel { Orientation = Orientation.Horizontal, MaxWidth = 880, HorizontalAlignment = HorizontalAlignment.Center };
-            for (var index = 0; index < inventory.Sigils.Length; index++)
-            {
-                var slot = index;
-                var definition = FeatureCatalog.Get(FeatureCategory.Sigil, inventory.Sigils[index].ToString());
-                ownedSigils.Children.Add(Selectable(Small(definition, SigilInk), SigilInk, $"OwnedSigil{slot}", "Your Sigil: " + definition.Name, () => Detail(
-                    "YOUR SIGIL", SigilInk, definition.Name, definition.Description, "Use it on a card of the shared deck. Replaces that card's current Sigil.",
-                    MenuParts.Button("Use", true, motion, $"UseSigil{slot}", () => actions.UseSigil(slot), true, 264))));
-            }
-            panel.Children.Add(Shelf($"YOUR SIGILS {inventory.Sigils.Length}", ownedSigils));
-        }
         panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center,
@@ -178,7 +170,7 @@ internal static class CampaignShopScreen
         var room = offer.Category switch
         {
             FeatureCategory.Joker => inventory.Jokers.Length < CampaignTableControls.JokerSlots,
-            FeatureCategory.Tarot => inventory.Tarot.Length < CampaignTableControls.TarotSlots,
+            FeatureCategory.Tarot or FeatureCategory.Sigil => inventory.HasItemRoom,
             _ => true
         };
         var buy = MenuParts.Button($"Buy ${offer.Price}", offer.Category != FeatureCategory.Tarot, motion, $"Buy{offer.Id}", () => actions.Buy(offer.Id), true, 264);
@@ -186,9 +178,9 @@ internal static class CampaignShopScreen
         var buttons = new List<Control> { buy };
         var hint = offer.Category switch
         {
-            FeatureCategory.Sigil => "Buy it to store for later, or use it now on a card of the shared deck.",
+            FeatureCategory.Sigil => "Buy it to keep for a match or later, or use it now on a card of the shared deck.",
             FeatureCategory.Planet => "Buying it unlocks this bid for the rest of the run.",
-            FeatureCategory.Tarot => "Buy it to play in a match, or use it now on the shared deck.",
+            FeatureCategory.Tarot => "Buy it to keep for a match or later, or use it now on the shared deck.",
             _ => null
         };
         if (offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil)
@@ -200,7 +192,7 @@ internal static class CampaignShopScreen
         var problem = !afford ? $"You need ${offer.Price - run.Money} more."
             : room ? null
             : offer.Category == FeatureCategory.Joker ? "Your Joker slots are full. Sell one first."
-            : "Your Tarot slots are full. Use it now, or discard one.";
+            : "Your card slots are full. Use it now, or use or discard one you hold.";
         return Detail(offer.Category.ToString().ToUpperInvariant(), Ink(offer.Category), definition.Name, definition.Description, problem ?? hint,
             [.. buttons], problem is not null);
     }
@@ -220,7 +212,7 @@ internal static class CampaignShopScreen
         return stack;
     }
 
-    private static IBrush Ink(FeatureCategory category) => category switch
+    internal static IBrush Ink(FeatureCategory category) => category switch
     {
         FeatureCategory.Joker => Gold, FeatureCategory.Tarot => TarotInk, FeatureCategory.Sigil => SigilInk, _ => MainWindow.Green
     };

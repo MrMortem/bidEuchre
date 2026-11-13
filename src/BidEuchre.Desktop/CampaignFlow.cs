@@ -83,7 +83,18 @@ internal sealed class CampaignFlow(
         }
     }
 
-    private void ShowIntro() => show(CampaignAnteScreen.Build(Run!, BeginMatch, showMenu, TakeNote(), motion));
+    private void ShowIntro()
+    {
+        var revision = Run!.Resources.Revision;
+        show(CampaignAnteScreen.Build(Run, BeginMatch, showMenu, TakeNote(), motion,
+            (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision)));
+    }
+
+    // Stored cards are played from the shop and from the screen before a match; both come back to where they were.
+    private void ShowHome()
+    {
+        if (Run?.Phase is CampaignPhase.Intro) ShowIntro(); else ShowShop();
+    }
 
     private async void BeginMatch()
     {
@@ -164,7 +175,8 @@ internal sealed class CampaignFlow(
         if (Run is null) return;
         Persist(CampaignShop.Open(Run));
         var revision = Run!.Resources.Revision;
-        show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell, slot => Discard(slot, revision), slot => UseSigil(slot, revision), InspectDeck,
+        show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
+            (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
             () => { Persist(Run!.LeaveShop()); ShowIntro(); }), motion, TakeNote()));
     }
     private void InspectDeck()
@@ -189,26 +201,32 @@ internal sealed class CampaignFlow(
         if (required == 0) Transact(() => Use([]));
         else ChooseFromDeck(required, $"{definition.Name} · {definition.Description}", $"Buy & Use ${offer.Price}", Use);
     }
-    private void UseSigil(int slot, long revision)
+    // Outside a match a stored card is aimed at the shared deck, as one bought and used at once is.
+    private void UseItem(FeatureCategory category, int slot, long revision)
     {
-        if (Run?.Resources.Revision != revision) { _note = "The shop changed. Choose a Sigil again."; ShowShop(); return; }
-        var definition = FeatureCatalog.Get(FeatureCategory.Sigil, Run.Resources.Inventory.Sigils[slot].ToString());
-        ChooseFromDeck(1, $"{definition.Name} · {definition.Description}", "Use Sigil", targets =>
+        if (Run?.Resources.Revision != revision) { _note = "Your cards changed. Choose again."; ShowHome(); return; }
+        var inventory = Run.Resources.Inventory;
+        var sigil = category == FeatureCategory.Sigil;
+        var definition = FeatureCatalog.Get(category, sigil ? inventory.Sigils[slot].ToString() : inventory.Tarot[slot].ToString());
+        var required = sigil ? 1 : CampaignShop.TarotTargets(inventory.Tarot[slot]);
+        CampaignRun Use(CardId[] targets)
         {
             var before = Run!;
-            var after = CampaignShop.UseSigil(before, slot, targets[0], revision);
+            var after = sigil ? CampaignShop.UseSigil(before, slot, targets[0], revision) : CampaignShop.UseTarot(before, slot, targets, revision);
             _note = UseReport(definition.Name, before, after);
             return after;
-        });
+        }
+        if (required == 0) Transact(() => Use([]));
+        else ChooseFromDeck(required, $"{definition.Name} · {definition.Description}", sigil ? "Use Sigil" : "Use Tarot", Use);
     }
     private void ChooseFromDeck(int required, string title, string confirm, Func<CardId[], CampaignRun> update)
     {
         var revision = Run!.Resources.Revision;
         show(CampaignDeckPicker.Build(Run.Resources.Deck, required, targets =>
         {
-            if (Run?.Resources.Revision != revision) { _note = "The shop changed. Choose again."; ShowShop(); return; }
+            if (Run?.Resources.Revision != revision) { _note = "Your cards changed. Choose again."; ShowHome(); return; }
             Transact(() => update(targets));
-        }, ShowShop, motion, title, confirm));
+        }, ShowHome, motion, title, confirm));
     }
     // Says what a Tarot did, naming the outcome of the ones that draw at random. Good news ends in "!".
     private static string UseReport(string name, CampaignRun before, CampaignRun after)
@@ -227,11 +245,12 @@ internal sealed class CampaignFlow(
         return $"Used {name}!";
     }
     private void Sell(JokerId id) => Transact(() => CampaignShop.SellJoker(Run!, id));
-    private void Discard(int slot, long revision) => Transact(() => CampaignShop.DiscardTarot(Run!, slot, revision));
+    private void Discard(FeatureCategory category, int slot, long revision) => Transact(() => category == FeatureCategory.Sigil
+        ? CampaignShop.DiscardSigil(Run!, slot, revision) : CampaignShop.DiscardTarot(Run!, slot, revision));
     private void Transact(Func<CampaignRun> update)
     {
         try { Persist(update()); } catch (GameRuleException error) { _note = error.Message; }
-        ShowShop();
+        ShowHome();
     }
 
     // A failed save never stops play; the next screen says progress was not saved.

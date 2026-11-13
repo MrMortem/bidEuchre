@@ -56,6 +56,9 @@ public sealed partial class GameEngine
         deck[index] = update(deck[index]);
         if (deck.Count(c => c.Enhancement == EnhancementId.Stinky) > 18 || !CanDeal(deck)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         _resources = _resources with { Deck = deck };
+        // A card showing a copied face this hand takes the change on that face too, so it is seen at once.
+        if (_overlays.TryGetValue(id, out var shown))
+        { var changed = update(new(id, shown.Face, shown.Enhancement, shown.Sigil)); _overlays[id] = new(id, changed.Face, changed.Enhancement, changed.Sigil); }
     }
     private bool CanDeal(IReadOnlyList<CardState> deck, CardOverlay? candidate = null) => deck.Count(c =>
         (candidate?.Id == c.Id ? candidate.Enhancement : _overlays.TryGetValue(c.Id, out var existing) ? existing.Enhancement : c.Enhancement) != EnhancementId.Stinky) >= 6;
@@ -148,7 +151,8 @@ public sealed partial class GameEngine
     {
         if (!IsCampaign) throw new GameRuleException("Campaign actions require a campaign table.");
         GameRules.ValidateSeat(seat);
-        if (command is CampaignCommand.UseTarot tarot) { UseTarot(seat, tarot); CommitCampaign(); return; }
+        if (command is CampaignCommand.UseTarot tarot) { UseItem(() => ResolveTarot(seat, tarot)); CommitCampaign(); return; }
+        if (command is CampaignCommand.UseSigil sigil) { UseItem(() => ResolveSigil(seat, sigil)); CommitCampaign(); return; }
         if (!CampaignLegal(seat).Contains(command)) throw new GameRuleException("That campaign action is no longer legal.");
         _dispatchCampaign = true;
         try
@@ -258,10 +262,11 @@ public sealed partial class GameEngine
     }
     private int[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
     private void CampaignMatchEnd() => ResolveMatchEnd();
-    private void UseTarot(int seat, CampaignCommand.UseTarot tarot)
+    // A stored Tarot or Sigil is played on any of the human's own turns; a failed one leaves nothing behind.
+    private void UseItem(Action resolve)
     {
         var before = ExportCampaignSnapshot().Copy(); var eventCount = _events.Count; var sequence = _effectSequence;
-        try { ResolveTarot(seat, tarot); }
+        try { resolve(); }
         catch
         {
             _resources = before; _campaignRandom = new(before.RandomState); _effectSequence = sequence;

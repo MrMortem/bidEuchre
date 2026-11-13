@@ -7,11 +7,11 @@ using Avalonia.Media;
 using BidEuchre.Core;
 namespace BidEuchre.Desktop;
 
-/// <summary>The campaign's share of the table: Joker and Tarot cards for the top strip, and the
+/// <summary>The campaign's share of the table: Jokers and the stored Tarots and Sigils for the top strip, and the
 /// choices that are made with buttons rather than by pressing a card in hand.</summary>
 internal static class CampaignTableControls
 {
-    public const int JokerSlots = 5, TarotSlots = 2;
+    public const int JokerSlots = 5, ItemSlots = CampaignInventory.ItemSlots;
     private const double CardWidth = 72, CardHeight = 78;
 
     /// <summary>Replaces a strip row with <paramref name="cards"/>, padded to its slot count with empty outlines.</summary>
@@ -28,22 +28,26 @@ internal static class CampaignTableControls
         return Named(CardFace(definition), definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}");
     }
 
-    /// <summary>Tarots are played before the human bids, and not while another choice is open.</summary>
-    public static bool TarotUsable(CampaignGameView view) => view.ViewerSeat == 0 && view.PendingChoice is null
-        && view.LegalActions.Any(c => c is CampaignCommand.Bid or CampaignCommand.Pass or CampaignCommand.PanicButton);
+    /// <summary>The Tarots and Sigils held, in the order they are shown: one shared inventory.</summary>
+    public static IEnumerable<(FeatureCategory Category, int Slot, FeatureDefinition Definition)> Items(CampaignInventory inventory) =>
+        inventory.Tarot.Select((id, slot) => (FeatureCategory.Tarot, slot, FeatureCatalog.Get(FeatureCategory.Tarot, id.ToString())))
+            .Concat(inventory.Sigils.Select((id, slot) => (FeatureCategory.Sigil, slot, FeatureCatalog.Get(FeatureCategory.Sigil, id.ToString()))));
 
-    /// <summary>A Tarot card. While usable, pressing it opens its targets and a button to play it.</summary>
-    public static Control Tarot(CampaignGameView view, int slot, bool usable, Func<CampaignCommand, Task> send)
+    /// <summary>Stored cards are played on any turn of the human's own.</summary>
+    public static bool ItemsUsable(CampaignGameView view) => view.ViewerSeat == 0 && view.LegalActions.Count > 0;
+
+    /// <summary>A stored Tarot or Sigil. While usable, pressing it opens its targets and a button to play it.</summary>
+    public static Control Item(CampaignGameView view, FeatureCategory category, int slot, bool usable, Func<CampaignCommand, Task> send)
     {
-        var id = view.Inventory.Tarot[slot];
-        var definition = FeatureCatalog.Get(FeatureCategory.Tarot, id.ToString());
+        var sigil = category == FeatureCategory.Sigil;
+        var definition = FeatureCatalog.Get(category, sigil ? view.Inventory.Sigils[slot].ToString() : view.Inventory.Tarot[slot].ToString());
         var face = CardFace(definition);
         if (!usable) return Named(face, definition.Name, definition.Description);
 
         face.BorderBrush = MainWindow.Gold;
         face.BorderThickness = new Thickness(2);
         var selected = new List<CardId>();
-        var required = id == TarotId.DevilishDeal ? 3 : id is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
+        var required = sigil ? 1 : Tarot.TargetCount(view.Inventory.Tarot[slot]);
         var flyout = new Flyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
         var use = new Button { Content = "Use " + definition.Name, IsEnabled = required == 0, HorizontalAlignment = HorizontalAlignment.Stretch };
         var body = new StackPanel { Spacing = 4, MaxWidth = 260 };
@@ -51,7 +55,7 @@ internal static class CampaignTableControls
         body.Children.Add(Label(definition.Description, MainWindow.Ink));
         if (required > 0)
         {
-            body.Children.Add(Label(required == 1 ? "Choose a card:" : $"Choose {required} cards:", MainWindow.Muted));
+            body.Children.Add(Label(required == 1 ? "Choose a card from your hand:" : $"Choose {required} cards from your hand:", MainWindow.Muted));
             foreach (var card in view.Players[0].VisibleCards)
             {
                 var choice = new CheckBox { Content = $"{card.Face.Code} · #{card.Id.Value + 1}", Foreground = MainWindow.Ink };
@@ -63,7 +67,11 @@ internal static class CampaignTableControls
                 body.Children.Add(choice);
             }
         }
-        use.Click += async (_, _) => { flyout.Hide(); await send(new CampaignCommand.UseTarot(slot, selected.ToArray())); };
+        use.Click += async (_, _) =>
+        {
+            flyout.Hide();
+            await send(sigil ? new CampaignCommand.UseSigil(slot, selected[0]) : new CampaignCommand.UseTarot(slot, selected.ToArray()));
+        };
         body.Children.Add(use);
         flyout.Content = body;
         var button = new Button
@@ -71,7 +79,7 @@ internal static class CampaignTableControls
             Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), Flyout = flyout,
             Template = new FuncControlTemplate<Button>((_, _) => face)
         };
-        Avalonia.Automation.AutomationProperties.SetName(button, "Tarot: " + definition.Name);
+        Avalonia.Automation.AutomationProperties.SetName(button, $"{category}: {definition.Name}");
         return Named(button, definition.Name, definition.Description);
     }
 

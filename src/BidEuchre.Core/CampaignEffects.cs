@@ -25,7 +25,7 @@ public sealed partial class GameEngine
             _events.Add($"{_playerNames[seat]} generated a Tarot (stored; bots do not use items)."); return;
         }
         var inventory = _resources.Inventory;
-        if (inventory.Tarot.Length >= 2) { _events.Add("Tarot creation skipped: inventory full."); return; }
+        if (!inventory.HasItemRoom) { _events.Add("Tarot creation skipped: inventory full."); return; }
         var card = (TarotId)_campaignRandom.NextInt(Enum.GetValues<TarotId>().Length);
         _resources = _resources with { Inventory = inventory with { Tarot = [.. inventory.Tarot, card] } };
         _events.Add($"Created {FeatureCatalog.Get(FeatureCategory.Tarot, card.ToString()).Name}.");

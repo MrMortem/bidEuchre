@@ -7,13 +7,28 @@ public sealed partial class GameEngine
         var deck = _resources.Deck.Select(c => c.Id == id ? c with { Enhancement = enhancement } : c).ToArray();
         return deck.Count(c => c.Enhancement == EnhancementId.Stinky) <= 18 && CanDeal(deck);
     }
+    /// <summary>Whether the human may play a stored Tarot or Sigil now: on any turn of theirs, in any phase.</summary>
+    private bool CanUseItems(int seat) => seat == 0 && CampaignLegal(0).Count > 0;
+    private void RequireItemTurn(int seat)
+    { if (!CanUseItems(seat)) throw new GameRuleException("Use Tarots and Sigils on your own turn."); }
+    private void ResolveSigil(int seat, CampaignCommand.UseSigil request)
+    {
+        RequireItemTurn(seat);
+        var inventory = _resources.Inventory;
+        if (request.Slot < 0 || request.Slot >= inventory.Sigils.Length) throw new GameRuleException("No Sigil in that slot.");
+        if (!_hands[0].Contains(TokenFor(request.Target))) throw new GameRuleException("Choose a card from your hand.");
+        var sigil = inventory.Sigils[request.Slot];
+        ChangeCard(request.Target, c => c with { Sigil = sigil });
+        _resources = _resources with { Inventory = inventory with { Sigils = inventory.Sigils.Where((_, i) => i != request.Slot).ToArray() } };
+        _events.Add($"Used {FeatureCatalog.Get(FeatureCategory.Sigil, sigil.ToString()).Name}.");
+    }
     private void ResolveTarot(int seat, CampaignCommand.UseTarot request)
     {
-        if (seat != 0 || CurrentSeat != 0 || Phase != GamePhase.Bidding || _pendingChoice is not null) throw new GameRuleException("Use Tarot before your bidding action.");
+        RequireItemTurn(seat);
         var inventory = _resources.Inventory;
         if (request.Slot < 0 || request.Slot >= inventory.Tarot.Length) throw new GameRuleException("No Tarot in that slot.");
         var tarot = inventory.Tarot[request.Slot]; var targets = request.Targets?.ToArray() ?? throw new GameRuleException("Choose Tarot targets.");
-        var required = tarot == TarotId.DevilishDeal ? 3 : tarot is TarotId.TaxCollector or TarotId.Astronomer or TarotId.Gambler ? 0 : 1;
+        var required = Tarot.TargetCount(tarot);
         if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !_hands[0].Contains(TokenFor(id)))) throw new GameRuleException("Choose the required distinct cards from your hand.");
         if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == 8) throw new GameRuleException("All bidding options are unlocked.");
         if (tarot == TarotId.Beggar && !CanEnhance(targets[0], EnhancementId.Stinky)) throw new GameRuleException("At least six non-Stinky cards must remain.");
