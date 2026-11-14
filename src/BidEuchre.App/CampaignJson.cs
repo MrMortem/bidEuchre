@@ -8,7 +8,7 @@ internal static class CampaignJson
     public static JsonSerializerOptions Options { get; } = Create();
     private static JsonSerializerOptions Create()
     {
-        var options = new JsonSerializerOptions();
+        var options = new JsonSerializerOptions { RespectRequiredConstructorParameters = true };
         options.Converters.Add(new FeatureConverter<EnhancementId>(FeatureCategory.Enhancement));
         options.Converters.Add(new FeatureConverter<SigilId>(FeatureCategory.Sigil));
         options.Converters.Add(new FeatureConverter<JokerId>(FeatureCategory.Joker));

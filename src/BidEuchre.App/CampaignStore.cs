@@ -7,37 +7,101 @@ namespace BidEuchre.App;
 
 public static class CampaignStore
 {
-    // A missing, unreadable or impossible save is simply no save.
     public static CampaignRun? Load(string path)
+    {
+        var result = LoadSave(path);
+        // Desktop has historically hidden completed runs; the envelope API retains them for
+        // callers that persist an explicit final result screen.
+        return result.Save?.Run is { IsOver: false } run ? run : null;
+    }
+
+    public static CampaignLoadResult LoadSave(string path)
     {
         try
         {
             var text = File.ReadAllText(path);
             using var document = JsonDocument.Parse(text, new JsonDocumentOptions { AllowDuplicateProperties = false });
             var root = document.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) return null;
-            CampaignRun? run;
+            if (root.ValueKind != JsonValueKind.Object) return Corrupt();
+            CampaignSave save;
             if (root.TryGetProperty("Version", out var version))
             {
-                if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 2) return null;
-                var save = JsonNode.Parse(text)!.AsObject();
-                RemoveRetiredFeatures(save);
-                run = save.Deserialize<CampaignSave>(CampaignJson.Options)?.Run;
+                if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number is not (2 or 3)) return Corrupt();
+                if (number == 3 && root.TryGetProperty("Run", out var runJson) && runJson.TryGetProperty("LiveMatch", out var liveJson)
+                    && liveJson.ValueKind != JsonValueKind.Null && !CompleteLiveJson(liveJson)) return Corrupt();
+                var node = JsonNode.Parse(text)!.AsObject();
+                RemoveRetiredFeatures(node);
+                save = node.Deserialize<CampaignSave>(CampaignJson.Options)!;
+                if (save?.Run is null) return Corrupt();
+                if (number == 2)
+                {
+                    // A v2 save never represented a live engine. Do not accept an invalid live
+                    // object disguised as an old resource-only save.
+                    if (save.Run.LiveMatch is not null) return Corrupt();
+                    save = save with { Run = save.Run with { LegacyMatchRestart = save.Run.Phase == CampaignPhase.InMatch } };
+                }
             }
             else
             {
-                run = JsonSerializer.Deserialize<CampaignRun>(text);
-                if (run is not null) run = run with { Resources = CampaignSnapshot.Create(1) with { Wallets = new[] { run.Money, 0, 0, 0 } } };
+                var run = JsonSerializer.Deserialize<CampaignRun>(text);
+                if (run is null || run.LiveMatch is not null || run.Lives <= 0) return Corrupt();
+                run = run with { Resources = CampaignSnapshot.Create(1) with { Wallets = new[] { run.Money, 0, 0, 0 } }, LegacyMatchRestart = run.Phase == CampaignPhase.InMatch };
+                save = new(2, run);
             }
-            if (run?.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop)) return null;
-            return run is { Lives: > 0, Match: >= 1, Money: >= 0, MatchesWon: >= 0 } && Enum.IsDefined(run.Phase)
-                ? run
-                : null;
+            return ValidSave(save) ? new(CampaignLoadStatus.Loaded, save with { Version = 3 }) : Corrupt();
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
+        catch (FileNotFoundException) { return new(CampaignLoadStatus.Missing); }
+        catch (DirectoryNotFoundException) { return new(CampaignLoadStatus.Missing); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException or NullReferenceException or OverflowException)
+        { return Corrupt(); }
+    }
+
+    // The live format is strict even where older resource/domain records have optional
+    // defaults for v2 compatibility. Every newly serialized continuation field must exist.
+    private static bool Members(JsonElement value, params string[] names) => value.ValueKind == JsonValueKind.Object && names.All(n => value.TryGetProperty(n, out _));
+    private static bool CompleteLiveJson(JsonElement live)
+    {
+        if (!live.TryGetProperty("Options", out var options) || !Members(options, "TargetScore", "StartingScoreTeam0", "StartingScoreTeam1", "NegativeThreshold", "HandLimit", "OpponentSuccessfulBidBonus")) return false;
+        if (!live.TryGetProperty("Resources", out var resources) || !Members(resources, "Revision", "Deck", "Inventory", "Wallets", "RandomState", "PreviousContract", "GeneratedTarot")) return false;
+        var inventory = resources.GetProperty("Inventory");
+        if (!Members(inventory, "Jokers", "Tarot", "Unlocks", "Sigils", "GumballExtraCopies")) return false;
+        if (!live.TryGetProperty("HandHistory", out var history) || history.ValueKind != JsonValueKind.Array) return false;
+        foreach (var hand in history.EnumerateArray())
         {
-            return null;
+            if (!Members(hand, "MadeContract", "ScoreBreakdowns")) return false;
+            var parts = hand.GetProperty("ScoreBreakdowns"); if (parts.ValueKind != JsonValueKind.Array) return false;
+            foreach (var part in parts.EnumerateArray()) if (!Members(part, "GumballBonuses")) return false;
         }
+        return true;
+    }
+
+    private static CampaignLoadResult Corrupt() => new(CampaignLoadStatus.Corrupt, Error: "The campaign save is unreadable or invalid. It has not been changed.");
+
+    private static bool ValidSave(CampaignSave save)
+    {
+        var run = save.Run;
+        if (run is null || run.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop)
+            || run.Match < 1 || run.Money < 0 || run.MatchesWon < 0 || run.LastAppliedRevision < 0 || !Enum.IsDefined(run.Phase)
+            || run.IsOver && run.Phase != CampaignPhase.Shop) return false;
+        if (run.LiveMatch is { } live)
+        {
+            if (run.Phase != CampaignPhase.InMatch || run.LegacyMatchRestart || !new CampaignCheckpoint(live, run.Arrangement).IsValid()
+                || run.Money != live.Resources.Wallets[0] || run.LastAppliedRevision != live.Resources.Revision
+                || !JsonNode.DeepEquals(JsonSerializer.SerializeToNode(run.Resources, CampaignJson.Options), JsonSerializer.SerializeToNode(live.Resources, CampaignJson.Options))) return false;
+        }
+        else if (run.Arrangement is not null || run.Phase == CampaignPhase.InMatch && !(save.Version == 2 && run.LegacyMatchRestart)) return false;
+        if (run.LegacyMatchRestart && run.Phase != CampaignPhase.InMatch) return false;
+        if (save.Metadata is { } metadata)
+        {
+            if (string.IsNullOrWhiteSpace(metadata.RunId) || metadata.StateRevision < 0) return false;
+            if (metadata.LastResult is { } result)
+            {
+                if (result.Outcome is null || result.Scores is null || result.Scores.Length is not (0 or 2) || run.Phase == CampaignPhase.InMatch) return false;
+                if (result.Summary is { } summary && (summary.PlayerNames is not { Length: 4 } || summary.PlayerNames.Any(string.IsNullOrWhiteSpace)
+                    || summary.HandHistory is null || summary.HandHistory.Any(h => h is null) || summary.PublicEvents is null || summary.PublicEvents.Any(e => e is null))) return false;
+            }
+        }
+        return true;
     }
 
     // Old blind gumball stock used "Blind"; current stock uses an empty feature until pulled.
@@ -110,18 +174,28 @@ public static class CampaignStore
                 cards.RemoveAt(index);
     }
 
-    public static bool Save(CampaignRun run, string path)
+    public static bool Save(CampaignRun run, string path) => Save(new CampaignSave(3, run), path);
+
+    public static bool Save(CampaignSave save, string path)
     {
         var temporary = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
+            var run = save.Run;
+            // Legacy/between-match callers set Money directly. Live resources instead come
+            // from the authoritative checkpoint and must agree without silent repair.
+            if (run.LiveMatch is null)
+                run = run with { Resources = run.Resources with { Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
+            save = save with { Version = 3, Run = run };
+            if (!ValidSave(save)) return false;
+            var json = JsonSerializer.Serialize(save, CampaignJson.Options);
             var directory = Path.GetDirectoryName(path);
             if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
-            File.WriteAllText(temporary, JsonSerializer.Serialize(new CampaignSave(2, run with { Resources = run.Resources with { Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } }), CampaignJson.Options));
+            File.WriteAllText(temporary, json);
             File.Move(temporary, path, overwrite: true);
             return true;
         }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return false; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException or NullReferenceException or OverflowException or IndexOutOfRangeException) { return false; }
         finally
         {
             try { File.Delete(temporary); }

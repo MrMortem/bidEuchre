@@ -10,6 +10,13 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Exact resume developer termination preserves pending history", () => Run(CampaignResumeTests.DeveloperTerminalPendingAndPanic)),
+    ("Exact resume persistence incomplete and legacy", () => Run(CampaignResumePersistenceTests.StoreRejectsIncompleteAndMigratesLegacy)),
+    ("Exact resume atomic save and terminal settlement", () => Run(CampaignResumePersistenceTests.AtomicSaveAndTerminal)),
+    ("Exact resume session reorder restore and gates", CampaignResumePersistenceTests.SessionReorderRestoreAndGates),
+    ("Exact resume every boundary and special effects", () => Run(CampaignResumeTests.EveryBoundaryAndEffects)),
+    ("Exact resume corruption and detached snapshots", () => Run(CampaignResumeTests.CorruptAndDetached)),
+    ("Exact resume auction and uninterrupted continuation", () => Run(CampaignResumeTests.AuctionAndContinuation)),
     ("Score explanations plain and illegal penalty results", () => Run(ScoreExplanationTests.PlainAndPenaltyResults)),
     ("Score explanations campaign factors and fixed bonuses", () => Run(ScoreExplanationTests.CampaignFactorsAndFixedBonuses)),
     ("Score explanations failure protection and Duelist", () => Run(ScoreExplanationTests.FailedProtectionAndDuelist)),
@@ -211,7 +218,7 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Campaign losses after Ante 3 cost one more life", () => Run(CampaignRunTests.HigherStakesAfterAnteThree)),
     ("Campaign saves round-trip every phase", () => Run(CampaignStoreTests.RoundTrip)),
     ("Campaign saves with impossible values are ignored", () => Run(CampaignStoreTests.RejectsInvalidSaves)),
-    ("An abandoned campaign match forfeits as a loss", () => Run(CampaignStoreTests.AbandonedMatchForfeits)),
+    ("An explicitly forfeited campaign match charges its loss", () => Run(CampaignStoreTests.ExplicitMatchForfeit)),
     ("Deck contains 24 unique cards", () => Run(GameRuleTests.DeckIsCorrect)),
     ("Card notation round-trips", () => Run(GameRuleTests.CardNotationRoundTrips)),
     ("Card display ranks use familiar labels", () => Run(GameRuleTests.CardDisplayRanksAreCorrect)),

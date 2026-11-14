@@ -36,6 +36,18 @@ public sealed record CampaignRun(
 {
     public CampaignSnapshot Resources { get; init; } = CampaignSnapshot.Create((ulong)Random.Shared.NextInt64());
     public ShopState? Shop { get; init; }
+    public CampaignMatchSnapshot? LiveMatch { get; init; }
+    public CampaignArrangement? Arrangement { get; init; }
+    // Explicit migration state, never inferred from a missing new-format checkpoint.
+    public bool LegacyMatchRestart { get; init; }
+    public CampaignRun WithCheckpoint(CampaignCheckpoint checkpoint)
+    {
+        From(CampaignPhase.InMatch);
+        if (!checkpoint.IsValid()) throw new GameRuleException("Invalid campaign checkpoint.");
+        var match = GameEngine.RestoreCampaignMatch(checkpoint.Match).ExportCampaignMatchSnapshot();
+        return this with { LiveMatch = match, Arrangement = checkpoint.Arrangement, Resources = match.Resources.Copy(),
+            Money = match.Resources.Wallets[0], LastAppliedRevision = match.Resources.Revision, LegacyMatchRestart = false };
+    }
     public long LastAppliedRevision { get; init; }
     public const int StartingLives = 3;
     public const int TargetScore = 12;
@@ -91,6 +103,7 @@ public sealed record CampaignRun(
         var victory = won && Match == VictoryMatch && !VictoryShown;
         var run = this with
         {
+            LiveMatch = null, Arrangement = null, LegacyMatchRestart = false,
             Lives = lives,
             Money = money,
             Resources = Resources with { Wallets = new[] { money, Resources.Wallets[1], Resources.Wallets[2], Resources.Wallets[3] } },

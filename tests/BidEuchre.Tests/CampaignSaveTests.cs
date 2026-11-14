@@ -18,7 +18,7 @@ internal static class CampaignSaveTests
             var deck = legacy.Resources.Deck.ToArray();
             deck[0] = deck[0] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Frog };
             legacy.Resources.GeneratedTarot[1] = [TarotId.TaxCollector];
-            var run = legacy with { Resources = legacy.Resources with { Deck = deck } };
+            var run = legacy with { Phase = CampaignPhase.Intro, LegacyMatchRestart = false, Resources = legacy.Resources with { Deck = deck } };
             Assert.True(CampaignStore.Save(run, path));
             using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
             Assert.Equal("enhancement:glass", json.RootElement.GetProperty("Run").GetProperty("Resources").GetProperty("Deck")[0].GetProperty("Enhancement").GetString()!);

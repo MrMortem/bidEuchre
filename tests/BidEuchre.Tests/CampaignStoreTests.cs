@@ -1,4 +1,5 @@
 using BidEuchre.App;
+using BidEuchre.Core;
 
 internal static class CampaignStoreTests
 {
@@ -8,6 +9,7 @@ internal static class CampaignStoreTests
         foreach (var phase in Enum.GetValues<CampaignPhase>())
         {
             var run = new CampaignRun(2, 7, 31, 4, phase, VictoryShown: phase is CampaignPhase.Victory);
+            if (phase == CampaignPhase.InMatch) run = Live(run);
             Assert.True(CampaignStore.Save(run, path));
             var loaded = CampaignStore.Load(path)!;
             Assert.Equal(run.Lives, loaded.Lives);
@@ -39,9 +41,9 @@ internal static class CampaignStoreTests
         Assert.Equal(4, CampaignStore.Load(path)!.Match);
     });
 
-    public static void AbandonedMatchForfeits() => InTempFolder((_, path) =>
+    public static void ExplicitMatchForfeit() => InTempFolder((_, path) =>
     {
-        CampaignStore.Save(new CampaignRun(3, 3, 10).StartMatch(), path);
+        CampaignStore.Save(Live(new CampaignRun(3, 3, 10).StartMatch()), path);
         var (run, outcome) = CampaignStore.Load(path)!.Forfeit();
         Assert.True(outcome.Forfeited);
         Assert.Equal(2, outcome.LivesLost);
@@ -49,6 +51,13 @@ internal static class CampaignStoreTests
         Assert.Equal(12, run.Money);
         Assert.Equal(CampaignPhase.Shop, run.Phase);
     });
+
+    private static CampaignRun Live(CampaignRun run)
+    {
+        var resources = run.Resources with { Wallets = [run.Money, 0, 0, 0] };
+        var game = new GameEngine(["You", "West", "Partner", "East"], 1, run.NextMatch(), new CampaignContext(resources));
+        game.StartGame(3); return run.WithCheckpoint(new(game.ExportCampaignMatchSnapshot()));
+    }
 
     private static void InTempFolder(Action<string, string> test)
     {

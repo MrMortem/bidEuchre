@@ -8,6 +8,8 @@ public sealed class GameSession : IAsyncDisposable
     private readonly EngineCatalog _catalog;
     private readonly CampaignContext? _campaign;
     private readonly Func<CampaignSnapshot, bool>? _checkpoint;
+    private readonly Func<CampaignCheckpoint, bool>? _liveCheckpoint;
+    private CampaignArrangement? _arrangement;
     private readonly Func<GameView, int, CampaignCommand> _campaignPolicy;
     private readonly int? _seed;
     private readonly MatchOptions? _matchOptions;
@@ -41,8 +43,9 @@ public sealed class GameSession : IAsyncDisposable
         Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null,
         MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot, bool>? checkpoint = null,
         Func<GameView, int, CampaignCommand>? campaignPolicy = null,
-        bool waitForContractPresentation = false)
+        bool waitForContractPresentation = false, Func<CampaignCheckpoint, bool>? liveCheckpoint = null)
     {
+        _liveCheckpoint = liveCheckpoint;
         _waitForContractPresentation = waitForContractPresentation;
         _campaignPolicy = campaignPolicy ?? CampaignBotPolicy.Choose;
         _matchOptions = matchOptions;
@@ -68,7 +71,17 @@ public sealed class GameSession : IAsyncDisposable
     // Set when the background bot loop stopped on an error nothing else handled.
     public Exception? BotLoopFault => _botLoopTask is { IsFaulted: true } loop ? loop.Exception!.GetBaseException() : null;
 
-    public async Task StartAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
+    public Task StartAsync(CancellationToken cancellationToken = default, bool waitForDeal = false) => StartCoreAsync(null, cancellationToken, waitForDeal);
+
+    public Task RestoreCampaignAsync(CampaignCheckpoint checkpoint, CancellationToken cancellationToken = default)
+    {
+        if (checkpoint is null || !checkpoint.IsValid()) throw new GameRuleException("Invalid campaign checkpoint.");
+        // Detach before awaiting startup so the caller cannot mutate the engine being restored.
+        var detached = new CampaignCheckpoint(GameEngine.RestoreCampaignMatch(checkpoint.Match).ExportCampaignMatchSnapshot(), checkpoint.Arrangement);
+        return StartCoreAsync(detached, cancellationToken, false);
+    }
+
+    private async Task StartCoreAsync(CampaignCheckpoint? restored, CancellationToken cancellationToken, bool waitForDeal)
     {
         using var startup = CreateStartupCancellation(cancellationToken);
         await _gate.WaitAsync(startup.Token);
@@ -82,7 +95,10 @@ public sealed class GameSession : IAsyncDisposable
                 throw new GameRuleException("This session has already started.");
             }
 
-            if (_campaign is not null && Seats.Any(s => s.Kind == PlayerKind.Bot && s.EngineId is not null && s.EngineId != EngineCatalog.BuiltInEngineId))
+            if (restored is not null && (Seats.Count != 4 || !Seats.OrderBy(s => s.Seat).Select(s => s.Seat).SequenceEqual(new[] { 0, 1, 2, 3 })
+                || !Seats.OrderBy(s => s.Seat).Select(s => s.Name).SequenceEqual(restored.Match.PlayerNames)))
+                throw new GameRuleException("The saved campaign seats do not match this session.");
+            if ((_campaign is not null || restored is not null) && Seats.Any(s => s.Kind == PlayerKind.Bot && s.EngineId is not null && s.EngineId != EngineCatalog.BuiltInEngineId))
                 throw new GameRuleException("External engines do not support campaign cards and bidding options.");
             initializing = true;
             foreach (var seat in Seats.Where(seat => seat.Kind is PlayerKind.Bot))
@@ -96,8 +112,17 @@ public sealed class GameSession : IAsyncDisposable
             }
 
             ThrowIfClosing();
-            Game = new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions, _campaign);
-            Game.StartGame();
+            Game = restored is null ? new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions, _campaign)
+                : GameEngine.RestoreCampaignMatch(restored.Match);
+            if (restored is null) Game.StartGame();
+            else
+            {
+                _arrangement = restored.Arrangement;
+                // A selected contract was already acknowledged in the saved game. A future
+                // contract still arms its usual fresh gate. No abandoned animation can block bots.
+                _contractPresentationDeal = Game.Contract is null ? null : Game.DealSerial;
+                _contractReady = null;
+            }
             _dealReady = waitForDeal ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             LastError = null;
             CheckpointCampaign();
@@ -206,17 +231,35 @@ public sealed class GameSession : IAsyncDisposable
 
     private void CheckpointCampaign()
     {
-        if (Game?.IsCampaign is true && _checkpoint?.Invoke(Game.ExportCampaignSnapshot()) is false)
-            LastError = "Could not save progress. Changes are retained in this session only.";
+        if (Game?.IsCampaign is not true) return;
+        var checkpoint = CreateCampaignCheckpointLocked();
+        var saved = _liveCheckpoint is not null ? _liveCheckpoint(checkpoint) : _checkpoint?.Invoke(checkpoint.Match.Resources) ?? true;
+        if (!saved) LastError = "Could not save progress. Changes are retained in this session only.";
     }
 
-    public async Task ExecuteCampaignAsync(CampaignActionRequest request, CancellationToken cancellationToken = default)
+    private CampaignCheckpoint CreateCampaignCheckpointLocked() => new(Game!.ExportCampaignMatchSnapshot(),
+        _arrangement?.DealSerial == Game.DealSerial ? _arrangement : null);
+
+    public async Task<CampaignCheckpoint?> GetCampaignCheckpointAsync(CancellationToken cancellationToken = default) =>
+        await ReadCampaignAsync((_, checkpoint, _) => checkpoint, cancellationToken);
+
+    /// <summary>Projects a detached seat-zero view, complete checkpoint and error under the action gate.
+    /// The synchronous projection may take a short state lock but must not await session operations.</summary>
+    public async Task<T> ReadCampaignAsync<T>(Func<GameView?, CampaignCheckpoint?, string?, T> projection, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
+        try { ThrowIfClosing(); return projection(Game?.CreateView(0), Game?.IsCampaign is true ? CreateCampaignCheckpointLocked() : null, LastError); }
+        finally { _gate.Release(); }
+    }
+
+    public async Task ExecuteCampaignAsync(CampaignActionRequest request, CancellationToken cancellationToken = default, Action? precondition = null)
     {
         ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfClosing();
             ThrowIfPaused();
+            precondition?.Invoke();
             ThrowIfContractPresentationPending();
             if (Game?.IsCampaign is not true || WaitingForDeal) throw new GameRuleException("Wait for the campaign deal to finish.");
             GameRules.ValidateSeat(request.Seat);
@@ -250,22 +293,25 @@ public sealed class GameSession : IAsyncDisposable
 
     /// <summary>Rearranges a human's campaign hand. It is not a game action: it is allowed at any time,
     /// even during the deal or another seat's turn, and does not change the table revision or wake the bots.</summary>
-    public async Task ArrangeCampaignHandAsync(int seat, IReadOnlyList<CardId> order, CancellationToken cancellationToken = default)
+    public async Task ArrangeCampaignHandAsync(int seat, IReadOnlyList<CardId> order, CancellationToken cancellationToken = default, Action? precondition = null, bool manuallyArranged = true, string? autoArrangeStage = null)
     {
         ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfClosing();
             ThrowIfPaused();
+            precondition?.Invoke();
             if (Game?.IsCampaign is not true) throw new GameRuleException("Only campaign hands are arranged on the table.");
             GameRules.ValidateSeat(seat);
             if (Seats[seat].Kind != PlayerKind.Human) throw new GameRuleException("Only a human seat arranges its hand.");
             Game.ArrangeCampaignHand(seat, order);
+            if (seat == 0) _arrangement = new(Game.DealSerial, manuallyArranged || (_arrangement?.DealSerial == Game.DealSerial && _arrangement.ManuallyArranged), autoArrangeStage);
+            LastError = null; CheckpointCampaign();
         }
         finally { _gate.Release(); }
     }
 
-    public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
+    public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false, Action? precondition = null)
     {
         ThrowIfClosing();
         await _gate.WaitAsync(cancellationToken);
@@ -273,6 +319,7 @@ public sealed class GameSession : IAsyncDisposable
         {
             ThrowIfClosing();
             ThrowIfPaused();
+            precondition?.Invoke();
             if (Game is null)
             {
                 throw new GameRuleException("The session has not started.");
