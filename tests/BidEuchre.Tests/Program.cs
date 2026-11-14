@@ -10,6 +10,20 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Free-play bot UnrelatedJackDoesNotCreateTrumpLength", () => Run(FreePlayBotPolicyTests.UnrelatedJackDoesNotCreateTrumpLength)),
+    ("Free-play bot TrumpBeatsAnOffSuitAce", () => Run(FreePlayBotPolicyTests.TrumpBeatsAnOffSuitAce)),
+    ("Free-play bot LeftBowerFollowsTrump", () => Run(FreePlayBotPolicyTests.LeftBowerFollowsTrump)),
+    ("Free-play bot SavesCardsWhenPartnerIsWinning", () => Run(FreePlayBotPolicyTests.SavesCardsWhenPartnerIsWinning)),
+    ("Free-play bot UsesLowestWinnerAndDiscardsCheaply", () => Run(FreePlayBotPolicyTests.UsesLowestWinnerAndDiscardsCheaply)),
+    ("Free-play bot LowUsesLowestWinningRankAndSavesNine", () => Run(FreePlayBotPolicyTests.LowUsesLowestWinningRankAndSavesNine)),
+    ("Free-play bot StrongHandRaisesAndWeakHandPasses", () => Run(FreePlayBotPolicyTests.StrongHandRaisesAndWeakHandPasses)),
+    ("Free-play bot ForcedDealerUsesALegalBid", () => Run(FreePlayBotPolicyTests.ForcedDealerUsesALegalBid)),
+    ("Free-play bot HighAndLowEvaluateTheirOwnRanks", () => Run(FreePlayBotPolicyTests.HighAndLowEvaluateTheirOwnRanks)),
+    ("Free-play bot SpecialBidsNeedControlOfTheHand", () => Run(FreePlayBotPolicyTests.SpecialBidsNeedControlOfTheHand)),
+    ("Free-play bot ExchangeUsesContractStrengthAndLegalCards", () => Run(FreePlayBotPolicyTests.ExchangeUsesContractStrengthAndLegalCards)),
+    ("Free-play bot HiddenHandsCannotChangeDecisions", () => Run(FreePlayBotPolicyTests.HiddenHandsCannotChangeDecisions)),
+    ("Free-play bot FullBotTablesComplete", () => Run(FreePlayBotPolicyTests.FullBotTablesComplete)),
+
     ("Settled bidding AllSeatsRespectBidUnlocks", () => Run(SettledBiddingTests.AllSeatsRespectBidUnlocks)),
     ("Settled bidding AllSeatsRespectContractUnlocks", () => Run(SettledBiddingTests.AllSeatsRespectContractUnlocks)),
     ("Settled bidding SafetyNetAndHumanVariantSeats", () => Run(SettledBiddingTests.SafetyNetAndHumanVariantSeats)),
