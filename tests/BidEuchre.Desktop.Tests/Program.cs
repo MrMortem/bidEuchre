@@ -19,6 +19,8 @@ EnhancementBackgroundTests.Run();
 CuratedArtTests.Run();
 CollectionTests.Run();
 TableRenderingTests.Run();
+DesktopBugTests.Run();
+CampaignRecoveryUiTests.Run();
 
 var motion = new PixelMotion();
 motion.SetEnabled(false);

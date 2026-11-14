@@ -18,7 +18,8 @@ const model = {
   renderMode: null,
   actionPending: false,
   startPending: false,
-  rulesLoaded: false
+  rulesLoaded: false,
+  rulesGeneration: 0
 };
 
 const $ = selector => document.querySelector(selector);
@@ -39,6 +40,7 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
+  $('#retry-rules').addEventListener('click', loadRules);
   $('#retry-connection').addEventListener('click', () => refreshGame({notify:false}));
   $('#viewer-seat').addEventListener('change', event =>
     selectViewerSeat(event.target.value === '' ? null : Number(event.target.value)));
@@ -147,18 +149,23 @@ async function loadSessions() {
 }
 
 function renderSessions() {
+  const focused = document.activeElement;
+  const focusedId = focused?.classList?.contains('session-open') ? focused.dataset.id : null;
   const list = $('#session-list');
   if (!model.sessions.length) {
     list.innerHTML = '<div class="empty-state"><div><strong>No tables yet</strong>Create a session and choose who takes each seat.</div></div>';
     return;
   }
   list.innerHTML = model.sessions.map(session => `
-    <article class="session-card" data-id="${session.id}">
+    <article class="session-card">
       <div class="session-card-top"><h3>${escapeHtml(session.name)}</h3><span class="phase-chip">${splitWords(session.phase)}</span></div>
       <div class="mini-score"><strong>${session.scores[0]}</strong><span>—</span><strong>${session.scores[1]}</strong></div>
       <div class="seat-dots">${session.seats.map(seat => `<span>${seat.kind === 'Bot' ? '⚙' : '●'} ${escapeHtml(seat.name)}</span>`).join('')}</div>
+      <button type="button" class="button quiet session-open" data-id="${escapeHtml(session.id)}" aria-label="Open table: ${escapeHtml(session.name)}">Open table</button>
     </article>`).join('');
-  $$('.session-card').forEach(card => card.addEventListener('click', () => openSession(card.dataset.id)));
+  const buttons = $$('.session-open');
+  buttons.forEach(button => button.addEventListener('click', () => openSession(button.dataset.id)));
+  if (focusedId) buttons.find(button => button.dataset.id === focusedId)?.focus();
 }
 
 async function createSession(event) {
@@ -195,7 +202,10 @@ async function openSession(id) {
   showView('game');
   const generation = model.viewGeneration;
   await refreshGame();
-  if (generation === model.viewGeneration && !model.sessionUnavailable) startPolling();
+  if (generation === model.viewGeneration && !model.sessionUnavailable) {
+    $('#back-to-tables').focus?.();
+    startPolling();
+  }
 }
 
 async function startCurrentSession() {
@@ -616,12 +626,22 @@ function setConnectionState(lost, unavailable = false) {
 }
 
 async function loadRules() {
+  const generation = ++model.rulesGeneration;
+  const retry = $('#retry-rules');
+  retry.classList.add('hidden');
   try {
     const response = await fetch('/api/rules');
+    if (!response.ok) throw new Error('Could not load the rules. Try again.');
     const markdown = await response.text();
+    if (generation !== model.rulesGeneration) return;
     $('#rules-content').innerHTML = renderMarkdown(markdown);
     model.rulesLoaded = true;
-  } catch (error) { $('#rules-content').textContent = error.message; }
+  } catch {
+    if (generation !== model.rulesGeneration) return;
+    model.rulesLoaded = false;
+    $('#rules-content').textContent = 'Could not load the rules. Check the connection and try again.';
+    retry.classList.remove('hidden');
+  }
 }
 
 function renderMarkdown(markdown) {

@@ -10,9 +10,15 @@ namespace BidEuchre.Desktop;
 internal static class SettingsPage
 {
     // Every change is reported immediately; the window applies and saves it.
-    public static Control Build(GamePreferences current, Action<GamePreferences> changed, Action back, PixelMotion effects)
+    public static Control Build(GamePreferences current, Func<GamePreferences, bool> changed, Action back, PixelMotion effects)
     {
         var preferences = current;
+        var saveError = new TextBlock
+        {
+            Name = "SettingsSaveError", IsVisible = false, Foreground = Avalonia.Media.Brush.Parse("#FF617B"), FontSize = 14,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Text = "Settings changed for this session, but could not be saved. Your choices will be lost when you close the game. Try changing an option again after restoring access to the settings folder."
+        };
         var sizes = GamePreferences.WindowSizes;
         var scales = GamePreferences.UiScales;
 
@@ -35,7 +41,7 @@ internal static class SettingsPage
         void Publish(GamePreferences next)
         {
             preferences = next;
-            changed(next);
+            saveError.IsVisible = !changed(next);
         }
 
         motion.SelectionChanged += (_, _) => Publish(preferences with { MotionEnabled = motion.SelectedIndex == 0 });
@@ -96,7 +102,7 @@ internal static class SettingsPage
                 {
                     Text = "Graphics options apply immediately and are remembered.", Foreground = Muted, FontSize = 14
                 }, 220, 0, 0),
-                effects.Enter(CardPanel(new StackPanel { Spacing = 14, Children = { Eyebrow("GRAPHICS"), rows } }), 300, 0, 16)
+                effects.Enter(CardPanel(new StackPanel { Spacing = 14, Children = { Eyebrow("GRAPHICS"), rows, saveError } }), 300, 0, 16)
             }
         };
         return MenuParts.Scene(effects, content, new ScrollViewer { Padding = new Thickness(30), Content = content });

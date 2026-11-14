@@ -132,3 +132,29 @@ test('idle tables expire while requests to a table keep it alive', async () => {
   assert.equal((await fetch(`${base}/api/sessions/${idle.id}`)).status, 404);
   assert.deepEqual((await (await fetch(`${base}/api/sessions`)).json()).map(s => s.id), [active.id]);
 });
+
+test('undefined contracts return 400 and leave the auction state unchanged', async () => {
+  const session = await (await create()).json();
+  const request = async (endpoint, body) => fetch(`${base}/api/sessions/${session.id}${endpoint}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  const state = async () => (await (await fetch(`${base}/api/sessions/${session.id}?seat=0`)).json()).game;
+  try {
+    assert.equal((await request('/start', {})).status, 200);
+    let view = await state(); const bidder = view.currentSeat;
+    assert.equal((await request('/actions', { seat: bidder, type: 'bid', bid: 'Four' })).status, 200);
+    for (let i = 0; i < 3; i++) {
+      view = await state();
+      assert.equal((await request('/actions', { seat: view.currentSeat, type: 'pass' })).status, 200);
+    }
+    const before = await state();
+    for (const contract of [{ mode: 99 }, { mode: 'Trump', suit: 99 }, { mode: -1 }, { mode: 'High', suit: 99 }]) {
+      assert.equal((await request('/actions', { seat: bidder, type: 'contract', ...contract })).status, 400);
+      assert.deepEqual(await state(), before);
+    }
+    assert.equal((await request('/actions', { seat: bidder, type: 'contract', mode: 'Trump', suit: 'Spades' })).status, 200);
+    assert.equal((await state()).phase, 'Playing');
+  } finally {
+    await fetch(`${base}/api/sessions/${session.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+  }
+});

@@ -19,7 +19,7 @@ public static class CampaignStore
             CampaignRun? run;
             if (root.TryGetProperty("Version", out var version))
             {
-                if (!version.TryGetInt32(out var number) || number != 2) return null;
+                if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 2) return null;
                 var save = JsonNode.Parse(text)!.AsObject();
                 RemoveRetiredFeatures(save);
                 run = save.Deserialize<CampaignSave>(CampaignJson.Options)?.Run;
@@ -29,7 +29,7 @@ public static class CampaignStore
                 run = JsonSerializer.Deserialize<CampaignRun>(text);
                 if (run is not null) run = run with { Resources = CampaignSnapshot.Create(1) with { Wallets = new[] { run.Money, 0, 0, 0 } } };
             }
-            if (run?.Resources is null || !run.Resources.IsValid()) return null;
+            if (run?.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop)) return null;
             return run is { Lives: > 0, Match: >= 1, Money: >= 0, MatchesWon: >= 0 } && Enum.IsDefined(run.Phase)
                 ? run
                 : null;
@@ -38,6 +38,26 @@ public static class CampaignStore
         {
             return null;
         }
+    }
+
+    // Old blind gumball stock used "Blind"; current stock uses an empty feature until pulled.
+    // Other offers must name a feature in the category the shop can actually sell.
+    private static bool ValidShop(ShopState? shop)
+    {
+        if (shop is null) return true;
+        if (shop.MatchJustFinished < 0 || shop.Offers is null) return false;
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        var machines = 0;
+        foreach (var offer in shop.Offers)
+        {
+            if (offer is null || string.IsNullOrWhiteSpace(offer.Id) || !ids.Add(offer.Id)
+                || offer.Price < 0 || offer.FeatureId is null) return false;
+            if (offer.Category == FeatureCategory.Gumball && ++machines > 1) return false;
+            if (offer.Category == FeatureCategory.Gumball && !offer.Sold && offer.FeatureId is "" or "Blind") continue;
+            if (offer.Category is not (FeatureCategory.Joker or FeatureCategory.Tarot or FeatureCategory.Sigil or FeatureCategory.Gumball)
+                || !FeatureCatalog.All.Any(feature => feature.Category == offer.Category && feature.Key == offer.FeatureId)) return false;
+        }
+        return true;
     }
 
     // Retired IDs are removed only from their saved feature fields; all other

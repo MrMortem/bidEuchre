@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
+import pickle
 from typing import Any
 
 from .actions import ACTION_COUNT
@@ -108,6 +110,8 @@ class CFRTrainer:
             payload: dict[str, Any] = self.torch.load(
                 path, map_location="cpu", weights_only=True
             )
+            if not isinstance(payload, dict):
+                return
             if (
                 payload.get("schema_version") != MODEL_SCHEMA_VERSION
                 or payload.get("encoder_version") != ENCODER_VERSION
@@ -115,10 +119,44 @@ class CFRTrainer:
                 or payload.get("action_count") != ACTION_COUNT
             ):
                 return
-            self.model.load_state_dict(payload["model_state"])
-            self.optimizer.load_state_dict(payload["optimizer_state"])
-            self.state.updates = int(payload.get("updates", 0))
-            self.state.decisions = int(payload.get("decisions", 0))
-        except (OSError, RuntimeError, ValueError, KeyError, TypeError):
+            updates = payload.get("updates", 0)
+            decisions = payload.get("decisions", 0)
+            if any(type(value) is not int or value < 0 for value in (updates, decisions)):
+                return
+            # Loading a state dict can mutate some parameters before rejecting
+            # another one. Commit the entire checkpoint only after validation.
+            model, optimizer = deepcopy((self.model, self.optimizer))
+            model.load_state_dict(payload["model_state"])
+            optimizer.load_state_dict(payload["optimizer_state"])
+            for parameter, state in optimizer.state.items():
+                if not state:
+                    continue
+                for name in ("exp_avg", "exp_avg_sq"):
+                    moment = state[name]
+                    if (not isinstance(moment, self.torch.Tensor)
+                            or moment.shape != parameter.shape
+                            or not self.torch.isfinite(moment).all()):
+                        return
+                if "max_exp_avg_sq" in state:
+                    moment = state["max_exp_avg_sq"]
+                    if (not isinstance(moment, self.torch.Tensor)
+                            or moment.shape != parameter.shape
+                            or not self.torch.isfinite(moment).all()):
+                        return
+            # AdamW's loader accepts malformed hyperparameters and state that
+            # fail only on step(). Exercise a disposable copy before committing
+            # so recovery also guarantees the next real decision can train.
+            probe_model, probe_optimizer = deepcopy((model, optimizer))
+            for parameter in probe_model.parameters():
+                parameter.grad = self.torch.ones_like(parameter)
+            probe_optimizer.step()
+            if any(not self.torch.isfinite(parameter).all()
+                   for parameter in probe_model.parameters()):
+                return
+            self.model, self.optimizer = model, optimizer
+            self.state = TrainingState(updates=updates, decisions=decisions)
+        except (OSError, EOFError, pickle.UnpicklingError, RuntimeError,
+                ValueError, KeyError, TypeError, AttributeError, IndexError,
+                ArithmeticError, AssertionError):
             # A valid SQLite journal remains enough to rebuild after a bad file.
             return

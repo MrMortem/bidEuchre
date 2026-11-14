@@ -19,6 +19,7 @@ public sealed class EngineProcessClient : IAsyncDisposable
     private StreamWriter? _input;
     private StreamReader? _output;
     private Task? _disposeTask;
+    private bool _channelFailed;
     private readonly StringBuilder _standardError = new();
     private readonly object _errorLock = new();
     private StreamReader? _errorOutput;
@@ -33,7 +34,7 @@ public sealed class EngineProcessClient : IAsyncDisposable
     }
 
     public EngineIdentity? Identity { get; private set; }
-    public bool IsRunning => ProcessIsRunning(_process);
+    public bool IsRunning => !_channelFailed && ProcessIsRunning(_process);
 
     public async Task<EngineIdentity> StartAsync(CancellationToken cancellationToken = default)
     {
@@ -42,6 +43,7 @@ public sealed class EngineProcessClient : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            EnsureChannelUsable();
             if (IsRunning)
             {
                 return Identity ?? throw new ProtocolException("The engine handshake did not complete.");
@@ -169,6 +171,13 @@ public sealed class EngineProcessClient : IAsyncDisposable
 
                 return BotActionNotation.Parse(line);
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // A cancelled write may already have delivered go. There is no request
+            // identifier in BEUCI, so this stream cannot safely serve another turn.
+            FailChannel();
+            throw;
         }
         finally
         {
@@ -362,8 +371,11 @@ public sealed class EngineProcessClient : IAsyncDisposable
             return await _output!.ReadLineAsync(timeout.Token)
                 ?? throw new ProtocolException("Engine closed its output stream.");
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
+            FailChannel();
+            if (cancellationToken.IsCancellationRequested)
+                throw;
             throw new ProtocolException($"Engine did not respond within {_timeout.TotalSeconds:0.#} seconds.");
         }
     }
@@ -385,8 +397,29 @@ public sealed class EngineProcessClient : IAsyncDisposable
         }
     }
 
+    private void FailChannel()
+    {
+        _channelFailed = true;
+        try
+        {
+            if (ProcessIsRunning(_process)) _process!.Kill(entireProcessTree: true);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
+        {
+            // The failed channel remains unusable even if the OS cannot kill it.
+            // DisposeAsync still owns the resources and attempts final cleanup.
+        }
+    }
+
+    private void EnsureChannelUsable()
+    {
+        if (_channelFailed)
+            throw new ProtocolException("Engine channel failed after an interrupted response; replace the engine client.");
+    }
+
     private void EnsureRunning()
     {
+        EnsureChannelUsable();
         if (!IsRunning || _input is null || _output is null)
         {
             throw new ProtocolException("Engine process is not running.");

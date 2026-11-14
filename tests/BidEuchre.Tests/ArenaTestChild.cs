@@ -6,6 +6,7 @@ internal static class ArenaTestChild
 {
     public static async Task RunAsync(string mode)
     {
+        var decisions = 0;
         BotPosition? position = null;
         var inner = new BuiltInBotDriver();
         var initialHands = new Dictionary<long, Card[]>();
@@ -38,6 +39,29 @@ internal static class ArenaTestChild
             }
             else if (line == "go")
             {
+                if (mode == "delayed-decision")
+                {
+                    if (decisions++ == 0) await Task.Delay(800);
+                    Console.WriteLine(decisions == 1 ? "bestaction pass" : "bestaction bid 3");
+                    await Console.Out.FlushAsync();
+                    continue;
+                }
+                if (mode.StartsWith("malformed-play") && position!.Game.Phase == GamePhase.Playing ||
+                    mode.StartsWith("malformed-exchange") && position!.Game.Phase is GamePhase.ExchangingBidderCard or GamePhase.ExchangingPartnerCard)
+                {
+                    var action = mode.StartsWith("malformed-play") ? "play" : "exchange";
+                    var card = mode.EndsWith("whitespace") ? "\"\t \"" : "ZZ";
+                    Console.WriteLine($"bestaction {action} {card}");
+                    await Console.Out.FlushAsync();
+                    continue;
+                }
+                if (mode.StartsWith("malformed-exchange") && position!.Game.Phase == GamePhase.Bidding)
+                {
+                    Console.WriteLine(BotActionNotation.Format(position.Game.LegalActions.Bids.Contains(BidLevel.PartnersBest)
+                        ? new BotAction.Bid(BidLevel.PartnersBest) : new BotAction.Pass()));
+                    await Console.Out.FlushAsync();
+                    continue;
+                }
                 if (mode.StartsWith("backend-") && mode != "backend-missing")
                 {
                     var backend = mode[8..];

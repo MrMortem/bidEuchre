@@ -172,46 +172,79 @@ def _state_from_position(position: Mapping[str, Any], rng: random.Random) -> _St
     known_cards = set(all_known_cards)
     if len(known_cards) != len(all_known_cards):
         raise ValueError("position contains duplicate cards")
-    remaining = [card for card in CARD_CODES if card not in known_cards]
-    rng.shuffle(remaining)
-    hands: list[list[str]] = [[], [], [], []]
-    cursor = 0
-    for seat in range(4):
-        if seat in known:
-            if len(known[seat]) != counts[seat]:
-                raise ValueError("visible hand does not match cardCount")
-            hands[seat] = known[seat].copy()
-        else:
-            end = cursor + counts[seat]
-            hands[seat] = remaining[cursor:end]
-            cursor = end
-    if cursor != len(remaining):
-        raise ValueError("card counts are inconsistent with the public history")
+    contract = game.get("contract")
+    if contract is not None and not isinstance(contract, dict):
+        raise ValueError("game.contract must be an object or null")
+    voids: list[set[str]] = [set() for _ in range(4)]
+    trick_plays = [trick.get("plays", []) for trick in game.get("completedTricks", [])]
+    trick_plays.append(game.get("currentTrick", []))
+    for plays in trick_plays:
+        if not plays:
+            continue
+        led = _effective_suit(_play_card(plays[0]), contract or {})
+        for play in plays[1:]:
+            if _effective_suit(_play_card(play), contract or {}) != led:
+                voids[_play_seat(play)].add(led)
 
+    hands: list[list[str]] = [known.get(seat, []).copy() for seat in range(4)]
+    for seat, cards in known.items():
+        if len(cards) != counts[seat]:
+            raise ValueError("visible hand does not match cardCount")
+
+    # Pin exchange knowledge before matching rather than swapping cards after
+    # sampling, which could invalidate another seat's public void constraints.
     memory = position.get("cfrPrivateMemory")
-    if isinstance(memory, Mapping) and game.get("contract", {}).get("isPartnersBest"):
+    if isinstance(memory, Mapping) and contract and contract.get("isPartnersBest"):
         received = memory.get("partnersBestReceived")
         if isinstance(received, str):
             received = _card_code(received)
             bidder_value = game.get("bidder")
-            if bidder_value is not None:
+            if bidder_value is not None and received not in public_card_list:
                 partner = (_seat(bidder_value) + 2) % 4
-                # The viewer's visible hand is authoritative. If it contains
-                # the remembered card, the partner returned that same card and
-                # determinization must never move it away.
                 if received in hands[viewer]:
                     partner = viewer
-                owner = next((candidate for candidate, hand in enumerate(hands) if received in hand), None)
-                if owner is not None and owner != partner:
-                    replacement = next(
-                        (card for card in hands[partner] if card not in known_cards),
-                        None,
-                    )
-                    if replacement is not None:
-                        hands[owner].remove(received)
-                        hands[partner].remove(replacement)
-                        hands[owner].append(replacement)
-                        hands[partner].append(received)
+                if received in known_cards:
+                    if received not in hands[partner]:
+                        raise ValueError("no consistent assignment for private exchange card")
+                elif partner in known:
+                    raise ValueError("no consistent assignment for private exchange card")
+                else:
+                    hands[partner].append(received)
+                    known_cards.add(received)
+
+    for seat, hand in enumerate(hands):
+        if len(hand) > counts[seat] or any(
+            _effective_suit(card, contract or {}) in voids[seat] for card in hand
+        ):
+            raise ValueError("no consistent assignment: known hand conflicts with public voids")
+
+    remaining = [card for card in CARD_CODES if card not in known_cards]
+    slots = [seat for seat in range(4) if seat not in known
+             for _ in range(counts[seat] - len(hands[seat]))]
+    if len(slots) != len(remaining):
+        raise ValueError("card counts are inconsistent with the public history")
+    rng.shuffle(remaining)
+    rng.shuffle(slots)
+    assigned: dict[int, str] = {}
+
+    def place(card: str, visited: set[int]) -> bool:
+        # Augmenting-path matching finds a feasible capacity assignment without
+        # retry limits or greedy dead ends on tightly constrained observations.
+        suit = _effective_suit(card, contract or {})
+        for index, seat in enumerate(slots):
+            if index in visited or suit in voids[seat]:
+                continue
+            visited.add(index)
+            if index not in assigned or place(assigned[index], visited):
+                assigned[index] = card
+                return True
+        return False
+
+    for card in remaining:
+        if not place(card, set()):
+            raise ValueError("no consistent hidden-hand assignment for public voids")
+    for index, card in assigned.items():
+        hands[slots[index]].append(card)
 
     current = game.get("currentSeat")
     if current is None:

@@ -200,6 +200,17 @@ tuning, and tests.
 ./test.sh
 ```
 
+For real Chromium keyboard and Rules-retry checks, use Node.js 20+ and install
+the test-only browser tools once:
+
+```bash
+npm ci --prefix tests/browser
+./tests/browser/node_modules/.bin/playwright install chromium
+```
+
+`./test.sh` then runs these checks along with a temporary published-server Rules
+check. Without the optional browser tools, Chromium checks are explicitly skipped.
+
 The script runs browser interaction/motion regressions when Node.js is available,
 and Mac bundle checks on macOS. Optional engine tests are explicitly skipped
 when their Python 3.10+, PyTorch, C++, or SWI-Prolog prerequisites are missing.

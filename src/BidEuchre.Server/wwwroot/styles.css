@@ -62,7 +62,8 @@ main { min-width: 0; padding: 42px clamp(24px, 4vw, 64px) 64px; }
 .session-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr)); gap: 17px; }
 .empty-state { grid-column: 1 / -1; min-height: 230px; border: 1px dashed #53625c; border-radius: 12px; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); background: rgba(255,255,255,.02); }
 .empty-state strong { display: block; color: var(--ink); font: 24px Georgia, serif; margin-bottom: 7px; }
-.session-card { border: 1px solid var(--line); border-radius: 12px; padding: 21px; background: var(--panel); cursor: pointer; transition: .18s ease; }
+.session-card { border: 1px solid var(--line); border-radius: 12px; padding: 21px; background: var(--panel); transition: .18s ease; }
+.session-open { margin-top: 16px; }
 .session-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: #60756d; }
 .session-card-top { display: flex; justify-content: space-between; gap: 12px; }
 .session-card h3 { margin: 0; font: 22px Georgia, serif; }
