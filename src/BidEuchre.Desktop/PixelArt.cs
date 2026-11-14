@@ -135,7 +135,10 @@ internal static class PixelArt
 
     public static Image CampaignIcon(FeatureDefinition definition, double size = 64)
     {
-        var image = Sprite(Load(CampaignImageName(definition)), size, size);
+        var name = CampaignImageName(definition);
+        // New Jokers stay usable in shops and collections while their artwork is pending.
+        if (definition.Category == FeatureCategory.Joker && !HasImage(name)) name = "back";
+        var image = Sprite(Load(name), size, size);
         image.HorizontalAlignment = HorizontalAlignment.Center;
         image.VerticalAlignment = VerticalAlignment.Center;
         image.IsHitTestVisible = false;

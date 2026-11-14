@@ -23,7 +23,7 @@ internal static class CampaignJokerScoringTests
         Assert.Equal(6, Sweep([]).Scores[0]);
         Assert.Equal(8, Sweep([JokerId.ThreesCompany]).Scores[0]);
         Assert.Equal(9, Sweep([JokerId.HighRoller], BidLevel.Five).Scores[0]);
-        Assert.Equal(11, Sweep([JokerId.SnakeEyes]).Scores[0]);
+        Assert.Equal(10, Sweep([JokerId.SnakeEyes]).Scores[0]);
         Assert.Equal(12, Sweep([JokerId.TwinFlame]).Scores[0]);
         Assert.Equal(12, Sweep([JokerId.Clubhouse]).Scores[0]);
         Assert.Equal(10, Sweep([JokerId.TheUndertaker]).Scores[0]);

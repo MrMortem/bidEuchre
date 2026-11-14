@@ -2,7 +2,7 @@ namespace BidEuchre.Core;
 
 // Explicit values preserve saved/protocol identities when a feature is retired.
 public enum EnhancementId { Lucky = 0, Golden = 1, Wild = 2, Cursed = 3, Stone = 4, Silver = 6, Glass = 8, Bouncy = 9 }
-public enum JokerId { ThreesCompany, HighRoller, LoverBoy, SnakeEyes, TwinFlame, Clubhouse, TheUndertaker, RollerCoaster, DejaVu, LastLaugh, VowofSilence, CureAll, TrendSetter, Contrarian, ConsolationPrize, RoyalCouncil, DeepDigger, LuckyDuck, ProtectiveBubble, PennyPincher, Bully, PeoplePleaser, Millionaire, KingMidas, StickyFingers, Medusa, CheeseTouch, OneUp, Cheater, Alpha, SlickWilly }
+public enum JokerId { ThreesCompany, HighRoller, LoverBoy, SnakeEyes, TwinFlame, Clubhouse, TheUndertaker, RollerCoaster, DejaVu, LastLaugh, VowofSilence, CureAll, TrendSetter, Contrarian, ConsolationPrize, RoyalCouncil, DeepDigger, LuckyDuck, ProtectiveBubble, PennyPincher, Bully, PeoplePleaser, Millionaire, KingMidas, StickyFingers, Medusa, CheeseTouch, OneUp, Cheater, Alpha, SlickWilly, DoubleDown }
 public enum GumballId { Lowballer, Chaos, Poker, Duelist, Telepath, PartnersBest, Alone, PanicButton, HighLow }
 public enum SigilId { Bear = 1, Eagle = 2, Fish = 3, Spider = 4, Frog = 6, Duck = 8, Vulture = 9, Chameleon = 10 }
 public enum TarotId { Chameleon = 4, Grindstone = 5, Prospector = 6, DevilishDeal = 7, Gambler = 8, Traitor = 11, Astronomer = 12, SpringLoaded = 14, TaxCollector = 15 }

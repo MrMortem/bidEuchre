@@ -31,13 +31,13 @@ public sealed partial class GameEngine
         _resources = _resources with { Inventory = inventory with { Tarot = [.. inventory.Tarot, card] } };
         _events.Add($"Created {FeatureCatalog.Get(FeatureCategory.Tarot, card.ToString()).Name}.");
     }
-    private void OnCardEffects(int seat, Card token, bool replay = false, int? trickNumber = null, bool finalAlreadyApplied = false)
+    private void OnCardEffects(int seat, Card token, bool replay = false, int? trickNumber = null, bool finalAlreadyApplied = false, bool doubleDown = false)
     {
         var state = StateFor(token);
         var number = trickNumber ?? (_completedTricks.Count + 1);
         var finalMultiplier = Has(JokerId.LastLaugh) && number == 6 && !finalAlreadyApplied ? 2 : 1;
         // Schedule independent activations once. A replay never schedules another replay bonus.
-        var extra = replay ? 0 : (state.Enhancement == EnhancementId.Lucky && Has(JokerId.LuckyDuck) ? 1 : 0) + (state.Sigil == SigilId.Frog ? 1 : 0);
+        var extra = replay ? 0 : (state.Enhancement == EnhancementId.Lucky && Has(JokerId.LuckyDuck) ? 1 : 0) + (state.Sigil == SigilId.Frog ? 1 : 0) + (doubleDown ? 1 : 0);
         var repeat = (1 + extra) * finalMultiplier;
         for (var activation = 0; activation < repeat; activation++)
         {
@@ -54,7 +54,7 @@ public sealed partial class GameEngine
             switch (state.Sigil)
             {
                 case SigilId.Fish: Point(seat, 2, "Fish"); break;
-                case SigilId.Duck: if (_campaignRandom.NextInt(2) == 0) Point(seat, 4, "Duck"); break;
+                case SigilId.Duck: if (_campaignRandom.NextInt(3) == 0) Point(seat, 4, "Duck"); break;
                 case SigilId.Spider:
                     var previous = _currentTrick.Where(p => p.Card != token).ToArray();
                     if (previous.Length > 0) ChangeCard(IdFor(previous[_campaignRandom.NextInt(previous.Length)].Card), c => c with { Enhancement = EnhancementId.Cursed });
@@ -71,7 +71,9 @@ public sealed partial class GameEngine
             _firstMatchCard = true;
             if (Has(JokerId.CheeseTouch)) ChangeCard(IdFor(token), c => c with { Enhancement = EnhancementId.Cursed });
         }
-        OnCardEffects(seat, token);
+        var doubleDown = seat == 0 && !_firstHumanRoundCard && Has(JokerId.DoubleDown);
+        if (seat == 0) _firstHumanRoundCard = true;
+        OnCardEffects(seat, token, doubleDown: doubleDown);
         if (seat == 0 && Has(JokerId.KingMidas) && StateFor(token).Face.Rank == Rank.King && _campaignRandom.NextInt(3) == 0)
             ChangeCard(IdFor(token), c => c with { Enhancement = EnhancementId.Golden });
     }
@@ -88,7 +90,7 @@ public sealed partial class GameEngine
             for (var i = 0; i < count; i++)
             {
                 if (c.Enhancement == EnhancementId.Golden || p.Seat == 0 && Has(JokerId.Millionaire) && MatchesSuit(c, Suit.Diamonds)) Money(winner, 1, "Golden");
-                if (c.Enhancement == EnhancementId.Cursed) Point(winner, winner == 0 && Has(JokerId.CureAll) ? 2 : -1, "Cursed");
+                if (c.Enhancement == EnhancementId.Cursed) Point(winner, team == 0 && Has(JokerId.CureAll) ? 2 : -1, "Cursed");
                 if (c.Enhancement == EnhancementId.Silver) Money(team == 0 ? 1 : 0, 5, "Silver");
                 if (c.Sigil == SigilId.Vulture) GenerateTarot(winner);
             }
@@ -102,7 +104,7 @@ public sealed partial class GameEngine
         {
             var cards = plays.Select(p => StateFor(p.Card)).ToArray();
             if (Has(JokerId.LoverBoy) && Bidder == 0 && Contract!.Trump == Suit.Hearts) extra += cards.Count(c => MatchesSuit(c, Suit.Hearts));
-            if (Has(JokerId.SnakeEyes) && cards.Count(c => c.Face.Rank == Rank.Ace) >= 2) extra += 5;
+            if (Has(JokerId.SnakeEyes) && cards.Count(c => c.Face.Rank == Rank.Ace) >= 2) extra += 4;
             var us = plays.FirstOrDefault(p => p.Seat == 0); var partner = plays.FirstOrDefault(p => p.Seat == 2);
             if (Has(JokerId.TwinFlame) && us is not null && partner is not null && IsRed(StateFor(us.Card).Face.Suit) != IsRed(StateFor(partner.Card).Face.Suit)) extra++;
             if (Has(JokerId.Clubhouse) && cards.Any(c => MatchesSuit(c, Suit.Clubs))) extra++;

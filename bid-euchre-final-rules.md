@@ -263,3 +263,30 @@ Scores are evaluated after each hand:
   automatically fails its contract. The bidding team receives the normal
   failure score for that contract (`-` the numeric bid, `-12` for Partners Best,
   or `-24` for Alone), and the defending team scores `+6`.
+
+
+## 11. Campaign Card Effects
+
+Campaign rounds use these additional card effects. “Your team” includes you and
+your partner; a round is one six-trick hand.
+
+- **Duck Sigil:** When played, 1 in 3 chance to earn +4 points.
+- **Snake Eyes:** If your team wins a trick containing 2 or more Aces, +4 points.
+- **Roller Coaster:** +0 points each round when High/Low is trump. +1 when your
+  team wins a High/Low trick. −1 when your team loses one. Award only that round’s
+  accumulated value at its end; suit-trump rounds receive no Roller Coaster points.
+- **Cure-All:** Cursed cards in tricks that your team wins give +2 points instead
+  of −1. Opponent-won tricks still lose 1 point per Cursed card.
+- **Lover Boy:** When you call Hearts as trump, each Heart in a trick your team
+  wins adds +1 point to that trick.
+- **Clubhouse:** Tricks your team wins that contain at least one Club are worth
+  +1 point. Multiple Clubs still grant one bonus.
+- **Royal Council:** Tricks your team wins that contain an Ace, King, Queen,
+  and Jack are worth ×2 points.
+- **Double Down:** Retrigger the first card you play each round. Earlier plays
+  by other players do not consume it. Frog and Lucky Duck each add their own
+  independent activation; replayed effects do not create further replay chains.
+  A Bouncy activation replays earlier eligible on-play effects once. Glass
+  multiplies card-effect points, including those from the extra activation.
+- **Last Laugh:** Double all points and effects from the final trick of each
+  round. This timing applies every round of the match.

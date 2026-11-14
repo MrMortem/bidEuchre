@@ -10,6 +10,13 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Settled effects Duck trials and replay", () => Run(SettledEffectTests.DuckTrialsAndReplay)),
+    ("Settled effects team scope", () => Run(SettledEffectTests.TeamScopeAndQualifyingCards)),
+    ("Settled effects Snake Eyes threshold", () => Run(SettledEffectTests.SnakeEyesThreshold)),
+    ("Settled effects Roller Coaster rounds", () => Run(SettledEffectTests.RollerCoasterResetsEachRound)),
+    ("Settled effects Double Down first play", () => Run(SettledEffectTests.DoubleDownFirstHumanPlayAndRoundReset)),
+    ("Settled effects Double Down bounded combinations", () => Run(SettledEffectTests.DoubleDownIndependentReplaySources)),
+    ("Settled effects Double Down shop persistence", () => Run(SettledEffectTests.DoubleDownShopAndPersistence)),
     ("Settled campaign exact active rosters and stable identities", () => Run(SettledCatalogueTests.ActiveRosters)),
     ("Settled campaign retires all saved locations and rejects unknown items", () => Run(SettledCatalogueTests.MigrationAndUnknownIds)),
     ("Settled campaign renamed items preserve their effects and logs", () => Run(SettledCatalogueTests.RenamedEffectsKeepTheirBehavior)),

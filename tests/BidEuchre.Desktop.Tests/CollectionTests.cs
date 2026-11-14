@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using BidEuchre.Core;
+using BidEuchre.App;
 using BidEuchre.Desktop;
 
 internal static class CollectionTests
@@ -21,10 +22,34 @@ internal static class CollectionTests
 
     public static void Run()
     {
+        AllCatalogIconsAndDoubleDownShopRender();
         MainMenuOpensCollectionAndBackReturns(new Size(1280, 1100));
         foreach (var size in new[] { new Size(1280, 900), new Size(653, 453) })
             AllCategoriesRemainReadableAndReachable(size);
         MainMenuOpensCollectionAndBackReturns(new Size(653, 453));
+    }
+
+    private static void AllCatalogIconsAndDoubleDownShopRender()
+    {
+        // Gumballs without sprites use the drawn ball checked by CheckFeatures below.
+        foreach (var feature in FeatureCatalog.All.Where(feature => feature.Category != FeatureCategory.Gumball))
+            Require(PixelArt.CampaignIcon(feature).Source is { Size.Width: > 0, Size.Height: > 0 },
+                $"{feature.Id} must render an icon even while its artwork is unavailable.");
+        var run = new CampaignRun(Money: 20, Phase: CampaignPhase.Shop)
+        { Shop = new(0, [new("double", FeatureCategory.Joker, "DoubleDown", 4)]) };
+        var actions = new ShopActions(_ => { }, _ => { }, _ => { }, (_, _) => { }, (_, _) => { }, () => { }, () => { })
+        { Pull = _ => null, Refresh = () => { } };
+        var window = new Window { Width = 1280, Height = 1100, Content = CampaignShopScreen.Build(run, actions, StillMotion()) };
+        try
+        {
+            window.Show(); Flush();
+            Require(window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.Contains("Double Down") == true),
+                "Double Down must appear by name in the shop.");
+            Require(window.GetVisualDescendants().OfType<Image>().Any(image => image.Source is { Size.Width: > 0, Size.Height: > 0 } && image.Bounds.Width > 0),
+                "The Double Down shop card must render artwork.");
+            Console.WriteLine("PASS  Catalog card icons and the Double Down shop card render without missing artwork failures");
+        }
+        finally { window.Close(); }
     }
 
     // Catches a missing menu route or a back button that leaves the user in the collection.

@@ -23,6 +23,7 @@ public sealed partial class GameEngine
     private readonly int[] _matchOvertricks = new int[2];
     private readonly HashSet<int> _stickyTriggered = [];
     private bool _firstMatchCard;
+    private bool _firstHumanRoundCard;
     private CardId? _lastMatchCard;
     private readonly Dictionary<int, CampaignTrickPlay[]> _campaignTrickHistory = [];
     private int _rollerValue;
@@ -65,6 +66,7 @@ public sealed partial class GameEngine
     {
         _variant = null; _pendingBidVariant = null; _pendingChoice = null; _pendingActor = null; _duelOpponent = null;
         _campaignTrickHistory.Clear(); _trickPoints.Clear();
+        _rollerValue = 0; _firstHumanRoundCard = false;
         _pokerRevealed = false; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
         Array.Clear(_cardPoints); Array.Clear(_jokerPoints); Array.Clear(_modifierPoints);
         _handWalletStart = _resources.Wallets.ToArray();

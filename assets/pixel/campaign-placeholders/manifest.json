@@ -37,7 +37,7 @@
       "path": "joker/lover-boy.png",
       "width": 64,
       "height": 64,
-      "description": "When the human calls Hearts trump, each Heart played adds +1 point to its trick.",
+      "description": "When you call Hearts as trump, each Heart in a trick your team wins adds +1 point to that trick.",
       "sourcePath": "source/joker-lover-boy.png"
     },
     {
@@ -48,7 +48,7 @@
       "path": "joker/snake-eyes.png",
       "width": 64,
       "height": 64,
-      "description": "Team wins a trick containing at least two Aces: +5 points.",
+      "description": "If your team wins a trick containing 2 or more Aces, +4 points.",
       "sourcePath": "source/joker-snake-eyes.png"
     },
     {
@@ -70,7 +70,7 @@
       "path": "joker/clubhouse.png",
       "width": 64,
       "height": 64,
-      "description": "Tricks containing at least one Club are worth +1 point.",
+      "description": "Tricks your team wins that contain at least one Club are worth +1 point.",
       "sourcePath": "source/joker-clubhouse.png"
     },
     {
@@ -92,7 +92,7 @@
       "path": "joker/roller-coaster.png",
       "width": 64,
       "height": 64,
-      "description": "Starts at 0 each match; +1 per High/Low trick your team wins, -1 per loss. Earn its current value at the end of each High/Low hand.",
+      "description": "+0 points each round when High/Low is trump. +1 when your team wins a High/Low trick. \u22121 when your team loses one.",
       "sourcePath": "source/joker-roller-coaster.png"
     },
     {
@@ -136,7 +136,7 @@
       "path": "joker/cure-all.png",
       "width": 64,
       "height": 64,
-      "description": "Cursed cards in tricks the human wins give +2 rather than -1.",
+      "description": "Cursed cards in tricks that your team wins give +2 points instead of \u22121.",
       "sourcePath": "source/joker-cure-all.png"
     },
     {
@@ -180,7 +180,7 @@
       "path": "joker/royal-council.png",
       "width": 64,
       "height": 64,
-      "description": "Tricks containing Ace, King, Queen, and Jack are worth twice the points.",
+      "description": "Tricks your team wins that contain an Ace, King, Queen, and Jack are worth \u00d72 points.",
       "sourcePath": "source/joker-royal-council.png"
     },
     {
@@ -411,7 +411,7 @@
       "path": "sigil/duck.png",
       "width": 64,
       "height": 64,
-      "description": "When played, 1 in 2 chance to earn +4 points.",
+      "description": "When played, 1 in 3 chance to earn +4 points.",
       "sourcePath": "source/sigil-duck.png"
     },
     {
