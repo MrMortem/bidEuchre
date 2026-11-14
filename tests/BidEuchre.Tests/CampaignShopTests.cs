@@ -2,6 +2,28 @@ using BidEuchre.App;
 using BidEuchre.Core;
 internal static class CampaignShopTests
 {
+    public static void RetiredItemsNeverReturn()
+    {
+        var seen = new HashSet<string>();
+        for (ulong seed = 1; seed <= 256; seed++)
+        {
+            var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
+            { Resources = CampaignSnapshot.Create(seed) with { Wallets = [30, 0, 0, 0] } };
+            var shop = CampaignShop.Open(run);
+            Assert.True(shop.Shop!.Offers.All(o => o.FeatureId is not ("Merchant" or "Beggar")));
+            var stocked = run with { Shop = new(0, [new("t", FeatureCategory.Tarot, "DevilishDeal", 3)]) };
+            var dealt = CampaignShop.BuyAndUse(stocked, "t", [new(0), new(1), new(2)]);
+            foreach (var card in dealt.Resources.Deck.Take(2))
+            {
+                var name = card.Enhancement!.Value.ToString();
+                Assert.True(name is not ("Emerald" or "Stinky"));
+                seen.Add(name);
+            }
+            Assert.True(dealt.Resources.Deck[2].Enhancement == EnhancementId.Cursed);
+        }
+        Assert.True(seen.SetEquals(["Lucky", "Golden", "Wild", "Cursed", "Stone", "Silver", "Glass", "Bouncy"]));
+    }
+
     public static void Purchases()
     {
         var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop);
@@ -23,7 +45,7 @@ internal static class CampaignShopTests
         // Tarots and Sigils share four slots: two of each leave no room for either kind.
         var tarotOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Tarot).Id;
         var sigilOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Sigil).Id;
-        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Beggar], Sigils = [SigilId.Coin] } } };
+        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector], Sigils = [SigilId.Coin] } } };
         Assert.Equal(4, CampaignShop.Buy(three, tarotOffer).Resources.Inventory.ItemCount);
         Assert.Equal(4, CampaignShop.Buy(three, sigilOffer).Resources.Inventory.ItemCount);
         var full = three with { Resources = three.Resources with { Inventory = three.Resources.Inventory with { Sigils = [SigilId.Coin, SigilId.Bear] } } };
@@ -114,7 +136,7 @@ internal static class CampaignShopTests
         var start = Stocked(TarotId.Prospector);
         var target = start.Resources.Deck[5].Id;
         // A full Tarot inventory does not block using the card on the spot.
-        var full = start with { Resources = start.Resources with { Inventory = start.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Beggar] } } };
+        var full = start with { Resources = start.Resources with { Inventory = start.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector] } } };
         var used = CampaignShop.BuyAndUse(full, "t", [target]);
         Assert.Equal(27, used.Money);
         Assert.Equal(27, used.Resources.Wallets[0]);
@@ -149,11 +171,6 @@ internal static class CampaignShopTests
         Assert.Equal(1, CampaignShop.BuyAndUse(astronomer, "t", []).Resources.Inventory.Unlocks.Length);
         var all = astronomer with { Resources = astronomer.Resources with { Inventory = astronomer.Resources.Inventory with { Unlocks = Enum.GetValues<GumballId>() } } };
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(all, "t", []));
-
-        // Six cards must stay dealable to the human.
-        var beggar = Stocked(TarotId.Beggar);
-        var stinky = beggar with { Resources = beggar.Resources with { Deck = beggar.Resources.Deck.Select((c, i) => i < 18 ? c with { Enhancement = EnhancementId.Stinky } : c).ToArray() } };
-        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(stinky, "t", [stinky.Resources.Deck[20].Id]));
 
         var joker = start with { Shop = new(0, [new ShopOffer("j", FeatureCategory.Joker, "Alpha", 4)]) };
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(joker, "j", []));

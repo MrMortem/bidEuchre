@@ -580,17 +580,6 @@
       "sourcePath": "source/tarot-gambler.png"
     },
     {
-      "id": "tarot:merchant",
-      "key": "Merchant",
-      "name": "Merchant",
-      "category": "tarot",
-      "path": "tarot/merchant.png",
-      "width": 64,
-      "height": 64,
-      "description": "Make one card Emerald.",
-      "sourcePath": "source/tarot-merchant.png"
-    },
-    {
       "id": "tarot:glassblower",
       "key": "Glassblower",
       "name": "Glassblower",
@@ -622,17 +611,6 @@
       "height": 64,
       "description": "Create a random Planet unlock.",
       "sourcePath": "source/tarot-astronomer.png"
-    },
-    {
-      "id": "tarot:beggar",
-      "key": "Beggar",
-      "name": "Beggar",
-      "category": "tarot",
-      "path": "tarot/beggar.png",
-      "width": 64,
-      "height": 64,
-      "description": "Make one card Stinky.",
-      "sourcePath": "source/tarot-beggar.png"
     },
     {
       "id": "tarot:spring-loaded",

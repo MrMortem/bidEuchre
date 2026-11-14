@@ -15,18 +15,19 @@ public sealed partial class GameEngine
     }
     private void GenerateTarot(int seat)
     {
+        var choices = Enum.GetValues<TarotId>();
         if (seat != 0)
         {
             var held = _resources.GeneratedTarot[seat];
             if (held.Length >= 2) { _events.Add($"{_playerNames[seat]}'s Tarot inventory is full."); return; }
-            var generated = (TarotId)_campaignRandom.NextInt(Enum.GetValues<TarotId>().Length);
+            var generated = choices[_campaignRandom.NextInt(choices.Length)];
             var inventories = _resources.GeneratedTarot.Select(cards => cards.ToArray()).ToArray();
             inventories[seat] = [.. held, generated]; _resources = _resources with { GeneratedTarot = inventories };
             _events.Add($"{_playerNames[seat]} generated a Tarot (stored; bots do not use items)."); return;
         }
         var inventory = _resources.Inventory;
         if (!inventory.HasItemRoom) { _events.Add("Tarot creation skipped: inventory full."); return; }
-        var card = (TarotId)_campaignRandom.NextInt(Enum.GetValues<TarotId>().Length);
+        var card = choices[_campaignRandom.NextInt(choices.Length)];
         _resources = _resources with { Inventory = inventory with { Tarot = [.. inventory.Tarot, card] } };
         _events.Add($"Created {FeatureCatalog.Get(FeatureCategory.Tarot, card.ToString()).Name}.");
     }
@@ -91,7 +92,6 @@ public sealed partial class GameEngine
                 if (c.Enhancement == EnhancementId.Golden || p.Seat == 0 && Has(JokerId.Millionaire) && MatchesSuit(c, Suit.Diamonds)) Money(winner, 1, "Golden");
                 if (c.Enhancement == EnhancementId.Cursed) Point(winner, winner == 0 && Has(JokerId.CureAll) ? 2 : -1, "Cursed");
                 if (c.Enhancement == EnhancementId.Silver) Money(team == 0 ? 1 : 0, 5, "Silver");
-                if (c.Enhancement == EnhancementId.Emerald && final && p == plays.Last()) Money(p.Seat, 10, "Emerald");
                 if (c.Sigil == SigilId.Peacock) Point(winner, plays.Count(x => StateFor(x.Card).Sigil is not null), "Peacock");
                 if (c.Sigil == SigilId.Vulture) GenerateTarot(winner);
             }
@@ -130,8 +130,7 @@ public sealed partial class GameEngine
         if (winner == 0 && Has(JokerId.StickyFingers) && _stickyTriggered.Add(0) && _hands[0].Count > 0)
         {
             var copy = StateFor(plays.Single(p => p.Seat == 0).Card); var id = IdFor(_hands[0][0]); var overlay = new CardOverlay(id, copy.Face, copy.Enhancement, copy.Sigil);
-            if (CanDeal(_resources.Deck, overlay)) _overlays[id] = overlay;
-            else _events.Add("Sticky Fingers copy skipped: at least six drawable cards must remain.");
+            _overlays[id] = overlay;
         }
         _trickPoints.Clear();
     }

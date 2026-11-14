@@ -72,9 +72,9 @@ Assembly preserves the generated alpha, crops to the visible suit bounds and pos
 
 ## Enhancement face backgrounds (2026-11-13)
 
-Created one independent face substrate for every current enhancement: Lucky, Golden, Wild, Cursed, Stone, Emerald, Silver, Stinky, Glass and Bouncy. These sit behind the existing transparent rank/suit/court sprites. They are not reverse-side deck backs.
+The active face substrates are Lucky, Golden, Wild, Cursed, Stone, Silver, Glass and Bouncy. These sit behind the existing transparent rank/suit/court sprites. They are not reverse-side deck backs. Emerald and Stinky were retired on 2026-11-14.
 
-Runtime-ready PNGs: `card-background-lucky.png`, `card-background-golden.png`, `card-background-wild.png`, `card-background-cursed.png`, `card-background-stone.png`, `card-background-emerald.png`, `card-background-silver.png`, `card-background-stinky.png`, `card-background-glass.png`, and `card-background-bouncy.png`. Each is 124 × 176 pixels with an opaque substrate and a light center.
+Runtime-ready PNGs: `card-background-lucky.png`, `card-background-golden.png`, `card-background-wild.png`, `card-background-cursed.png`, `card-background-stone.png`, `card-background-silver.png`, `card-background-glass.png`, and `card-background-bouncy.png`. Each is 124 × 176 pixels with an opaque substrate and a light center.
 
 Mapping: `enhancement-backgrounds.json` connects stable enhancement IDs to filenames and native resource names. `enhancement-backgrounds-preview.png` shows each background alone, behind a red Nine of Hearts, and behind a black King of Spades. The original generated images and complete prompt set are preserved in `assets/enhancement-source/`. All ten source designs were generated with the built-in image generation tool.
 

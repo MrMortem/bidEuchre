@@ -22,7 +22,7 @@ internal static class CampaignIntegrationTests
                     {
                         var tarot = view.Inventory.Tarot[0]; var count = tarot == TarotId.DevilishDeal ? 3 : tarot is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
                         try { game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, view.Players[0].VisibleCards.Take(count).Select(c => c.Id).ToArray())); continue; }
-                        catch (GameRuleException) { } // exhausted Astronomer or constrained mutation is intentionally unavailable
+                        catch (GameRuleException) { } // An exhausted Astronomer is intentionally unavailable.
                     }
                     game.ExecuteCampaignAction(seat, CampaignBotPolicy.Choose(game.CreateView(seat), seat));
                 }

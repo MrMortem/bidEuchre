@@ -54,14 +54,11 @@ public sealed partial class GameEngine
         var deck = _resources.Deck.ToArray(); var index = Array.FindIndex(deck, c => c.Id == id);
         if (index < 0) throw new GameRuleException("Unknown physical card.");
         deck[index] = update(deck[index]);
-        if (deck.Count(c => c.Enhancement == EnhancementId.Stinky) > 18 || !CanDeal(deck)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         _resources = _resources with { Deck = deck };
         // A card showing a copied face this hand takes the change on that face too, so it is seen at once.
         if (_overlays.TryGetValue(id, out var shown))
         { var changed = update(new(id, shown.Face, shown.Enhancement, shown.Sigil)); _overlays[id] = new(id, changed.Face, changed.Enhancement, changed.Sigil); }
     }
-    private bool CanDeal(IReadOnlyList<CardState> deck, CardOverlay? candidate = null) => deck.Count(c =>
-        (candidate?.Id == c.Id ? candidate.Enhancement : _overlays.TryGetValue(c.Id, out var existing) ? existing.Enhancement : c.Enhancement) != EnhancementId.Stinky) >= 6;
     private int CampaignNextDealer(int seat)
     { do seat = GameRules.NextSeat(seat); while (seat == 0 && Has(JokerId.SlickWilly)); return seat; }
     private void CampaignDealHand()
@@ -71,7 +68,7 @@ public sealed partial class GameEngine
         _pokerRevealed = false; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
         Array.Clear(_cardPoints); Array.Clear(_jokerPoints); Array.Clear(_modifierPoints);
         _handWalletStart = _resources.Wallets.ToArray();
-        var available = _resources.Deck.Where(c => StateFor(c.Id).Enhancement != EnhancementId.Stinky).Select(c => c.Id).ToList();
+        var available = _resources.Deck.Select(c => c.Id).ToList();
         _campaignRandom.Shuffle(available);
         var human = available.Take(6).ToArray();
         var others = _resources.Deck.Select(c => c.Id).Except(human).ToList(); _campaignRandom.Shuffle(others);

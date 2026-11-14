@@ -3,9 +3,10 @@ using SkiaSharp;
 
 var sourceRoot = Path.GetFullPath(args.ElementAtOrDefault(0) ?? "assets/enhancement-source");
 var outputRoot = Path.GetFullPath(args.ElementAtOrDefault(1) ?? "assets/pixel");
-string[] names = ["Lucky", "Golden", "Wild", "Cursed", "Stone", "Emerald", "Silver", "Stinky", "Glass", "Bouncy"];
+string[] names = ["Lucky", "Golden", "Wild", "Cursed", "Stone", "Silver", "Glass", "Bouncy"];
 const int width = 124, height = 176, tileWidth = 412, tileHeight = 224;
-using var preview = new SKBitmap(tileWidth * 5 + 16, tileHeight * 2 + 16);
+const int columns = 4;
+using var preview = new SKBitmap(tileWidth * columns + 16, tileHeight * 2 + 16);
 using var canvas = new SKCanvas(preview);
 canvas.Clear(SKColor.Parse("#172032"));
 using var typeface = SKTypeface.FromFile(Path.Combine(outputRoot, "Pixel.ttf"));
@@ -41,8 +42,8 @@ for (var i = 0; i < names.Length; i++)
     Save(sprite, Path.Combine(outputRoot, file));
     entries.Add(new { id = "enhancement:" + slug, key = name, file, resource = "card-background-" + slug,
         width, height, centerBrightness = Math.Round(centerBrightness, 1) });
-    var px = 16 + i % 5 * tileWidth;
-    var py = 16 + i / 5 * tileHeight;
+    var px = 16 + i % columns * tileWidth;
+    var py = 16 + i / columns * tileHeight;
     canvas.DrawText(name.ToUpperInvariant(), px, py + 14, font, labelInk);
     for (var sample = 0; sample < 3; sample++)
     {
@@ -58,7 +59,7 @@ File.WriteAllText(Path.Combine(outputRoot, "enhancement-backgrounds.json"), Json
     kind = "card-face-background", width, height, defaultBackground = "card-background-white.png",
     entries
 }, new JsonSerializerOptions { WriteIndented = true }) + "\n");
-Console.WriteLine("Exported 10 opaque 124x176 face backgrounds; verified alpha and light centers. Preview includes each substrate, red pips, and black court faces.");
+Console.WriteLine($"Exported {names.Length} opaque 124x176 face backgrounds; verified alpha and light centers. Preview includes each substrate, red pips, and black court faces.");
 
 static void Save(SKBitmap bitmap, string path)
 {

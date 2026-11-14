@@ -78,7 +78,10 @@ external macOS distribution still requires signing and notarization.
 Motion preferences are saved between launches. The native table fills the
 window: Jokers, stored Tarots and Sigils, and the score sit in a strip along the top, and bids
 and other choices appear over the middle of the board. Engines and Rules open
-from the main menu. The web client also honors the system reduced-motion setting.
+from the main menu. **Collection** browses every Joker, Tarot card, Gumball,
+playing card, card enhancement, and Sigil, with artwork and descriptions in
+scrollable categories. All entries are visible without starting a campaign.
+The web client also honors the system reduced-motion setting.
 
 The executable is written to `dist/linux-x64/BidEuchre`. The packaging script
 also accepts .NET runtime identifiers such as `win-x64`, `osx-x64`, or
@@ -242,8 +245,10 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 **Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
-the other. The campaign includes 10 enhancements, 31 Jokers, 9 Gumball bidding
-unlocks, 12 Sigils, and 16 Tarot consumables.
+the other. The campaign includes 8 enhancements, 31 Jokers, 9 Gumball bidding
+unlocks, 12 Sigils, and 14 Tarot consumables. Emerald and Stinky have been retired,
+along with their Merchant and Beggar Tarot cards. Older runs load with those
+enhancements cleared and those Tarots removed, preserving the rest of the run.
 
 Losing or forfeiting a match costs one life (two for the boss) in Antes 1 to 3,
 and two lives (three for the boss) from Ante 4 onward. The run moves on to the
