@@ -372,6 +372,8 @@ public sealed partial class GameEngine
                 Players = result.Players.Select(p => p with { Cards = p.Cards is null ? null : p.Cards.Select(c => StateFor(c).Face).ToArray(), IsSittingOut = !CampaignActive(p.Seat) }).ToArray(),
                 CurrentTrick = result.CurrentTrick.Select(p => p with { Card = StateFor(p.Card).Face }).ToArray(),
                 CompletedTricks = result.CompletedTricks.Select(t => t with { Plays = t.Plays.Select((p, i) => p with { Card = _campaignTrickHistory.TryGetValue(t.Number, out var recorded) ? recorded[i].Card.Face : StateFor(p.Card).Face }).ToArray() }).ToArray(),
+                // A pending choice (One Up, Cheater, Duelist, Telepath) can belong to another seat than the next bidder or player.
+                CurrentSeat = CampaignActor,
                 Campaign = cv
             };
         }
@@ -469,7 +471,12 @@ public sealed partial class GameEngine
         }
 
         deltas[defendingTeam] = defendingTricks;
-        if (IsCampaign) deltas = CampaignScore(deltas);
+        if (IsCampaign)
+        {
+            deltas = CampaignScore(deltas);
+            // Returned cards (Eagle) that were never replayed do not outlive the hand.
+            foreach (var hand in _hands) hand.Clear();
+        }
         CompleteHandWithDeltas(deltas, reason);
     }
 

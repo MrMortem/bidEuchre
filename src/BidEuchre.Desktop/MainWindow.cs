@@ -1303,7 +1303,7 @@ public sealed class MainWindow : Window
             CornerRadius = new CornerRadius(10),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
-            IsHitTestVisible = legal,
+            // Unplayable cards still take the pointer so their tooltip can open; they just have no click.
             Focusable = legal,
             Opacity = 1,
             Content = PixelArt.CardContent(card, enhancement)

@@ -45,6 +45,58 @@ internal static class CampaignCatalogueTests
             Assert.Equal(variant == GumballId.Duelist ? 2 : 4, g.CompletedTricks[0].Plays.Count);
         }
     }
+    private static GameEngine AllEagle()
+    {
+        var s = CampaignSnapshot.Create(12);
+        return Game(s with { Deck = s.Deck.Select(c => c with { Sigil = SigilId.Eagle }).ToArray() });
+    }
+    // An Eagle card comes back only to the team that lost the trick, never after the last trick.
+    public static void EagleReturnsToTheLosingTeamOnly()
+    {
+        var g = AllEagle(); var guard = 0;
+        while (g.CompletedTricks.Count == 0 && guard++ < 40) Step(g);
+        var winner = g.CompletedTricks[0].Winner;
+        var counts = g.CreateCampaignView(null).Players.Select(p => p.CardCount).ToArray();
+        for (var seat = 0; seat < 4; seat++)
+            Assert.Equal(seat % 2 == winner % 2 ? 5 : 6, counts[seat]);
+    }
+    public static void EagleLeavesNoCardsAfterTheHand()
+    {
+        var g = AllEagle(); var guard = 0;
+        while (g.Phase is not (GamePhase.HandComplete or GamePhase.GameComplete) && guard++ < 100) Step(g);
+        Assert.Equal(6, g.CompletedTricks.Count);
+        Assert.Equal(0, g.CreateCampaignView(null).Players.Sum(p => p.CardCount));
+        Assert.Equal(0, g.CreateView(0).Players.Sum(p => p.CardCount));
+    }
+    // Chaos rolls its own trump, so the bidder is never asked for one and Déjà Vu sees the rolled suit.
+    public static void ChaosSkipsTheContractPrompt()
+    {
+        var s = CampaignSnapshot.Create(17) with { Inventory = new([], [], [GumballId.Chaos]) }; var g = Game(s);
+        g.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.Four, GumballId.Chaos));
+        for (var seat = 1; seat < 4; seat++) g.ExecuteCampaignAction(seat, new CampaignCommand.Pass());
+        Assert.Equal(GamePhase.Playing, g.Phase);
+        var view = g.CreateView(0);
+        Assert.Equal(ContractMode.Trump, view.Contract!.Mode);
+        Assert.True(view.Contract.Trump is not null);
+        Assert.False(g.CreateCampaignView(0).LegalActions.OfType<CampaignCommand.ChooseContract>().Any());
+        Assert.Equal(new ContractKey(ContractMode.Trump, view.Contract.Trump), g.ExportCampaignSnapshot().PreviousContract);
+    }
+    // The seat shown as "to act" is the one that owes a pending choice, not the next bidder.
+    public static void ViewNamesThePendingActor()
+    {
+        var s = CampaignSnapshot.Create(17) with { Inventory = new([new(JokerId.OneUp)], [], []) }; var g = Game(s, dealer: 0);
+        Assert.Equal(1, g.CurrentSeat);
+        Assert.Equal(0, g.CampaignActor);
+        Assert.Equal(0, g.CreateView(0).CurrentSeat);
+        g.ExecuteCampaignAction(0, g.CreateCampaignView(0).LegalActions.First());
+        Assert.Equal(1, g.CreateView(0).CurrentSeat);
+
+        s = CampaignSnapshot.Create(17) with { Inventory = new([], [], [GumballId.Telepath]) }; g = Game(s);
+        g.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.Five, GumballId.Telepath));
+        for (var seat = 1; seat < 4; seat++) g.ExecuteCampaignAction(seat, new CampaignCommand.Pass());
+        Assert.Equal(2, g.CampaignActor);
+        Assert.Equal(2, g.CreateView(0).CurrentSeat);
+    }
     // High and Low are the human's to choose only once the High/Low gumball has been pulled.
     public static void HighLowGumball()
     {
