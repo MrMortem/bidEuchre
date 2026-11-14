@@ -63,7 +63,8 @@ main { min-width: 0; padding: 42px clamp(24px, 4vw, 64px) 64px; }
 .empty-state { grid-column: 1 / -1; min-height: 230px; border: 1px dashed #53625c; border-radius: 12px; display: grid; place-items: center; padding: 24px; text-align: center; color: var(--muted); background: rgba(255,255,255,.02); }
 .empty-state strong { display: block; color: var(--ink); font: 24px Georgia, serif; margin-bottom: 7px; }
 .session-card { border: 1px solid var(--line); border-radius: 12px; padding: 21px; background: var(--panel); transition: .18s ease; }
-.session-open { margin-top: 16px; }
+.session-actions { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 10px; }
+.game-session-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 .session-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: #60756d; }
 .session-card-top { display: flex; justify-content: space-between; gap: 12px; }
 .session-card h3 { margin: 0; font: 22px Georgia, serif; }
@@ -186,7 +187,7 @@ main { min-width: 0; padding: 42px clamp(24px, 4vw, 64px) 64px; }
   .page-header { align-items: start; }
   .page-header h1 { font-size: 40px; }
   .game-header { grid-template-columns: auto minmax(0, 1fr); gap: 11px; }
-  .viewer-select, #start-game { grid-column: 1 / -1; }
+  .viewer-select, .game-session-actions { grid-column: 1 / -1; }
   .viewer-select select, #start-game { flex: 1; }
   .score-ribbon { grid-template-columns: 1fr 1fr; }
   .hand-status { grid-column: 1 / -1; grid-row: 1; border-bottom: 1px solid var(--line); }

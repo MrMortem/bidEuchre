@@ -9,6 +9,7 @@ const model = {
   bidAnnouncement: null,
   engines: [],
   sessions: [],
+  closingSessions: new Set(),
   session: null,
   sessionId: null,
   viewerSeat: null,
@@ -40,6 +41,7 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
+  $('#close-table').addEventListener('click', () => closeSession(model.sessionId));
   $('#retry-rules').addEventListener('click', loadRules);
   $('#retry-connection').addEventListener('click', () => refreshGame({notify:false}));
   $('#viewer-seat').addEventListener('change', event =>
@@ -58,7 +60,7 @@ function showView(name) {
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   if (name !== 'game') stopPolling();
   if (name === 'rules' && !model.rulesLoaded) loadRules();
-  if (name === 'lobby') loadSessions();
+  if (name === 'lobby') return loadSessions();
 }
 
 function buildSeatEditor() {
@@ -150,7 +152,8 @@ async function loadSessions() {
 
 function renderSessions() {
   const focused = document.activeElement;
-  const focusedId = focused?.classList?.contains('session-open') ? focused.dataset.id : null;
+  const focusedAction = ['session-open', 'session-close'].find(name => focused?.classList?.contains(name));
+  const focusedId = focusedAction ? focused.dataset.id : null;
   const list = $('#session-list');
   if (!model.sessions.length) {
     list.innerHTML = '<div class="empty-state"><div><strong>No tables yet</strong>Create a session and choose who takes each seat.</div></div>';
@@ -161,11 +164,51 @@ function renderSessions() {
       <div class="session-card-top"><h3>${escapeHtml(session.name)}</h3><span class="phase-chip">${splitWords(session.phase)}</span></div>
       <div class="mini-score"><strong>${session.scores[0]}</strong><span>—</span><strong>${session.scores[1]}</strong></div>
       <div class="seat-dots">${session.seats.map(seat => `<span>${seat.kind === 'Bot' ? '⚙' : '●'} ${escapeHtml(seat.name)}</span>`).join('')}</div>
-      <button type="button" class="button quiet session-open" data-id="${escapeHtml(session.id)}" aria-label="Open table: ${escapeHtml(session.name)}">Open table</button>
+      <div class="session-actions"><button type="button" class="button quiet session-open" data-id="${escapeHtml(session.id)}" aria-label="Open table: ${escapeHtml(session.name)}">Open table</button>
+      <button type="button" class="button danger session-close" data-id="${escapeHtml(session.id)}" aria-label="Close table: ${escapeHtml(session.name)}">Close table</button></div>
     </article>`).join('');
   const buttons = $$('.session-open');
   buttons.forEach(button => button.addEventListener('click', () => openSession(button.dataset.id)));
-  if (focusedId) buttons.find(button => button.dataset.id === focusedId)?.focus();
+  $$('.session-close').forEach(button => button.addEventListener('click', () => closeSession(button.dataset.id)));
+  syncCloseButtons();
+  if (focusedId) $$(`.${focusedAction}`).find(button => button.dataset.id === focusedId)?.focus();
+}
+
+function syncCloseButtons() {
+  $$('.session-close, #close-table').forEach(button => {
+    const pending = model.closingSessions.has(button.dataset.id);
+    button.disabled = pending || !button.dataset.id;
+    button.setAttribute('aria-busy', String(pending));
+  });
+}
+
+async function closeSession(id) {
+  if (!id || model.closingSessions.has(id)) return;
+  const session = model.session?.id === id ? model.session : model.sessions.find(session => session.id === id);
+  if (!session) return;
+  const phase = session.game?.phase ?? session.phase;
+  if (session.started && phase !== 'GameComplete' &&
+      !window.confirm(`Close table "${session.name}"? State: ${splitWords(phase)}. This ends the active game for everyone.`)) return;
+  model.closingSessions.add(id);
+  syncCloseButtons();
+  try {
+    await api(`/api/sessions/${id}`, { method: 'DELETE' });
+    if (model.sessionId === id) {
+      model.sessionId = null;
+      model.session = null;
+      model.viewerSeat = null;
+      model.renderMode = null;
+      model.viewLoading = false;
+      await showView('lobby');
+    } else await loadSessions();
+    toast(`Table "${session.name}" closed.`);
+    if ($('#lobby-view').classList.contains('active')) $('#new-table-button').focus();
+  } catch (error) {
+    toast(`Could not close table "${session.name}". ${error.message}`, true);
+  } finally {
+    model.closingSessions.delete(id);
+    syncCloseButtons();
+  }
 }
 
 async function createSession(event) {
@@ -263,6 +306,9 @@ function renderGame() {
   const session = model.session;
   if (!session) return;
   $('#game-name').textContent = session.name;
+  $('#close-table').dataset.id = session.id;
+  $('#close-table').setAttribute('aria-label', `Close table: ${session.name}`);
+  syncCloseButtons();
   const humanSeats = session.seats.filter(seat => seat.kind === 'Human');
   const viewerSelect = $('#viewer-seat');
   const viewerKey = JSON.stringify(humanSeats.map(seat => [seat.seat, seat.name]));
