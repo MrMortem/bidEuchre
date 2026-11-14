@@ -109,7 +109,7 @@ internal static class TableRenderingTests
                     Field<TextBlock>(window, "_dealerText").Text = "HAND 8 · TRICKS 3–3";
                     Call(window, "RenderInventory", campaign with { Inventory = new(
                         Enum.GetValues<JokerId>().Take(5).Select(j => new JokerState(j)).ToArray(),
-                        [TarotId.LovePotion, TarotId.Nightshade], []) { Sigils = [SigilId.Fish, SigilId.Bear] } });
+                        [TarotId.Prospector, TarotId.Grindstone], []) { Sigils = [SigilId.Fish, SigilId.Bear] } });
                 }
                 window.Show(); Flush();
                 if (Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is { } output)

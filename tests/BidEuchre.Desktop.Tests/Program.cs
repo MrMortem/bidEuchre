@@ -16,6 +16,7 @@ AppBuilder.Configure<Application>()
     .SetupWithoutStarting();
 
 EnhancementBackgroundTests.Run();
+HandReadabilityTests.Run();
 CuratedArtTests.Run();
 CollectionTests.Run();
 TableRenderingTests.Run();

@@ -175,9 +175,10 @@ internal static class PixelArt
         var grid = (Grid)CardContent(card, background);
         if (sigil is { } seal)
         {
-            // Scale the Sigil with the card and place it below the upper-left index.
-            grid.ColumnDefinitions = new ColumnDefinitions("6*,63*,55*");
-            grid.RowDefinitions = new RowDefinitions("52*,63*,61*");
+            // Keep the badge in the blank upper-right corner, clear of indices and suit pips.
+            // Proportions follow the 124×176 printed face on every shared card surface.
+            grid.ColumnDefinitions = new ColumnDefinitions("92*,26*,6*");
+            grid.RowDefinitions = new RowDefinitions("6*,26*,144*");
             foreach (var layer in grid.Children) { Grid.SetColumnSpan(layer, 3); Grid.SetRowSpan(layer, 3); }
             var badge = new Image
             {

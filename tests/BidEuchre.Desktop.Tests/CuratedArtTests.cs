@@ -34,13 +34,13 @@ internal static class CuratedArtTests
             if (!ReferenceEquals(PixelArt.Gumball(gumball, 64)?.Source, expected) || !ReferenceEquals(PixelArt.CampaignIcon(definition).Source, expected))
                 throw new Exception($"Machine, inventory and shop must share curated {gumball} art.");
         }
-        ContainsSigil(PixelArt.CardContent(face, null, SigilId.Coin), SigilId.Coin);
+        ContainsSigil(PixelArt.CardContent(face, null, SigilId.Bear), SigilId.Bear);
         var plain = (Grid)PixelArt.CardContent(face);
         if (plain.Children.Count != 2 || ((Image)plain.Children[1]).Effect is not null)
             throw new Exception("Ordinary unenhanced cards must retain their two art layers.");
         var motion = new PixelMotion(); motion.SetEnabled(false);
         var picker = CampaignDeckPicker.Build([new(new(0), face, EnhancementId.Glass, SigilId.Fish)], 0, _ => { }, () => { }, motion, "Curated picker");
         ContainsSigil(picker, SigilId.Fish);
-        Console.WriteLine("PASS  Curated Sigils, Gumballs and enhanced card badges use supplied art with readable face layers and fallback art");
+        Console.WriteLine("PASS  Curated Sigils, Gumballs and enhanced card badges use supplied art with readable face layers");
     }
 }

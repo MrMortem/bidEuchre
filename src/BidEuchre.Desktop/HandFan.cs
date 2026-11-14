@@ -8,7 +8,7 @@ namespace BidEuchre.Desktop;
 internal static class HandFan
 {
     /// <summary>Cards on the table are drawn at this fraction of their layout size.</summary>
-    public const double CardScale = .75;
+    public const double CardScale = .84;
 
     // Shrinks a fan toward the edge its portrait sits on, then turns it to face the table.
     private static TransformGroup Facing(double height, double angle) => new()
@@ -38,7 +38,7 @@ internal static class HandFan
         panel.Children.Add(portrait);
 
         var fan = new Canvas { Width = side ? 400 : 500, Height = 180 };
-        var step = side ? 42d : 56d;
+        var step = side ? 48d : 64d;
         var midpoint = (cards.Count - 1) / 2d;
         Point Slot(int index) => new(fan.Width / 2 - 64 + (index - midpoint) * step, 4 + (index - midpoint) * (index - midpoint) * 2);
         var placed = new List<Border>();
