@@ -15,15 +15,15 @@ Baseline full solution build passed; test apphost 171/171 passed. Use test execu
 | 3 Close web tables | 34 | Implemented38d5cdb plus3295df7 review fixes; independent PASS/APPROVE; browser/security/web47/47; published smoke1/1 and server lifecycle passed. |
 | 4 Effect corrections | 75,83,84,86,87,88,89,90 | Implemented634509a; Core182/182 and Desktop45PASS; independent PASS/APPROVE. |
 | 5 Bid restrictions | 69,71,72,73,91 | Implementeda7a424d; Core192/192; independent PASS/APPROVE. #70 excluded as unresolved. |
-| 6 Ante/bonus | 67,93 | Implementation in progress. |
+| 6 Ante/bonus | 67,93 | Implementedf05272a; Core/App215/215; independent PASS/APPROVE, no findings. Desktop compatibility validation belongs to Task10. |
 | 7 Gumball duplicates | 68,82 | Pending. |
 | 8 Freeplay bot | 24 | Implemented59a0d92; Core205/205; independent PASS/APPROVE. |
 | 9 In-match settings | 46 | Implemented4bc6b89; Desktop52PASS normal/Skia; review PASS/APPROVE with sorting P3 carried into Task10. |
 | 10 Trump announcement | 61 | Implementation in progress; includes Task9 sorting retry regression. |
 | 11 Score explanations | 17 | Pending. |
-| 12 Exact campaign resume | 22 | Read-only architecture preparation in progress. |
+| 12 Exact campaign resume | 22 | Read-only architecture complete; implementation awaits remaining shared rule/result APIs. |
 | 13 Shop reroll/badges | 27 | Implementation preparation; reordered before duplicates/resume with field-preservation contract. |
-| 14 Engine/setup persistence | 25 | Pending. |
+| 14 Engine/setup persistence | 25 | Implementation preparation; independent registry and setup work, coordinated Desktop ownership. |
 | 15 Rematch/hotseat | 29 | Pending. |
 | 16 Web campaign | 30 | Read-only architecture prepared; implementation pending other shared APIs. |
 
@@ -33,4 +33,4 @@ Excluded pending design: #23,#26,#56-60,#65-66,#70. #94 explicitly deferred. See
 
 Integration13f7ae2 used a clean archive at /private/tmp/bideuchre-wave1-13f7ae2 to isolate current work. Full build0errors with8knownbaselinewarnings; Server.Tests exit0 and published smoke1/1 passed. Logs /private/tmp/bideuchre-wave1-build.log and /private/tmp/bideuchre-wave1-published.log.
 
-Draft PR96: https://github.com/MrMortem/bidEuchre/pull/96, published through a7a424d (25 issue closures queued for future merge). No merge or actual issue closure yet. Local reviewed freeplay change59a0d92 will be included in a subsequent update.
+Draft PR96: https://github.com/MrMortem/bidEuchre/pull/96, published through f05272a (28 issue closures queued for future merge). No merge or actual issue closure yet.
