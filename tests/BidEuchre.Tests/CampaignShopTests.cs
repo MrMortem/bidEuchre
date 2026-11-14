@@ -15,9 +15,6 @@ internal static class CampaignShopTests
         Assert.True(bought.Resources.Deck[0].Sigil is not null);
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(bought, offer.Id, id));
         Assert.Equal(run.Shop.Offers[0], CampaignShop.Open(run).Shop!.Offers[0]);
-        var planet = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Planet);
-        var unlocked = CampaignShop.Buy(run, planet.Id);
-        Assert.Equal(1, unlocked.Resources.Inventory.Unlocks.Length);
         var joker = run.Shop.Offers.First(o => o.Category == FeatureCategory.Joker);
         var owned = CampaignShop.Buy(run, joker.Id);
         Assert.Equal(26, owned.Money);
@@ -34,6 +31,46 @@ internal static class CampaignShopTests
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, sigilOffer));
         // A full inventory still lets a Sigil be bought and used on the spot.
         Assert.Equal(4, CampaignShop.Buy(full, sigilOffer, id).Resources.Inventory.ItemCount);
+    }
+    // The gumball machine sells a blind pull: the bid is drawn when it is paid for.
+    public static void GumballPull()
+    {
+        var run = CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop));
+        var offer = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Gumball);
+        Assert.Equal("", offer.FeatureId);
+        Assert.Equal(3, offer.Price);
+        var pulled = CampaignShop.Buy(run, offer.Id);
+        Assert.Equal(27, pulled.Money);
+        Assert.Equal(1, pulled.Resources.Inventory.Unlocks.Length);
+        var sold = pulled.Shop!.Offers.Single(o => o.Id == offer.Id);
+        Assert.True(sold.Sold);
+        Assert.Equal(pulled.Resources.Inventory.Unlocks[0].ToString(), sold.FeatureId);
+        Assert.True(pulled.Resources.RandomState != run.Resources.RandomState);
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(pulled, offer.Id));
+
+        CampaignRun Owning(CampaignRun source, params GumballId[] ids) =>
+            source with { Resources = source.Resources with { Inventory = source.Resources.Inventory with { Unlocks = ids } } };
+        // A bid unlocked earlier in the visit, by the Astronomer say, never comes out again.
+        var all = Enum.GetValues<GumballId>();
+        foreach (var last in all)
+        {
+            var rest = Owning(run, all.Where(id => id != last).ToArray());
+            var result = CampaignShop.Buy(rest, offer.Id).Resources.Inventory.Unlocks;
+            Assert.Equal(9, result.Length);
+            Assert.True(result[^1] == last);
+        }
+        // A run saved before the pull was blind names a bid on the offer; it is ignored.
+        var stale = Owning(run, GumballId.Chaos) with { Shop = new(0, [new("g", FeatureCategory.Gumball, "Chaos", 3)]) };
+        var redrawn = CampaignShop.Buy(stale, "g").Resources.Inventory.Unlocks;
+        Assert.Equal(2, redrawn.Length);
+        Assert.True(redrawn[1] != GumballId.Chaos);
+
+        var full = Owning(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop), all);
+        Assert.Equal(0, CampaignShop.Open(full).Shop!.Offers.Count(o => o.Category == FeatureCategory.Gumball));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(Owning(run, all), offer.Id));
+
+        var poor = run with { Money = 2 };
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(poor, offer.Id));
     }
     public static void StoredCardsOutsideMatch()
     {
@@ -110,7 +147,7 @@ internal static class CampaignShopTests
 
         var astronomer = Stocked(TarotId.Astronomer);
         Assert.Equal(1, CampaignShop.BuyAndUse(astronomer, "t", []).Resources.Inventory.Unlocks.Length);
-        var all = astronomer with { Resources = astronomer.Resources with { Inventory = astronomer.Resources.Inventory with { Unlocks = Enum.GetValues<PlanetId>() } } };
+        var all = astronomer with { Resources = astronomer.Resources with { Inventory = astronomer.Resources.Inventory with { Unlocks = Enum.GetValues<GumballId>() } } };
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(all, "t", []));
 
         // Six cards must stay dealable to the human.

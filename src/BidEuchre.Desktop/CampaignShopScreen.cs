@@ -14,10 +14,16 @@ namespace BidEuchre.Desktop;
 
 /// <summary>What the shop screen can ask of the run. Each one redraws the shop when it is done.</summary>
 internal sealed record ShopActions(Action<string> Buy, Action<string> BuyAndUse, Action<JokerId> Sell,
-    Action<FeatureCategory, int> UseItem, Action<FeatureCategory, int> DiscardItem, Action Inspect, Action Next);
+    Action<FeatureCategory, int> UseItem, Action<FeatureCategory, int> DiscardItem, Action Inspect, Action Next)
+{
+    /// <summary>Pays for a gumball and saves the run, without redrawing. Null when the pull was refused.</summary>
+    public required Func<string, GumballId?> Pull { get; init; }
+    /// <summary>Redraws the shop, after the pull has been shown.</summary>
+    public required Action Refresh { get; init; }
+}
 
-/// <summary>The shop between matches. Offers are drawn as cards: Jokers on the top row, then a Sigil,
-/// a Tarot and a Planet. Pressing a card selects it and puts its text and its buttons in the side panel.</summary>
+/// <summary>The shop between matches. Offers are drawn as cards: Jokers on the top row, then a Sigil
+/// and a Tarot, with the gumball machine standing beside them. Pressing a card selects it and puts its text and its buttons in the side panel.</summary>
 internal static class CampaignShopScreen
 {
     private const double CardWidth = 148, CardHeight = 196, Art = 128, SmallCard = 76, Lift = 8;
@@ -79,12 +85,45 @@ internal static class CampaignShopScreen
                 () => OfferDetail(run, offer, definition, actions, motion));
         }
 
+        // The machine sells one blind pull a visit. The run is paid and saved before the gumball rolls out.
+        var panel = new StackPanel { Spacing = 14, Margin = new Thickness(24, 16), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var locked = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
+        Control? Machine()
+        {
+            var offer = run.Shop!.Offers.SingleOrDefault(o => o.Category == FeatureCategory.Gumball);
+            if (offer is null && locked.Length > 0) return null;
+            var open = offer is { Sold: false } && locked.Length > 0;
+            var machine = new GumballMachine(locked, open ? $"${offer!.Price}" : locked.Length == 0 ? "EMPTY" : "SOLD");
+            if (!open) { machine.Face.Opacity = .4; machine.Face.Margin = new Thickness(0, Lift, 0, 0); return machine.Face; }
+            var pulling = false;
+            async void Pull()
+            {
+                if (pulling) return;
+                pulling = true;
+                if (actions.Pull(offer!.Id) is not { } gumball || !motion.Enabled) { actions.Refresh(); return; }
+                panel.IsHitTestVisible = false;
+                if (await machine.Dispense(gumball, FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name)) actions.Refresh();
+            }
+            return Selectable(machine.Face, MainWindow.Green, "GumballMachine", $"Gumball machine: mystery bid, ${offer!.Price}", () =>
+            {
+                var pull = MenuParts.Button($"Pull ${offer.Price}", true, motion, "PullGumball", Pull, true, 264);
+                pull.IsEnabled = run.Money >= offer.Price;
+                return Detail("GUMBALL", MainWindow.Green, "Mystery bid",
+                    $"Turn the crank and a gumball rolls out, unlocking a random bid you do not have yet. {locked.Length} of {CampaignInventory.GumballCount} left in the machine.",
+                    pull.IsEnabled ? "The bid stays unlocked for the rest of the run." : $"You need ${offer.Price - run.Money} more.", [pull], !pull.IsEnabled);
+            });
+        }
+
         var jokers = Row(14);
         var others = Row(14);
         foreach (var offer in run.Shop!.Offers.Where(o => o.Category == FeatureCategory.Joker)) jokers.Children.Add(Offer(offer));
-        foreach (var category in new[] { FeatureCategory.Sigil, FeatureCategory.Tarot, FeatureCategory.Planet })
+        foreach (var category in new[] { FeatureCategory.Sigil, FeatureCategory.Tarot })
             foreach (var offer in run.Shop.Offers.Where(o => o.Category == category)) others.Children.Add(Offer(offer));
-        var offers = new StackPanel { Spacing = 14 - Lift, VerticalAlignment = VerticalAlignment.Top, Children = { jokers, others } };
+        // The machine stands beside the cards, as tall as both rows.
+        var offers = Row(14);
+        offers.VerticalAlignment = VerticalAlignment.Top;
+        offers.Children.Add(new StackPanel { Spacing = 14 - Lift, Children = { jokers, others } });
+        if (Machine() is { } gumballs) offers.Children.Add(gumballs);
 
         var ownedJokers = Row(8);
         foreach (var joker in inventory.Jokers)
@@ -101,7 +140,7 @@ internal static class CampaignShopScreen
         {
             var ink = Ink(category);
             var use = MenuParts.Button("Use", true, motion, $"Use{category}{slot}", () => actions.UseItem(category, slot), true, 264);
-            use.IsEnabled = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == 8);
+            use.IsEnabled = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
             ownedItems.Children.Add(Selectable(Small(definition, ink), ink, $"Owned{category}{slot}", $"Your {category}: {definition.Name}", () => Detail(
                 $"YOUR {category.ToString().ToUpperInvariant()}", ink, definition.Name, definition.Description,
                 category == FeatureCategory.Sigil
@@ -111,10 +150,15 @@ internal static class CampaignShopScreen
         }
         while (ownedItems.Children.Count < CampaignTableControls.ItemSlots) ownedItems.Children.Add(EmptySlot());
 
-        var unlocked = Label($"PLANET BIDS {inventory.Unlocks.Length}/8", MainWindow.Green, 11);
-        unlocked.VerticalAlignment = VerticalAlignment.Bottom;
-        if (inventory.Unlocks.Length > 0)
-            ToolTip.SetTip(unlocked, string.Join("\n", inventory.Unlocks.Select(id => FeatureCatalog.Get(FeatureCategory.Planet, id.ToString()).Name)));
+        // Each gumball pulled so far, in its own colour; its bid is in the tooltip.
+        var pulled = new WrapPanel { Name = "OwnedGumballs", Width = 5 * 38, Height = SmallCard, Margin = new Thickness(0, Lift, 0, 0) };
+        foreach (var id in inventory.Unlocks)
+        {
+            var definition = FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString());
+            var ball = new Border { Background = Brushes.Transparent, Padding = new Thickness(2), Child = GumballMachine.Ball(id, 34) };
+            ToolTip.SetTip(ball, $"{definition.Name}: {definition.Description}"); ToolTip.SetShowDelay(ball, 120);
+            pulled.Children.Add(ball);
+        }
         var owned = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 28, HorizontalAlignment = HorizontalAlignment.Center,
@@ -122,7 +166,7 @@ internal static class CampaignShopScreen
             {
                 Shelf($"YOUR JOKERS {inventory.Jokers.Length}/{CampaignTableControls.JokerSlots}", ownedJokers),
                 Shelf($"YOUR CARDS {inventory.ItemCount}/{CampaignTableControls.ItemSlots}", ownedItems),
-                unlocked
+                Shelf($"GUMBALLS {inventory.Unlocks.Length}/{CampaignInventory.GumballCount}", pulled)
             }
         };
 
@@ -134,7 +178,6 @@ internal static class CampaignShopScreen
         ((TextBlock)header.Children[1]).VerticalAlignment = VerticalAlignment.Center;
         ((TextBlock)header.Children[1]).Name = "ShopMoney";
 
-        var panel = new StackPanel { Spacing = 14, Margin = new Thickness(24, 16), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         panel.Children.Add(header);
         if (note is not null)
         {
@@ -162,7 +205,7 @@ internal static class CampaignShopScreen
     }
 
     // A Tarot or Sigil can also be played at once on the shared deck, which
-    // needs no free slot. A Planet has nothing to hold: buying it unlocks its bid.
+    // needs no free slot.
     private static Control OfferDetail(CampaignRun run, ShopOffer offer, FeatureDefinition definition, ShopActions actions, PixelMotion motion)
     {
         var inventory = run.Resources.Inventory;
@@ -179,14 +222,13 @@ internal static class CampaignShopScreen
         var hint = offer.Category switch
         {
             FeatureCategory.Sigil => "Buy it to keep for a match or later, or use it now on a card of the shared deck.",
-            FeatureCategory.Planet => "Buying it unlocks this bid for the rest of the run.",
             FeatureCategory.Tarot => "Buy it to keep for a match or later, or use it now on the shared deck.",
             _ => null
         };
         if (offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil)
         {
             var use = MenuParts.Button($"Buy & Use ${offer.Price}", true, motion, $"BuyUse{offer.Id}", () => actions.BuyAndUse(offer.Id), true, 264);
-            use.IsEnabled = afford && !(offer.Category == FeatureCategory.Tarot && offer.FeatureId == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == 8);
+            use.IsEnabled = afford && !(offer.Category == FeatureCategory.Tarot && offer.FeatureId == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
             buttons.Add(use);
         }
         var problem = !afford ? $"You need ${offer.Price - run.Money} more."
@@ -304,7 +346,7 @@ internal static class CampaignDeckPicker
             var frame = new Border
             {
                 Width = CardWidth + 6, Height = CardHeight + 6, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(3),
-                CornerRadius = new CornerRadius(6), Child = PixelArt.CardContent(card.Face)
+                CornerRadius = new CornerRadius(6), Child = PixelArt.CardContent(card.Face, card.Enhancement)
             };
             frames.Add(frame);
             var marks = new StackPanel { Spacing = 1, Height = 30 };

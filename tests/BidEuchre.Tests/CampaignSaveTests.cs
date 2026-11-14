@@ -30,4 +30,26 @@ internal static class CampaignSaveTests
         }
         finally { Directory.Delete(folder, true); }
     }
+    // Gumballs were called Planets, and runs saved then must still load.
+    public static void LegacyPlanetIds()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(folder);
+        var path = Path.Combine(folder, "campaign.json");
+        try
+        {
+            var run = new CampaignRun(Money: 5, Phase: CampaignPhase.Shop);
+            run = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Unlocks = [GumballId.Chaos] } } };
+            Assert.True(CampaignStore.Save(run, path));
+            var json = File.ReadAllText(path);
+            Assert.True(json.Contains("\"gumball:chaos\""));
+            File.WriteAllText(path, json.Replace("\"gumball:chaos\"", "\"planet:chaos\""));
+            var loaded = CampaignStore.Load(path)!;
+            Assert.Equal(1, loaded.Resources.Inventory.Unlocks.Length);
+            Assert.True(loaded.Resources.Inventory.Unlocks[0] == GumballId.Chaos);
+            Assert.True(CampaignStore.Save(loaded, path));
+            Assert.True(!File.ReadAllText(path).Contains("planet:"));
+        }
+        finally { Directory.Delete(folder, true); }
+    }
 }

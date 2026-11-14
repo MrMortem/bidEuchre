@@ -1,6 +1,6 @@
 namespace BidEuchre.Core;
 
-public enum FeatureCategory { Enhancement, Joker, Planet, Sigil, Tarot }
+public enum FeatureCategory { Enhancement, Joker, Gumball, Sigil, Tarot }
 public sealed record FeatureDefinition(string Id, FeatureCategory Category, string Key, string Name, string Description, int Price);
 public static class FeatureCatalog
 {
@@ -47,14 +47,15 @@ public static class FeatureCatalog
         new("joker:cheater", FeatureCategory.Joker, "Cheater", "Cheater", "At each hand's start, choose a player and reveal one random card from their hand to the human.", 4),
         new("joker:alpha", FeatureCategory.Joker, "Alpha", "Alpha", "Human can outbid the partner by matching the partner's bid.", 4),
         new("joker:slick-willy", FeatureCategory.Joker, "SlickWilly", "Slick Willy", "Human never deals.", 4),
-        new("planet:lowballer", FeatureCategory.Planet, "Lowballer", "Low-baller", "Bid 2.", 3),
-        new("planet:chaos", FeatureCategory.Planet, "Chaos", "Chaos", "Minimum bid 4; trump changes randomly each trick; double all points earned/lost that hand.", 3),
-        new("planet:poker", FeatureCategory.Planet, "Poker", "Poker", "Bid exactly 4; reveal all hands; best poker hand earns 4 points.", 3),
-        new("planet:duelist", FeatureCategory.Planet, "Duelist", "Duelist", "Bid 3–5; play alone against one chosen opponent; failed contract costs 1 extra point.", 3),
-        new("planet:telepath", FeatureCategory.Planet, "Telepath", "Telepath", "Minimum bid 5; partner reveals one card before human chooses trump.", 3),
-        new("planet:partners-best", FeatureCategory.Planet, "PartnersBest", "Partner's Best", "Existing card exchange and solo play; sweep six tricks for +12, otherwise -12.", 3),
-        new("planet:alone", FeatureCategory.Planet, "Alone", "Alone", "Existing solo play; sweep six tricks for +24, otherwise -24.", 3),
-        new("planet:panic-button", FeatureCategory.Planet, "PanicButton", "Panic Button", "Immediately pay 8 team points, end the bidding hand, count it, and redeal if match continues.", 3),
+        new("gumball:lowballer", FeatureCategory.Gumball, "Lowballer", "Low-baller", "Bid 2.", 3),
+        new("gumball:chaos", FeatureCategory.Gumball, "Chaos", "Chaos", "Minimum bid 4; trump changes randomly each trick; double all points earned/lost that hand.", 3),
+        new("gumball:poker", FeatureCategory.Gumball, "Poker", "Poker", "Bid exactly 4; reveal all hands; best poker hand earns 4 points.", 3),
+        new("gumball:duelist", FeatureCategory.Gumball, "Duelist", "Duelist", "Bid 3–5; play alone against one chosen opponent; failed contract costs 1 extra point.", 3),
+        new("gumball:telepath", FeatureCategory.Gumball, "Telepath", "Telepath", "Minimum bid 5; partner reveals one card before human chooses trump.", 3),
+        new("gumball:partners-best", FeatureCategory.Gumball, "PartnersBest", "Partner's Best", "Existing card exchange and solo play; sweep six tricks for +12, otherwise -12.", 3),
+        new("gumball:alone", FeatureCategory.Gumball, "Alone", "Alone", "Existing solo play; sweep six tricks for +24, otherwise -24.", 3),
+        new("gumball:panic-button", FeatureCategory.Gumball, "PanicButton", "Panic Button", "Immediately pay 8 team points, end the bidding hand, count it, and redeal if match continues.", 3),
+        new("gumball:high-low", FeatureCategory.Gumball, "HighLow", "High/Low", "Choose High or Low, not only a trump suit, when you win a bid of 4 or more.", 3),
         new("sigil:coin", FeatureCategory.Sigil, "Coin", "Coin", "When played, earn $3.", 3),
         new("sigil:bear", FeatureCategory.Sigil, "Bear", "Bear", "Count as one printed rank higher; Ace wraps to 9.", 3),
         new("sigil:eagle", FeatureCategory.Sigil, "Eagle", "Eagle", "Return to the player's hand if played in a losing trick.", 3),
@@ -79,7 +80,7 @@ public static class FeatureCatalog
         new("tarot:merchant", FeatureCategory.Tarot, "Merchant", "Merchant", "Make one card Emerald.", 3),
         new("tarot:glassblower", FeatureCategory.Tarot, "Glassblower", "Glassblower", "Make one card Glass.", 3),
         new("tarot:traitor", FeatureCategory.Tarot, "Traitor", "Traitor", "Make one card Silver.", 3),
-        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Create a random Planet unlock.", 3),
+        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Unlock a random Gumball bid.", 3),
         new("tarot:beggar", FeatureCategory.Tarot, "Beggar", "Beggar", "Make one card Stinky.", 3),
         new("tarot:spring-loaded", FeatureCategory.Tarot, "SpringLoaded", "Spring Loaded", "Make one card Bouncy.", 3),
         new("tarot:tax-collector", FeatureCategory.Tarot, "TaxCollector", "Tax Collector", "Double money, capped at $20 gained.", 3),

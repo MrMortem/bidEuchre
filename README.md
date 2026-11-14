@@ -242,7 +242,7 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 **Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
-the other. The campaign includes 10 enhancements, 31 Jokers, 8 Planet bidding
+the other. The campaign includes 10 enhancements, 31 Jokers, 9 Gumball bidding
 unlocks, 12 Sigils, and 16 Tarot consumables.
 
 Both teams start each match at zero. Matches end after a fully scored hand
@@ -250,11 +250,12 @@ reaches either ±24 points in Ante 1, increasing by four per Ante, or after eigh
 hands. Ties continue. Contract success counts tricks only; effect bonuses remain
 even after a failed bid.
 
-Between matches the shop offers two $4 Jokers, a $3 Planet, a $3 Tarot, and a $3
-Sigil. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
-four slots; discard one to free space. Sell Jokers for $2. Planet purchases
-permanently unlock your bidding options; Partners Best and Alone start locked for
-you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+Between matches the shop offers two $4 Jokers, a $3 Tarot, a $3 Sigil, and a
+gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
+four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
+gumball rolls out and permanently unlocks a random bidding option you do not
+have yet; Partners Best, Alone, and the High and Low contracts
+start locked for you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
 shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
 it is yours to act: in the shop and on the screen before a match it is aimed at
 the shared deck, and during a match it is played on cards in your hand on any of

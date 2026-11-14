@@ -3,6 +3,7 @@ namespace BidEuchre.App;
 
 public static class CampaignShop
 {
+    public const int GumballPrice = 3;
     private const string Full = "Your card slots are full. Use or discard a card first.";
     public static CampaignRun Open(CampaignRun run)
     {
@@ -15,7 +16,7 @@ public static class CampaignShop
         {
             var options = FeatureCatalog.All.Where(f => f.Category == category)
                 .Where(f => category != FeatureCategory.Joker || !inventory.Jokers.Any(j => j.Id.ToString() == f.Key))
-                .Where(f => category != FeatureCategory.Planet || !inventory.Unlocks.Any(p => p.ToString() == f.Key)).ToList();
+                .Where(f => category != FeatureCategory.Gumball || !inventory.Unlocks.Any(p => p.ToString() == f.Key)).ToList();
             for (var i = 0; i < number; i++)
             {
                 if (options.Count == 0) continue;
@@ -23,7 +24,10 @@ public static class CampaignShop
                 offers.Add(new($"{run.Match - 1}:{offers.Count}", category, choice.Key, choice.Price));
             }
         }
-        Roll(FeatureCategory.Joker, 2); Roll(FeatureCategory.Planet, 1); Roll(FeatureCategory.Tarot, 1); Roll(FeatureCategory.Sigil, 1);
+        Roll(FeatureCategory.Joker, 2);
+        // A gumball is a blind pull: which bid comes out is only drawn when it is paid for.
+        if (inventory.Unlocks.Length < CampaignInventory.GumballCount) offers.Add(new($"{run.Match - 1}:{offers.Count}", FeatureCategory.Gumball, "", GumballPrice));
+        Roll(FeatureCategory.Tarot, 1); Roll(FeatureCategory.Sigil, 1);
         return run with { Shop = new(run.Match - 1, offers.ToArray()), Resources = run.Resources with { RandomState = random.State, Revision = run.Resources.Revision + 1, Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
     }
     public static CampaignRun Buy(CampaignRun run, string offerId, CardId? sigilTarget = null)
@@ -33,16 +37,21 @@ public static class CampaignShop
         if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
         if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
         var resources = run.Resources.Copy(); var inventory = resources.Inventory;
+        string? pulled = null;
         switch (offer.Category)
         {
             case FeatureCategory.Joker:
                 var joker = Enum.Parse<JokerId>(offer.FeatureId);
                 if (inventory.Jokers.Length >= 5 || inventory.Has(joker)) throw new GameRuleException("Five Joker slots; no duplicates.");
                 inventory = inventory with { Jokers = [.. inventory.Jokers, new(joker)] }; break;
-            case FeatureCategory.Planet:
-                var planet = Enum.Parse<PlanetId>(offer.FeatureId);
-                if (inventory.Unlocks.Contains(planet)) throw new GameRuleException("Already unlocked.");
-                inventory = inventory with { Unlocks = [.. inventory.Unlocks, planet] }; break;
+            case FeatureCategory.Gumball:
+                // Whatever the offer says, the bid is drawn now from the ones still locked.
+                var locked = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
+                if (locked.Length == 0) throw new GameRuleException("All bidding options are unlocked.");
+                var random = new CampaignRandom(resources.RandomState);
+                var gumball = locked[random.NextInt(locked.Length)];
+                resources = resources with { RandomState = random.State };
+                inventory = inventory with { Unlocks = [.. inventory.Unlocks, gumball] }; pulled = gumball.ToString(); break;
             case FeatureCategory.Tarot:
                 if (!inventory.HasItemRoom) throw new GameRuleException(Full);
                 inventory = inventory with { Tarot = [.. inventory.Tarot, Enum.Parse<TarotId>(offer.FeatureId)] }; break;
@@ -55,7 +64,7 @@ public static class CampaignShop
             default: throw new GameRuleException("This item cannot be purchased.");
         }
         resources.Wallets[0] = run.Money - offer.Price;
-        return run with { Money = resources.Wallets[0], Resources = resources with { Inventory = inventory, Revision = resources.Revision + 1 }, Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with { Sold = true } : o).ToArray() } };
+        return run with { Money = resources.Wallets[0], Resources = resources with { Inventory = inventory, Revision = resources.Revision + 1 }, Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with { Sold = true, FeatureId = pulled ?? o.FeatureId } : o).ToArray() } };
     }
     /// <summary>How many shared-deck cards a Tarot must be aimed at.</summary>
     public static int TarotTargets(TarotId tarot) => Tarot.TargetCount(tarot);
@@ -90,7 +99,7 @@ public static class CampaignShop
         var required = TarotTargets(tarot);
         if (targets.Count != required || targets.Distinct().Count() != required || targets.Any(id => deck.All(c => c.Id != id)))
             throw new GameRuleException(required == 1 ? "Choose a card from the shared deck." : $"Choose {required} different cards from the shared deck.");
-        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == 8) throw new GameRuleException("All bidding options are unlocked.");
+        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == CampaignInventory.GumballCount) throw new GameRuleException("All bidding options are unlocked.");
         // The human must always have six cards that can be dealt to them.
         bool CanEnhance(CardId id, EnhancementId enhancement) =>
             deck.Count(c => (c.Id == id ? enhancement : c.Enhancement) == EnhancementId.Stinky) <= 18;
@@ -108,7 +117,7 @@ public static class CampaignShop
             case TarotId.CrystalElixir: Change(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Diamonds)); break;
             case TarotId.TaxCollector: money += Math.Min(20, money); break;
             case TarotId.Astronomer:
-                var options = Enum.GetValues<PlanetId>().Except(inventory.Unlocks).ToArray();
+                var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
                 inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[random.NextInt(options.Length)]] }; break;
             case TarotId.Gambler:
                 var choices = deck.Select(c => c.Id).ToList(); random.Shuffle(choices);

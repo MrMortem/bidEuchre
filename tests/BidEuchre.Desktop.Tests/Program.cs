@@ -14,6 +14,8 @@ AppBuilder.Configure<Application>()
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
+EnhancementBackgroundTests.Run();
+
 var motion = new PixelMotion();
 motion.SetEnabled(false);
 CardId[]? selected = null;
@@ -146,6 +148,71 @@ foreach (var storeFirst in new[] { false, true })
         Console.WriteLine("PASS  Stored Tarots and Sigils share a shelf and are played from the shop and the Ante screen");
     }
     finally { screen.Close(); File.Delete(path); }
+}
+
+// The gumball machine sells one blind pull, with and without its animation.
+foreach (var animated in new[] { false, true })
+{
+    var path = Path.Combine(Path.GetTempPath(), $"gumball-ui-{Guid.NewGuid():N}.json");
+    var shop = new Window { Width = 1280, Height = 1100 };
+    var moving = new PixelMotion();
+    moving.SetEnabled(animated);
+    try
+    {
+        if (!CampaignStore.Save(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop), path)) throw new Exception("Could not prepare disposable save.");
+        var flow = new CampaignFlow(path, screen => shop.Content = screen, _ => Task.CompletedTask, () => { }, moving);
+        flow.Open();
+        shop.Show();
+        void Click(string name)
+        {
+            Dispatcher.UIThread.RunJobs();
+            var button = shop.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name);
+            button.BringIntoView();
+            Dispatcher.UIThread.RunJobs();
+            var point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), shop)!.Value;
+            shop.MouseDown(point, MouseButton.Left);
+            shop.MouseUp(point, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+        }
+        string? Text(string name) => shop.GetVisualDescendants().OfType<TextBlock>().SingleOrDefault(t => t.Name == name)?.Text;
+        // With motion on, screens and the machine take real time to finish.
+        long Await(Func<bool> done)
+        {
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            using var limit = new CancellationTokenSource(8000);
+            // Timers only fire inside a running loop, so run one until the screen has caught up.
+            var poll = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(10) };
+            poll.Tick += (_, _) => { AvaloniaHeadlessPlatform.ForceRenderTimerTick(); if (done()) limit.Cancel(); };
+            poll.Start();
+            Dispatcher.UIThread.MainLoop(limit.Token);
+            poll.Stop();
+            return clock.ElapsedMilliseconds;
+        }
+        Click("CampaignContinue");
+        Await(() => Text("GumballTag") is not null);
+        if (Text("GumballTag") != "$3") throw new Exception("The machine must show its price.");
+        if (shop.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text is "Chaos" or "Poker" or "Duelist" or "Telepath"))
+            throw new Exception("The machine must not name a bid before the pull.");
+        Click("GumballMachine");
+        Click("PullGumball");
+        // Paid and saved at once, before any gumball has rolled out.
+        var saved = CampaignStore.Load(path)!;
+        if (saved.Money != 27 || saved.Resources.Inventory.Unlocks.Length != 1) throw new Exception("A pull must charge once and save its bid immediately.");
+        if (animated)
+        {
+            if (Text("CampaignNote") is not null) throw new Exception("The result must wait for the animation.");
+            if (Await(() => Text("CampaignNote") is not null) < 1500) throw new Exception("The animation must play before the result.");
+        }
+        Dispatcher.UIThread.RunJobs();
+        var name = FeatureCatalog.Get(FeatureCategory.Gumball, saved.Resources.Inventory.Unlocks[0].ToString()).Name;
+        if (Text("CampaignNote") != $"The gumball unlocked the {name} bid!") throw new Exception("The shop must report the bid that came out.");
+        if (Text("GumballTag") != "SOLD") throw new Exception("The machine must read SOLD after its pull.");
+        if (shop.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "GumballMachine")) throw new Exception("A sold machine cannot be pressed.");
+        if (!shop.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "GUMBALLS 1/9")) throw new Exception("The shelf must count the gumball.");
+        if (flow.Run!.Money != 27 || flow.Run.Resources.Inventory.Unlocks.Length != 1) throw new Exception("A pull must not repeat.");
+        Console.WriteLine($"PASS  Gumball machine sells one blind pull and reports its bid ({(animated ? "animated" : "motion off")})");
+    }
+    finally { shop.Close(); File.Delete(path); }
 }
 
 foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±28 POINTS"), (16, "ANTE 6", "±44 POINTS") })

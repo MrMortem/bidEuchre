@@ -26,11 +26,11 @@ internal static class CampaignModelTests
         var resumed = new CampaignRandom(random.State);
         for (var i = 0; i < 20; i++) Assert.Equal(random.NextInt(17), resumed.NextInt(17));
         Assert.Throws<ArgumentOutOfRangeException>(() => random.NextInt(0));
-        Assert.Equal(77, FeatureCatalog.All.Count);
-        Assert.Equal(77, FeatureCatalog.All.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(78, FeatureCatalog.All.Count);
+        Assert.Equal(78, FeatureCatalog.All.Select(x => x.Id).Distinct().Count());
         Assert.Equal(10, Enum.GetValues<EnhancementId>().Length);
         Assert.Equal(31, Enum.GetValues<JokerId>().Length);
-        Assert.Equal(8, Enum.GetValues<PlanetId>().Length);
+        Assert.Equal(9, Enum.GetValues<GumballId>().Length);
         Assert.Equal(12, Enum.GetValues<SigilId>().Length);
         Assert.Equal(16, Enum.GetValues<TarotId>().Length);
     }

@@ -162,6 +162,8 @@ public sealed partial class GameEngine
             throw new GameRuleException("Only the auction winner may choose the contract.");
         }
 
+        if (mode != ContractMode.Trump && !GetContractModes().Contains(mode) && IsCampaign && seat == 0)
+            throw new GameRuleException("High and Low are locked until you pull the High/Low gumball.");
         Contract = IsCampaign && (int)HighBid! == 2
             ? mode == ContractMode.Trump && trump is not null ? new Contract(HighBid.Value, mode, trump) : throw new GameRuleException("Bid 2 requires trump.")
             : Contract.Create(HighBid!.Value, mode, trump);
@@ -274,7 +276,7 @@ public sealed partial class GameEngine
             return;
         }
 
-        if (IsCampaign && _variant == PlanetId.Chaos) RollChaos();
+        if (IsCampaign && _variant == GumballId.Chaos) RollChaos();
         CurrentSeat = winner;
     }
 
@@ -378,10 +380,12 @@ public sealed partial class GameEngine
 
     private IReadOnlyList<ContractMode> GetContractModes()
     {
-        if (HighBid is BidLevel.Three or BidLevel.PartnersBest || (int?)HighBid == 2 || IsCampaign && _variant is PlanetId.Chaos or PlanetId.Telepath)
+        if (HighBid is BidLevel.Three or BidLevel.PartnersBest || (int?)HighBid == 2 || IsCampaign && _variant is GumballId.Chaos or GumballId.Telepath)
         {
             return [ContractMode.Trump];
         }
+        // In a campaign the human names only trump suits until the High/Low gumball is pulled.
+        if (IsCampaign && Bidder == 0 && !_resources.Inventory.Unlocks.Contains(GumballId.HighLow)) return [ContractMode.Trump];
 
         return [ContractMode.High, ContractMode.Low, ContractMode.Trump];
     }

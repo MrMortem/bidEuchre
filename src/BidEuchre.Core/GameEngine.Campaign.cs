@@ -10,8 +10,8 @@ public sealed partial class GameEngine
     private readonly Dictionary<CardId, Suit> _wildSuits = [];
     private readonly HashSet<(int Viewer, CardId Id)> _reveals = [];
     private bool _dispatchCampaign;
-    private PlanetId? _variant;
-    private PlanetId? _pendingBidVariant;
+    private GumballId? _variant;
+    private GumballId? _pendingBidVariant;
     private string? _pendingChoice;
     private int? _pendingActor;
     private int? _duelOpponent;
@@ -88,16 +88,16 @@ public sealed partial class GameEngine
         foreach (var bid in GameRules.LegalRaises(null))
         {
             if (HighBid is not null && bid <= HighBid && !(seat == 0 && Has(JokerId.Alpha) && Bidder == 2 && bid == HighBid && bid <= BidLevel.Six)) continue;
-            if (seat == 0 && bid == BidLevel.PartnersBest && !_resources.Inventory.Unlocks.Contains(PlanetId.PartnersBest)) continue;
-            if (seat == 0 && bid == BidLevel.Alone && !_resources.Inventory.Unlocks.Contains(PlanetId.Alone)) continue;
+            if (seat == 0 && bid == BidLevel.PartnersBest && !_resources.Inventory.Unlocks.Contains(GumballId.PartnersBest)) continue;
+            if (seat == 0 && bid == BidLevel.Alone && !_resources.Inventory.Unlocks.Contains(GumballId.Alone)) continue;
             yield return new(bid);
             if (seat == 0 && bid <= BidLevel.Six)
                 foreach (var variant in _resources.Inventory.Unlocks)
-                    if (variant is PlanetId.Chaos && bid >= BidLevel.Four || variant is PlanetId.Poker && bid == BidLevel.Four
-                        || variant is PlanetId.Duelist && bid <= BidLevel.Five || variant is PlanetId.Telepath && bid >= BidLevel.Five)
+                    if (variant is GumballId.Chaos && bid >= BidLevel.Four || variant is GumballId.Poker && bid == BidLevel.Four
+                        || variant is GumballId.Duelist && bid <= BidLevel.Five || variant is GumballId.Telepath && bid >= BidLevel.Five)
                         yield return new(bid, variant);
         }
-        if (seat == 0 && _resources.Inventory.Unlocks.Contains(PlanetId.Lowballer) && (HighBid is null || (int)HighBid < 2))
+        if (seat == 0 && _resources.Inventory.Unlocks.Contains(GumballId.Lowballer) && (HighBid is null || (int)HighBid < 2))
             yield return new((BidLevel)2);
     }
     private List<CampaignCommand> CampaignLegal(int seat)
@@ -118,7 +118,7 @@ public sealed partial class GameEngine
             case GamePhase.Bidding:
                 if (CanPass) actions.Add(new CampaignCommand.Pass());
                 actions.AddRange(CampaignBids(seat));
-                if (seat == 0 && !Has(JokerId.VowofSilence) && _resources.Inventory.Unlocks.Contains(PlanetId.PanicButton)) actions.Add(new CampaignCommand.PanicButton());
+                if (seat == 0 && !Has(JokerId.VowofSilence) && _resources.Inventory.Unlocks.Contains(GumballId.PanicButton)) actions.Add(new CampaignCommand.PanicButton());
                 break;
             case GamePhase.ChoosingContract:
                 foreach (var mode in GetContractModes())
@@ -187,13 +187,13 @@ public sealed partial class GameEngine
     }
     private void CommitCampaign()
     { _resources = _resources with { Revision = _resources.Revision + 1, RandomState = _campaignRandom.State }; _campaign!.Replace(ExportCampaignSnapshot()); }
-    private bool CampaignActive(int seat) => _variant == PlanetId.Duelist && _duelOpponent is { } opponent
+    private bool CampaignActive(int seat) => _variant == GumballId.Duelist && _duelOpponent is { } opponent
         ? seat == Bidder || seat == opponent : !(Contract?.PartnerSitsOut is true && seat == GameRules.PartnerOf(Bidder!.Value));
     private void CampaignAfterBid()
     {
         if (Phase != GamePhase.ChoosingContract) return;
-        if (_variant == PlanetId.Duelist && _duelOpponent is null) { _pendingChoice = "Choose an opponent for Duelist"; _pendingActor = Bidder; }
-        if (_variant == PlanetId.Telepath && !_telepathDone) { _pendingChoice = "Reveal a partner card"; _pendingActor = GameRules.PartnerOf(Bidder!.Value); }
+        if (_variant == GumballId.Duelist && _duelOpponent is null) { _pendingChoice = "Choose an opponent for Duelist"; _pendingActor = Bidder; }
+        if (_variant == GumballId.Telepath && !_telepathDone) { _pendingChoice = "Reveal a partner card"; _pendingActor = GameRules.PartnerOf(Bidder!.Value); }
     }
     private void AutoPassVow()
     {
@@ -250,8 +250,8 @@ public sealed partial class GameEngine
         var key = new ContractKey(Contract!.Mode, Contract.Trump);
         if (_resources.PreviousContract == key) _dejaValue++;
         _resources = _resources with { PreviousContract = key };
-        if (_variant == PlanetId.Poker) ResolvePoker();
-        if (_variant == PlanetId.Chaos) RollChaos();
+        if (_variant == GumballId.Poker) ResolvePoker();
+        if (_variant == GumballId.Chaos) RollChaos();
     }
     private void RollChaos() { Contract = Contract! with { Mode = ContractMode.Trump, Trump = (Suit)_campaignRandom.NextInt(4) }; _events.Add($"Chaos trump: {Contract.Trump}."); }
     private void CampaignOnPlay(int seat, Card token) => ResolvePlayedCard(seat, token);
