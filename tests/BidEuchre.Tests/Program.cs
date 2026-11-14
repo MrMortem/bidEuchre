@@ -10,6 +10,12 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Developer console sets money and lives", DeveloperConsoleTests.MoneyAndLives),
+    ("Developer console manages Jokers by fuzzy name", DeveloperConsoleTests.JokersByFuzzyName),
+    ("Developer console manages Tarot, Sigils and bids", DeveloperConsoleTests.TarotSigilsAndBids),
+    ("Developer console edits deck cards", DeveloperConsoleTests.DeckCards),
+    ("Developer console run flow and match commands", DeveloperConsoleTests.RunFlowAndMatchCommands),
+    ("Developer engine hooks end a campaign match", () => Run(DeveloperConsoleTests.EngineEndsMatch)),
     ("Campaign review additive retriggers", () => Run(CampaignReviewRegressionTests.ReplayBonusesAreAdditive)),
     ("Campaign review final trick timing", () => Run(CampaignReviewRegressionTests.FinalTrickTiming)),
     ("Campaign review Chameleon fallback", () => Run(CampaignReviewRegressionTests.ChameleonFallback)),

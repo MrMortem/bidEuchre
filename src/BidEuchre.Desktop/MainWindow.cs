@@ -15,7 +15,7 @@ using System.Text.Json;
 
 namespace BidEuchre.Desktop;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
     internal static readonly IBrush Paper = Brush.Parse("#0B0720");
     internal static readonly IBrush Panel = Brush.Parse("#100B28");
@@ -187,7 +187,7 @@ public sealed class MainWindow : Window
         _status.Margin = new Thickness(20, 5, 20, 10);
         _status.IsVisible = false;
         _scaleHost.Child = _screenHost;
-        Content = _scaleHost;
+        Content = WithDeveloperConsole(_scaleHost);
         ShowMenu();
 
         ShowSetup();

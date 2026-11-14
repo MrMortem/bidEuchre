@@ -184,6 +184,21 @@ public sealed class GameSession : IAsyncDisposable
         finally { _gate.Release(); }
     }
 
+    /// <summary>Runs a developer-console change on the live engine, then saves and wakes the table as a real action would.</summary>
+    public async Task DeveloperAsync(Action<GameEngine> change, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (Game is null) throw new GameRuleException("The session has not started.");
+            change(Game);
+            LastError = null; CheckpointCampaign(); await ObserveTerminalStateLockedAsync(_lifetime.Token);
+            StartBotLoopLocked(_botActionDelay);
+        }
+        finally { _gate.Release(); }
+    }
+
     /// <summary>Rearranges a human's campaign hand. It is not a game action: it is allowed at any time,
     /// even during the deal or another seat's turn, and does not change the table revision or wake the bots.</summary>
     public async Task ArrangeCampaignHandAsync(int seat, IReadOnlyList<CardId> order, CancellationToken cancellationToken = default)
