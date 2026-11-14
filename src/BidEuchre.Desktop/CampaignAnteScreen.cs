@@ -137,11 +137,24 @@ internal static class CampaignAnteScreen
             Children = { new StackPanel { Spacing = 6, Children = { shelfTitle, jokers } }, new StackPanel { Spacing = 6, Children = { itemsTitle, items } } }
         });
         content.Children.Add(matches);
-        content.Children.Add(motion.Enter(MenuParts.Button("Main Menu", false, motion, "CampaignMainMenu", back, width: ButtonWidth), 520, 0, 14));
-        return MenuParts.Scene(motion, content, new ScrollViewer
+        var page = new Grid
         {
-            Content = content, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        });
+            RowDefinitions = RowDefinitions.Parse("*,Auto"),
+            Children =
+            {
+                new ScrollViewer
+                {
+                    Content = content,
+                    HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+                },
+                Place(new Border
+                {
+                    Padding = new Thickness(8), Background = Paper,
+                    Child = MenuParts.Button("Main Menu", false, motion, "CampaignMainMenu", back, width: ButtonWidth)
+                }, row: 1)
+            }
+        };
+        return MenuParts.Scene(motion, page);
     }
 
     private static TextBlock Centered(string text, IBrush brush, double size)

@@ -64,7 +64,7 @@ internal static class SettingsPage
             ("Motion", "Card flights, bid announcements and trick collection.", motion),
             ("Fullscreen", "Fill the whole display instead of a window.", fullscreen),
             ("Window size", "Used when fullscreen is off.", size),
-            ("UI scale", "Enlarge everything for big or distant displays.", scale)
+            ("UI scale", "Enlarge everything. Scale is capped to fit the current window and restored when enlarged.", scale)
         })
         {
             StyleInput(input);

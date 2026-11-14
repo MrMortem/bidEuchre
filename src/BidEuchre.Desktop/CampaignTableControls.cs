@@ -83,9 +83,10 @@ internal static class CampaignTableControls
             : view.LegalActions.All(c => CardOf(c) is not null) ? "Press a gold-outlined card"
             : "Your move");
 
-    /// <summary>The legal actions that need a button. A card with exactly one play or exchange is pressed in hand instead.</summary>
+    /// <summary>Non-card choices, with bid levels in ascending order. Card choices live on the hand.</summary>
     public static IEnumerable<CampaignCommand> CenterCommands(CampaignGameView view) => view.LegalActions
-        .Where(command => CardOf(command) is not { } card || view.LegalActions.Count(other => CardOf(other) == card) != 1);
+        .Where(command => CardOf(command) is null)
+        .OrderBy(command => command is CampaignCommand.Pass ? -1 : command is CampaignCommand.Bid bid ? (int)bid.Level : int.MaxValue);
 
     /// <summary>The hand card a command is made by pressing: plays, exchanges, One Up's swap and Telepath's reveal.</summary>
     public static CardId? CardOf(CampaignCommand command) => command switch
@@ -133,19 +134,24 @@ internal static class CampaignTableControls
     };
 
     private static string Card(CardId id, CampaignGameView view)
-    { var card = view.Players.SelectMany(p => p.VisibleCards).FirstOrDefault(c => c.Id == id); return card is null ? $"card #{id.Value + 1}" : $"{card.Face.Code} · #{id.Value + 1}"; }
-    public static string Describe(CampaignCommand command, CampaignGameView view) => command switch
+    { var card = view.Players.SelectMany(p => p.VisibleCards).FirstOrDefault(c => c.Id == id); return card is null ? $"card #{id.Value + 1}" : $"{Core.Card.DisplayRank(card.Face.Rank)}{SuitSymbol(card.Face.Suit)}"; }
+    private static string SuitSymbol(Suit suit) => suit switch
+    { Suit.Clubs => "♣", Suit.Diamonds => "♦", Suit.Hearts => "♥", _ => "♠" };
+    private static string Seat(int seat, IReadOnlyList<PlayerView>? players) =>
+        players?.FirstOrDefault(player => player.Seat == seat)?.Name ?? seat switch
+        { 0 => "You", 1 => "West", 2 => "Partner", _ => "East" };
+    public static string Describe(CampaignCommand command, CampaignGameView view, IReadOnlyList<PlayerView>? players = null) => command switch
     {
-        CampaignCommand.Bid b => $"Bid {(b.Level <= BidLevel.Six ? ((int)b.Level).ToString() : b.Level.ToString())}{(b.Variant is { } v ? " · " + v : "")}",
+        CampaignCommand.Bid b => $"Bid {(b.Level <= BidLevel.Six ? ((int)b.Level).ToString() : (b.Level == BidLevel.PartnersBest ? "Partners Best" : "Alone"))}{(b.Variant is { } v ? " · " + FeatureCatalog.Get(FeatureCategory.Gumball, v.ToString()).Name : "")}",
         CampaignCommand.Pass => "Pass",
         CampaignCommand.PanicButton => "Panic Button · −8 points · consumes this hand",
         CampaignCommand.ChooseContract c => c.Trump is { } suit ? $"Trump · {suit}" : c.Mode.ToString(),
         CampaignCommand.Play p => $"Play {Card(p.Id, view)}{(p.EffectiveSuit is { } suit ? " as " + suit : "")}",
         CampaignCommand.Exchange e => "Exchange " + Card(e.Id, view),
         CampaignCommand.SwapPartnerCard s => "Swap " + Card(s.Id, view),
-        CampaignCommand.ChooseRevealSeat r => $"Reveal a card from seat {r.Seat + 1}",
+        CampaignCommand.ChooseRevealSeat r => $"Reveal a card from {Seat(r.Seat, players)}",
         CampaignCommand.RevealPartnerCard r => "Reveal " + Card(r.Id, view),
-        CampaignCommand.SelectOpponent s => $"Duel seat {s.Seat + 1}",
+        CampaignCommand.SelectOpponent s => $"Duel {Seat(s.Seat, players)}",
         _ => command.GetType().Name
     };
 }

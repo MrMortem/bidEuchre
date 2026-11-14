@@ -58,7 +58,7 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock _centerTitle = new() { TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Ink, FontSize = 18, FontFamily = PixelArt.Font };
     private readonly TextBlock _actionHelp = new() { FontFamily = FontFamily.Default, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
     private readonly WrapPanel _actionButtons = new() { ItemWidth = double.NaN, ItemHeight = double.NaN, HorizontalAlignment = HorizontalAlignment.Center };
-    // Bids and other choices sit over the middle of the board while they are open.
+    // Choices occupy their own scrollable column beside the board.
     private readonly Border _centerPanel;
     private readonly StackPanel _jokerRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly StackPanel _tarotRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
@@ -127,15 +127,19 @@ public sealed partial class MainWindow : Window
         FontFamily = PixelArt.Font;
         RenderOptions.SetBitmapInterpolationMode(this, Avalonia.Media.Imaging.BitmapInterpolationMode.None);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        SizeChanged += (_, _) => { _bidAnnouncement?.Cancel(); _cardFlights?.Cancel(); _deckDeal?.Cancel(); _handGlide?.Reset(); };
+        SizeChanged += (_, _) => { ApplyUiScale(); _bidAnnouncement?.Cancel(); _cardFlights?.Cancel(); _deckDeal?.Cancel(); _handGlide?.Reset(); };
         _preferences = GamePreferences.Load(_preferencesPath);
         ApplyGraphics();
         _centerPanel = new Border
         {
-            IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            MaxWidth = 470, Padding = new Thickness(16, 14, 16, 8), CornerRadius = new CornerRadius(2),
+            Name = "TableChoices", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
+            Width = 270, Padding = new Thickness(10, 12, 10, 8), CornerRadius = new CornerRadius(2),
             Background = Brush.Parse("#EE100B28"), BorderBrush = Gold, BorderThickness = new Thickness(2),
-            Child = new StackPanel { Spacing = 9, Children = { _centerTitle, _actionHelp, _actionButtons } }
+            Child = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = new StackPanel { Spacing = 9, Children = { _centerTitle, _actionHelp, _actionButtons } }
+            }
         };
         _campaign = new CampaignFlow(_campaignPath, screen => _screenHost.Content = screen,
             StartCampaignMatchAsync, ShowMenu, _motion);
@@ -316,7 +320,7 @@ public sealed partial class MainWindow : Window
         // A campaign match has fixed seats and can only be left through the menu's forfeit prompt.
         var campaign = InCampaignMatch;
         _campaignStrip = campaign
-            ? new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 11, FontWeight = FontWeight.Bold }
+            ? new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 12, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap }
             : null;
 
         _bidAnnouncement?.Clear();
@@ -334,10 +338,10 @@ public sealed partial class MainWindow : Window
         {
             Spacing = 3, VerticalAlignment = VerticalAlignment.Center, Children = { Eyebrow(label), row }
         };
-        // Fixed sizes throughout the strip: a bid arriving or a status changing must not move the board.
+        // Status and scores keep their font size; the inventory has its own horizontal viewport.
         var status = new StackPanel
         {
-            Spacing = 4, Width = 250, VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
             Children =
             {
                 _campaignStrip ?? new TextBlock { Name = "NativeGameName", Text = _session?.Name ?? "Table", Foreground = Green,
@@ -361,28 +365,29 @@ public sealed partial class MainWindow : Window
         var inventory = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 14,
-            Children =
-            {
-                Slots("JOKERS", _jokerRow), Slots("CARDS", _tarotRow), status,
-                new Border { Width = 128, Height = StripHeight, Child = bidDock }
-            }
+            Children = { Slots("JOKERS", _jokerRow), Slots("CARDS", _tarotRow) }
         };
-        // Only a hot-seat table has more than one hand to look at.
-        if (!campaign && _viewerSeat.ItemCount > 1) inventory.Children.Add(_viewerSeat);
-        // The right margin keeps the strip clear of the menu button in the window's corner.
-        // A narrow window shrinks the left of the strip rather than pushing the score off it.
-        var strip = new Grid
+        inventory.IsVisible = campaign;
+        var summary = new Grid
         {
-            Name = "TableStrip", ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 14,
-            Height = StripHeight, Margin = new Thickness(4, 0, 170, 0),
+            ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"), ColumnSpacing = 12,
+            Margin = new Thickness(4, 0, 170, 0),
+            Children = { status, Place(new Border { Width = 128, Child = bidDock }, column: 1), Place(score, column: 2) }
+        };
+        if (!campaign && _viewerSeat.ItemCount > 1) status.Children.Add(_viewerSeat);
+        var strip = new StackPanel
+        {
+            Name = "TableStrip", Spacing = 4,
             Children =
             {
-                new Viewbox
+                summary,
+                new ScrollViewer
                 {
-                    Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly,
-                    HorizontalAlignment = HorizontalAlignment.Left, Child = inventory
-                },
-                Place(score, column: 1)
+                    Name = "TableInventory", IsVisible = campaign, Height = StripHeight,
+                    HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                    VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                    Content = inventory
+                }
             }
         };
 
@@ -395,7 +400,11 @@ public sealed partial class MainWindow : Window
             Children =
             {
                 strip,
-                Place(new Grid { Children = { _tableHost, _centerPanel, _sessionError } }, row: 1)
+                Place(new Grid
+                {
+                    ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8,
+                    Children = { _tableHost, Place(_centerPanel, column: 1), _sessionError }
+                }, row: 1)
             }
         };
         return new Grid { Children = { page, bidOverlay } };
@@ -1020,7 +1029,21 @@ public sealed partial class MainWindow : Window
                     else
                     {
                         var choices = campaign.LegalActions.Where(c => CampaignTableControls.CardOf(c) == card.Id).ToArray();
-                        button = CardButton(card.Face, choices.Length == 1, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : null, card.Enhancement, card.Sigil);
+                        button = CardButton(card.Face, choices.Length > 0, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : () => Task.CompletedTask, card.Enhancement, card.Sigil);
+                        if (choices.Length > 1)
+                        {
+                            var flyout = new Flyout();
+                            var options = new StackPanel { Spacing = 6, MaxWidth = 250 };
+                            foreach (var choice in choices)
+                            {
+                                var captured = choice;
+                                var option = ActionButton(CampaignTableControls.Describe(choice, campaign, view.Players));
+                                option.Click += async (_, _) => { flyout.Hide(); await SendCampaignActionAsync(campaign, captured); };
+                                options.Children.Add(option);
+                            }
+                            flyout.Content = options;
+                            button.Flyout = flyout;
+                        }
                     }
                     ToolTip.SetTip(button, CampaignTableControls.CardTip(card));
                     ToolTip.SetShowDelay(button, 120);
@@ -1185,7 +1208,9 @@ public sealed partial class MainWindow : Window
             foreach (var command in CampaignTableControls.CenterCommands(campaign))
             {
                 var captured = command;
-                AddAction(CampaignTableControls.Describe(command, campaign), () => SendCampaignActionAsync(campaign, captured));
+                AddAction(CampaignTableControls.Describe(command, campaign, view.Players), () => SendCampaignActionAsync(campaign, captured));
+                if (command is CampaignCommand.Bid { Variant: { } variant })
+                    ToolTip.SetTip(_actionButtons.Children[^1], FeatureCatalog.Get(FeatureCategory.Gumball, variant.ToString()).Description);
             }
             return;
         }
@@ -1624,13 +1649,32 @@ public sealed partial class MainWindow : Window
     private void ApplyGraphics()
     {
         _motion.SetEnabled(_preferences.MotionEnabled);
-        _scaleHost.LayoutTransform = new ScaleTransform(_preferences.UiScale, _preferences.UiScale);
+        ApplyUiScale();
         WindowState = _preferences.Fullscreen ? WindowState.FullScreen : WindowState.Normal;
         if (!_preferences.Fullscreen)
         {
-            Width = _preferences.WindowWidth;
-            Height = _preferences.WindowHeight;
+            var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
+            var working = screen?.WorkingArea;
+            var scaling = screen?.Scaling ?? 1;
+            var width = working is { } area ? area.Width / scaling : _preferences.WindowWidth;
+            var height = working is { } area2 ? area2.Height / scaling : _preferences.WindowHeight;
+            MinWidth = Math.Min(980, width);
+            MinHeight = Math.Min(680, height);
+            Width = Math.Min(_preferences.WindowWidth, width);
+            Height = Math.Min(_preferences.WindowHeight, height);
         }
+    }
+
+    // Keep a minimum logical viewport as the window is resized. The requested scale is retained
+    // and restored automatically when enough room becomes available.
+    private void ApplyUiScale()
+    {
+        var width = ClientSize.Width > 0 ? ClientSize.Width : _preferences.WindowWidth;
+        var height = ClientSize.Height > 0 ? ClientSize.Height : _preferences.WindowHeight;
+        var fitting = Math.Min(width / 980, height / 680);
+        var scale = GamePreferences.UiScales.Where(value => value <= _preferences.UiScale && value <= fitting + .001)
+            .DefaultIfEmpty(1).Max();
+        _scaleHost.LayoutTransform = new ScaleTransform(scale, scale);
     }
 
     // Leaving for the menu ends any live table, exactly like starting a new one.
@@ -1840,7 +1884,9 @@ public sealed partial class MainWindow : Window
 
     private static Button ActionButton(string text) => new()
     {
-        Content = text,
+        Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        MaxWidth = 230,
         Margin = new Thickness(4, 0, 4, 8),
         Padding = new Thickness(16, 10),
         Background = Brush.Parse("#143480"),

@@ -75,9 +75,14 @@ open that app in Finder to play without installing .NET. Rules, pixel artwork,
 font, and font license travel with the package. This is a local unsigned build;
 external macOS distribution still requires signing and notarization.
 
-Motion preferences are saved between launches. The native table fills the
+Graphics preferences are saved between launches. UI scale adapts to the current
+window size, restoring the requested scale when it fits; window presets are
+clamped to the display’s working area. The native table fills the
 window: Jokers, stored Tarots and Sigils, and the score sit in a strip along the top, and bids
-and other choices appear over the middle of the board. Engines and Rules open
+and other choices appear in a scrollable column beside the board. Wild cards
+open their legal suit choices when pressed. The campaign strip keeps status
+text readable and scrolls inventory horizontally when needed; ordinary tables
+hide the campaign shelves. Engines and Rules open
 from the main menu. **Collection** browses every Joker, Tarot card, Gumball,
 playing card, card enhancement, and Sigil, with artwork and descriptions in
 scrollable categories. All entries are visible without starting a campaign.
