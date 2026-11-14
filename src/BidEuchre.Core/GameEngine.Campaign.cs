@@ -147,6 +147,18 @@ public sealed partial class GameEngine
             viewerSeat == 0 ? _resources.Inventory.Copy() : CampaignInventory.Empty, viewerSeat is { } wallet ? _resources.Wallets[wallet] : 0, HandNumber, _targetScore, _pendingChoice)
         { LastTrick = _campaignTrickHistory.GetValueOrDefault(_completedTricks.Count) ?? [] };
     }
+    /// <summary>Puts a hand in the order its player arranged it. Arranging never costs a turn, and only
+    /// Sticky Fingers reads the order: its "leftmost remaining card" is the first card here.</summary>
+    public void ArrangeCampaignHand(int seat, IReadOnlyList<CardId> order)
+    {
+        if (!IsCampaign) throw new GameRuleException("This is not a campaign table.");
+        GameRules.ValidateSeat(seat);
+        var hand = _hands[seat];
+        var arranged = order?.Select(TokenFor).ToArray() ?? throw new GameRuleException("Arrange the cards in your hand.");
+        if (arranged.Length != hand.Count || arranged.Distinct().Count() != hand.Count || arranged.Any(card => !hand.Contains(card)))
+            throw new GameRuleException("Arrange exactly the cards in your hand.");
+        hand.Clear(); hand.AddRange(arranged);
+    }
     public void ExecuteCampaignAction(int seat, CampaignCommand command)
     {
         if (!IsCampaign) throw new GameRuleException("Campaign actions require a campaign table.");

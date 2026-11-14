@@ -85,6 +85,12 @@ public sealed class MainWindow : Window
     private bool _tableTransitioning;
     private long _sessionGeneration;
     private string? _renderKey;
+    // Hand order. Campaign hands keep their order in the engine (Sticky Fingers reads it); free play
+    // keeps it here. A dragged hand is left alone until the next deal or a Sort button press.
+    private string? _autoArranged;
+    private string? _draggedDeal;
+    private string? _freePlayOrderHand;
+    private readonly Dictionary<int, List<string>> _freePlayOrder = [];
     private readonly TableMotionTracker _motionTracker = new();
     private readonly PixelMotion _motion = new();
     private BidAnnouncement? _bidAnnouncement;
@@ -688,7 +694,8 @@ public sealed class MainWindow : Window
         var generation = _sessionGeneration;
         var viewer = _viewer;
         var revision = _input.Revision;
-        if (_refreshing || session is null)
+        // Redrawing would drop a card the player is holding; the drop refreshes the table itself.
+        if (_refreshing || session is null || HandDrag.Active)
         {
             return;
         }
@@ -696,6 +703,8 @@ public sealed class MainWindow : Window
         try
         {
             var view = await session.GetViewAsync(viewer);
+            if (view?.Campaign is { } arranging && await AutoArrangeCampaignHandAsync(session, view, arranging))
+                view = await session.GetViewAsync(viewer);
             if (generation != _sessionGeneration ||
                 viewer != _viewer || revision != _input.Revision ||
                 !ReferenceEquals(session, _session))
@@ -840,12 +849,17 @@ public sealed class MainWindow : Window
             button.Padding = new Thickness(12, 6);
             button.Focusable = false;
             if (chosen) { button.Background = Gold; button.Foreground = Paper; button.BorderBrush = Gold; }
-            ToolTip.SetTip(button, $"Sort your hand by {label.ToLowerInvariant()}");
+            ToolTip.SetTip(button, $"Sort your hand by {label.ToLowerInvariant()}. Drag cards to arrange them yourself.");
+            // Pressing a sort, even the current one, also undoes any dragging in this hand.
             button.Click += async (_, _) =>
             {
-                if (chosen) return;
-                _preferences = _preferences with { HandSort = sort };
-                if (!_preferences.Save(_preferencesPath)) ShowError("Hand sorting changed for this session, but could not be saved.");
+                if (!chosen)
+                {
+                    _preferences = _preferences with { HandSort = sort };
+                    if (!_preferences.Save(_preferencesPath)) ShowError("Hand sorting changed for this session, but could not be saved.");
+                }
+                _autoArranged = _draggedDeal = null;
+                _freePlayOrder.Clear();
                 _renderKey = null;
                 await RefreshGameAsync();
             };
@@ -926,9 +940,15 @@ public sealed class MainWindow : Window
         var cards = new List<Control>();
         var glide = _motion.Enabled && TableShown && _deckDeal?.Running != true;
         Control Slot(string key, Control card) => _handGlide?.Card($"{player.Seat}:{key}", card, glide) ?? card;
+        Action<int, int>? reorder = null;
         if (view.Campaign is { } campaign)
         {
-            var visible = HandOrder.Sort(campaign.Players[player.Seat].VisibleCards, card => card.Face, _preferences.HandSort, view.Contract);
+            // The viewer's own hand is shown in the engine's order, which is the order they arranged.
+            var own = campaign.ViewerSeat == player.Seat;
+            var shown = campaign.Players[player.Seat].VisibleCards;
+            var visible = own ? shown : HandOrder.Sort(shown, card => card.Face, _preferences.HandSort, view.Contract);
+            if (own && _session is { } session)
+                reorder = (from, to) => _ = ArrangeCampaignHandAsync(session, campaign, player.Seat, Move(visible.Select(card => card.Id).ToList(), from, to));
             for (var i = 0; i < player.CardCount; i++)
             {
                 if (i < visible.Count)
@@ -959,7 +979,14 @@ public sealed class MainWindow : Window
         else
         {
             var index = 0;
-            foreach (var card in HandOrder.Sort(player.Cards, card => card, _preferences.HandSort, view.Contract))
+            var ordered = FreePlayHand(player, view);
+            reorder = (from, to) =>
+            {
+                _freePlayOrder[player.Seat] = Move(ordered.Select(card => card.Code).ToList(), from, to);
+                _renderKey = null;
+                _ = RefreshGameAsync();
+            };
+            foreach (var card in ordered)
             {
                 var legal = current && view.LegalActions.Cards.Contains(card);
                 var button = CardButton(card, legal, view);
@@ -971,7 +998,7 @@ public sealed class MainWindow : Window
             }
         }
 
-        var panel = HandFan.Arrange(player.Seat, tag, cards, _motion);
+        var panel = HandFan.Arrange(player.Seat, tag, cards, _motion, reorder);
         panel.Opacity = player.IsSittingOut ? 0.5 : 1;
         return panel;
     }
@@ -1143,6 +1170,51 @@ public sealed class MainWindow : Window
                 _actionTitle.Text = "Play a gold-outlined card";
                 break;
         }
+    }
+
+    private static List<T> Move<T>(List<T> items, int from, int to)
+    {
+        var item = items[from];
+        items.RemoveAt(from);
+        items.Insert(to, item);
+        return items;
+    }
+
+    // Free play: the preferred sort, unless the player dragged this hand. Cards that arrive later
+    // (the exchange) go on the right end of a dragged hand.
+    private IReadOnlyList<Card> FreePlayHand(PlayerView player, GameView view)
+    {
+        var hand = $"{_session?.Id}:{view.HandNumber}";
+        if (_freePlayOrderHand != hand) { _freePlayOrder.Clear(); _freePlayOrderHand = hand; }
+        var sorted = HandOrder.Sort(player.Cards!, card => card, _preferences.HandSort, view.Contract);
+        if (!_freePlayOrder.TryGetValue(player.Seat, out var order)) return sorted;
+        var rank = order.Select((code, index) => (code, index)).ToDictionary(x => x.code, x => x.index);
+        return sorted.OrderBy(card => rank.GetValueOrDefault(card.Code, int.MaxValue)).ToArray();
+    }
+
+    // Campaign: each deal is laid out by the preferred sort, and again once the contract is known
+    // (trump first), unless the player has dragged cards in this deal.
+    private async Task<bool> AutoArrangeCampaignHandAsync(GameSession session, GameView view, CampaignGameView campaign)
+    {
+        if (campaign.ViewerSeat is not { } seat) return false;
+        var hand = campaign.Players[seat].VisibleCards;
+        var deal = $"{session.Id}:{campaign.DealSerial}";
+        var stage = $"{deal}:{view.Contract?.Mode}:{view.Contract?.Trump}:{_preferences.HandSort}";
+        if (hand.Count < 2 || _draggedDeal == deal || _autoArranged == stage) return false;
+        _autoArranged = stage;
+        var sorted = HandOrder.Sort(hand, card => card.Face, _preferences.HandSort, view.Contract).Select(card => card.Id).ToArray();
+        if (sorted.SequenceEqual(hand.Select(card => card.Id))) return false;
+        try { await session.ArrangeCampaignHandAsync(seat, sorted); return true; }
+        catch (GameRuleException) { return false; }
+    }
+
+    private async Task ArrangeCampaignHandAsync(GameSession session, CampaignGameView campaign, int seat, IReadOnlyList<CardId> order)
+    {
+        _draggedDeal = $"{session.Id}:{campaign.DealSerial}";
+        try { await session.ArrangeCampaignHandAsync(seat, order); }
+        catch (Exception error) { ShowError(error.Message); }
+        _renderKey = null;
+        await RefreshGameAsync();
     }
 
     private async Task SendCampaignActionAsync(CampaignGameView view, CampaignCommand command)
