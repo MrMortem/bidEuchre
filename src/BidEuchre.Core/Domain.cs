@@ -180,11 +180,12 @@ public sealed record HandResult(
     int TeamOneDelta,
     string Reason);
 
-// Free play uses the defaults; the campaign shortens the race and handicaps a team.
+// Free play uses the defaults; campaign options set ante thresholds and successful opponent bid points.
 public sealed record MatchOptions(int TargetScore = 40, int StartingScoreTeam0 = 0, int StartingScoreTeam1 = 0)
 {
     public int? NegativeThreshold { get; init; }
     public int? HandLimit { get; init; }
+    public int OpponentSuccessfulBidBonus { get; init; }
 }
 
 public sealed class GameRuleException(string message) : InvalidOperationException(message);

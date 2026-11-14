@@ -10,6 +10,17 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Settled ante EveryMatchUsesApprovedRules", () => Run(SettledAnteTests.EveryMatchUsesApprovedRules)),
+    ("Settled ante SuccessfulOpponentBonusIsOnceAndPointsOnly", () => Run(SettledAnteTests.SuccessfulOpponentBonusIsOnceAndPointsOnly)),
+    ("Settled ante FailedBidsAndDefenderTricksReceiveNoBonus", () => Run(SettledAnteTests.FailedBidsAndDefenderTricksReceiveNoBonus)),
+    ("Settled ante FailedHighLowContractsReceiveNoBonus", () => Run(SettledAnteTests.FailedHighLowContractsReceiveNoBonus)),
+    ("Settled ante BonusCanReachTheAnteTargetAndDoesNotAffectFreePlay", () => Run(SettledAnteTests.BonusCanReachTheAnteTargetAndDoesNotAffectFreePlay)),
+    ("Settled ante UnlockedSpecialContractsReceiveTheSameFixedBonus", () => Run(SettledAnteTests.UnlockedSpecialContractsReceiveTheSameFixedBonus)),
+    ("Settled ante SuccessfulBonusSurvivesNegativeCardEffects", () => Run(SettledAnteTests.SuccessfulBonusSurvivesNegativeCardEffects)),
+    ("Settled ante ChaosDoesNotMultiplyOrLeakOpponentBonuses", () => Run(SettledAnteTests.ChaosDoesNotMultiplyOrLeakOpponentBonuses)),
+    ("Settled ante ThresholdsUseCompletedHandsAndExactBoundaries", () => Run(SettledAnteTests.ThresholdsUseCompletedHandsAndExactBoundaries)),
+    ("Settled ante EighthHandAndRepeatedTiesRequireFullOvertimeHands", () => Run(SettledAnteTests.EighthHandAndRepeatedTiesRequireFullOvertimeHands)),
+
     ("Free-play bot UnrelatedJackDoesNotCreateTrumpLength", () => Run(FreePlayBotPolicyTests.UnrelatedJackDoesNotCreateTrumpLength)),
     ("Free-play bot TrumpBeatsAnOffSuitAce", () => Run(FreePlayBotPolicyTests.TrumpBeatsAnOffSuitAce)),
     ("Free-play bot LeftBowerFollowsTrump", () => Run(FreePlayBotPolicyTests.LeftBowerFollowsTrump)),

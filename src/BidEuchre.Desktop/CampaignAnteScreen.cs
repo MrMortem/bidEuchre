@@ -113,7 +113,8 @@ internal static class CampaignAnteScreen
                         top,
                         new Border { Background = ink, CornerRadius = new CornerRadius(2), Padding = new Thickness(0, 6), Child = tag },
                         Centered($"±{run.Threshold} POINTS", Ink, 16),
-                        Centered($"{options.HandLimit} HANDS", Muted, 12),
+                        Centered($"{options.HandLimit} HANDS · TIES CONTINUE", Muted, 12),
+                        Centered($"OPPONENT MADE BID +{run.OpponentSuccessfulBidBonus}", Muted, 11),
                         Centered($"REWARD ${CampaignRun.BaseReward(slot)}+", Gold, 14),
                         Centered($"LOSE ♥{CampaignRun.LivesAtStake(slot, run.Ante)}", Danger, 14)
                     }

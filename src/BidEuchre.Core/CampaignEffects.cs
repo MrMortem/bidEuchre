@@ -150,10 +150,13 @@ public sealed partial class GameEngine
         if (Has(JokerId.RollerCoaster) && Contract.Mode is ContractMode.High or ContractMode.Low) _jokerPoints[0] += _rollerValue;
         if (Contract.Bid <= BidLevel.Six) _matchOvertricks[bidderTeam] += Math.Max(0, _tricksByTeam[bidderTeam] - Contract.RequiredTricks);
         var factor = _variant == GumballId.Chaos ? 2 : 1;
+        var opponentBonus = success && bidderTeam == 1 ? _matchOptions.OpponentSuccessfulBidBonus : 0;
         for (var team = 0; team < 2; team++)
         {
-            _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}.");
-            normal[team] = (normal[team] + _cardPoints[team] + _jokerPoints[team] + _modifierPoints[team]) * factor;
+            var bonus = team == 1 ? opponentBonus : 0;
+            _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}; opponent bid bonus {Signed(bonus)} after hand multiplier.");
+            // Ante bonuses are fixed contract rewards, outside all trick and whole-hand multipliers.
+            normal[team] = (normal[team] + _cardPoints[team] + _jokerPoints[team] + _modifierPoints[team]) * factor + bonus;
         }
         _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Select(j => j.Id == JokerId.DejaVu ? j with { Value = _dejaValue } : j).ToArray() } };
         return normal;

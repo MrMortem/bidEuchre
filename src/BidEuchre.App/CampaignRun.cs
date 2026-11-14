@@ -38,8 +38,10 @@ public sealed record CampaignRun(
     public ShopState? Shop { get; init; }
     public long LastAppliedRevision { get; init; }
     public const int StartingLives = 3;
-    public const int TargetScore = 24;
-    [JsonIgnore] public int Threshold => 24 + 4 * (Ante - 1);
+    public const int TargetScore = 12;
+    // Only Antes 1–5 have approved values. Preserve the existing endless threshold policy.
+    [JsonIgnore] public int Threshold => Ante switch { 1 => TargetScore, 2 => 16, 3 => 24, 4 => 32, 5 => 42, _ => 24 + 4 * (Ante - 1) };
+    [JsonIgnore] public int OpponentSuccessfulBidBonus => Ante switch { 2 => 1, 3 => 2, 4 => 3, 5 => 4, _ => 0 };
     public const int MatchesPerAnte = 3;
     public const int VictoryMatch = 15;
     private const int InterestStep = 5;
@@ -62,7 +64,7 @@ public sealed record CampaignRun(
     public static int LivesAtStake(int matchInAnte, int ante) =>
         (matchInAnte == MatchesPerAnte ? 2 : 1) + (ante > LastEasyAnte ? 1 : 0);
 
-    public MatchOptions NextMatch() => new(Threshold) { NegativeThreshold = -Threshold, HandLimit = 8 };
+    public MatchOptions NextMatch() => new(Threshold) { NegativeThreshold = -Threshold, HandLimit = 8, OpponentSuccessfulBidBonus = OpponentSuccessfulBidBonus };
 
     public CampaignRun StartMatch() => From(CampaignPhase.Intro) with { Phase = CampaignPhase.InMatch };
 

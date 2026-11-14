@@ -17,10 +17,10 @@ internal static class CampaignRunTests
         Assert.False(new CampaignRun(Match: 2).IsBoss);
         Assert.True(new CampaignRun(Match: 3).IsBoss);
         Assert.True(new CampaignRun(Match: 15).IsBoss);
-        Assert.Equal(new MatchOptions(24) { NegativeThreshold = -24, HandLimit = 8 }, new CampaignRun(Match: 1).NextMatch());
-        Assert.Equal(new MatchOptions(24) { NegativeThreshold = -24, HandLimit = 8 }, new CampaignRun(Match: 3).NextMatch());
-        Assert.Equal(new MatchOptions(40) { NegativeThreshold = -40, HandLimit = 8 }, new CampaignRun(Match: 13).NextMatch());
-        Assert.Equal(new MatchOptions(40) { NegativeThreshold = -40, HandLimit = 8 }, new CampaignRun(Match: 15).NextMatch());
+        Assert.Equal(new MatchOptions(12) { NegativeThreshold = -12, HandLimit = 8 }, new CampaignRun(Match: 1).NextMatch());
+        Assert.Equal(new MatchOptions(12) { NegativeThreshold = -12, HandLimit = 8 }, new CampaignRun(Match: 3).NextMatch());
+        Assert.Equal(new MatchOptions(42) { NegativeThreshold = -42, HandLimit = 8, OpponentSuccessfulBidBonus = 4 }, new CampaignRun(Match: 13).NextMatch());
+        Assert.Equal(new MatchOptions(42) { NegativeThreshold = -42, HandLimit = 8, OpponentSuccessfulBidBonus = 4 }, new CampaignRun(Match: 15).NextMatch());
         Assert.Equal(new MatchOptions(44) { NegativeThreshold = -44, HandLimit = 8 }, new CampaignRun(Match: 16).NextMatch());
     }
 

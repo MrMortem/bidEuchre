@@ -305,3 +305,33 @@ your partner; a round is one six-trick hand.
   penalty. Duelist activates once per match, consuming its use when it wins the
   auction. Rejected bids and bids overcalled by another player consume no use.
   Starting another round or redealing does not restore it; a new match does.
+
+
+## 13. Campaign Ante Scoring
+
+Each ante contains three matches, including its boss. Both teams start every
+normal and boss match at 0 points. Evaluate scores only after a complete
+six-trick round. End the match when either team reaches the positive target or
+negative limit below, or after eight complete rounds; the higher score wins.
+A tie continues through additional complete rounds until a round ends untied.
+
+| Ante | Positive target / negative limit | Successful opponent bid bonus |
+| --- | --- | --- |
+| 1 | +12 / −12 | +0 points |
+| 2 | +16 / −16 | +1 point |
+| 3 | +24 / −24 | +2 points |
+| 4 | +32 / −32 | +3 points |
+| 5 | +42 / −42 | +4 points |
+
+Award the opponent bonus once when the opponent team makes its contract,
+including unlocked Safety Net, High/Low, Partner's Best, and Alone contracts.
+Failed opponent contracts, player-team contracts, and opponent defender tricks
+receive no bonus. It changes team points only, never money or trick counts.
+Add this fixed amount after all trick and whole-round multipliers, preserving
+the table's exact amount. Chaos doubles the ordinary round contributions; it
+remains a human-only variant and therefore earns no opponent successful-bid
+bonus for either its bidder or defenders.
+
+Endless antes beyond Ante 5 retain the prior target formula
+`24 + 4 × (Ante − 1)` and zero opponent successful-bid bonus. The approved table
+does not establish any new endless scaling policy.
