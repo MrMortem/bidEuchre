@@ -10,12 +10,13 @@ namespace BidEuchre.Desktop;
 
 internal static class MainMenu
 {
-    public static Control Build(Action openCampaign, Action openTable, Action openEngines, Action openRules,
+    public static Control Build(Action openCampaign, Action openTable, Action openCollection, Action openEngines, Action openRules,
         Action openSettings, PixelMotion motion)
     {
         var content = new StackPanel
         {
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(16)
         };
         Control Entry(string text, bool primary, Action open, int index) =>
             motion.Enter(MenuParts.Button(text, primary, motion, $"Menu{text}", open), 460 + index * 70, 0, 16);
@@ -46,9 +47,10 @@ internal static class MainMenu
             {
                 Entry("Play", true, openCampaign, 0),
                 Entry("Table", false, openTable, 1),
-                Entry("Engines", false, openEngines, 2),
-                Entry("Rules", false, openRules, 3),
-                Entry("Settings", false, openSettings, 4)
+                Entry("Collection", false, openCollection, 2),
+                Entry("Engines", false, openEngines, 3),
+                Entry("Rules", false, openRules, 4),
+                Entry("Settings", false, openSettings, 5)
             }
         });
         content.Children.Add(motion.Enter(new TextBlock
@@ -58,7 +60,11 @@ internal static class MainMenu
             Margin = new Thickness(0, 22, 0, 0)
         }, 900, 0, 0));
 
-        return MenuParts.Scene(motion, content);
+        return MenuParts.Scene(motion, content, new ScrollViewer
+        {
+            Content = content,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+        });
     }
 
     // The four jacks, the cards every bid is built around, spread from a single stack.

@@ -50,15 +50,6 @@
       "centerBrightness": 216.8
     },
     {
-      "id": "enhancement:emerald",
-      "key": "Emerald",
-      "file": "card-background-emerald.png",
-      "resource": "card-background-emerald",
-      "width": 124,
-      "height": 176,
-      "centerBrightness": 234.5
-    },
-    {
       "id": "enhancement:silver",
       "key": "Silver",
       "file": "card-background-silver.png",
@@ -66,15 +57,6 @@
       "width": 124,
       "height": 176,
       "centerBrightness": 243.2
-    },
-    {
-      "id": "enhancement:stinky",
-      "key": "Stinky",
-      "file": "card-background-stinky.png",
-      "resource": "card-background-stinky",
-      "width": 124,
-      "height": 176,
-      "centerBrightness": 246.6
     },
     {
       "id": "enhancement:glass",

@@ -1588,7 +1588,7 @@ public sealed class MainWindow : Window
     {
         _motion.SetContract(null);
         _menuButton.Content = MenuLabel;
-        _screenHost.Content = MainMenu.Build(_campaign.Open, ShowTable, ShowEngines, ShowRules, ShowSettings, _motion);
+        _screenHost.Content = MainMenu.Build(_campaign.Open, ShowTable, ShowCollection, ShowEngines, ShowRules, ShowSettings, _motion);
     }
 
     private bool TableShown => ReferenceEquals(_pageHost.Content, _playHost);
@@ -1611,6 +1611,8 @@ public sealed class MainWindow : Window
     }
 
     private void ShowSettings() => _screenHost.Content = SettingsPage.Build(_preferences, ChangePreferences, ShowMenu, _motion);
+
+    private void ShowCollection() => _screenHost.Content = CollectionPage.Build(ShowMenu, _motion);
 
     private void ChangePreferences(GamePreferences preferences)
     {

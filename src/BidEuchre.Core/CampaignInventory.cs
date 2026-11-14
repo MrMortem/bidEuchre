@@ -1,10 +1,11 @@
 namespace BidEuchre.Core;
 
-public enum EnhancementId { Lucky, Golden, Wild, Cursed, Stone, Emerald, Silver, Stinky, Glass, Bouncy }
+// Explicit values preserve saved/protocol identities when a feature is retired.
+public enum EnhancementId { Lucky = 0, Golden = 1, Wild = 2, Cursed = 3, Stone = 4, Silver = 6, Glass = 8, Bouncy = 9 }
 public enum JokerId { ThreesCompany, HighRoller, LoverBoy, SnakeEyes, TwinFlame, Clubhouse, TheUndertaker, RollerCoaster, DejaVu, LastLaugh, VowofSilence, CureAll, TrendSetter, Contrarian, ConsolationPrize, RoyalCouncil, DeepDigger, LuckyDuck, ProtectiveBubble, PennyPincher, Bully, PeoplePleaser, Millionaire, KingMidas, StickyFingers, Medusa, CheeseTouch, OneUp, Cheater, Alpha, SlickWilly }
 public enum GumballId { Lowballer, Chaos, Poker, Duelist, Telepath, PartnersBest, Alone, PanicButton, HighLow }
 public enum SigilId { Coin, Bear, Eagle, Fish, Spider, Snake, Frog, Owl, Duck, Vulture, Chameleon, Peacock }
-public enum TarotId { LovePotion, Nightshade, CloverTonic, CrystalElixir, Chameleon, Grindstone, Prospector, DevilishDeal, Gambler, Merchant, Glassblower, Traitor, Astronomer, Beggar, SpringLoaded, TaxCollector }
+public enum TarotId { LovePotion = 0, Nightshade = 1, CloverTonic = 2, CrystalElixir = 3, Chameleon = 4, Grindstone = 5, Prospector = 6, DevilishDeal = 7, Gambler = 8, Glassblower = 10, Traitor = 11, Astronomer = 12, SpringLoaded = 14, TaxCollector = 15 }
 
 public static class Tarot
 {
@@ -23,8 +24,8 @@ public static class Tarot
     public static EnhancementId? EnhancementOf(TarotId tarot) => tarot switch
     {
         TarotId.Chameleon => EnhancementId.Wild, TarotId.Grindstone => EnhancementId.Stone, TarotId.Prospector => EnhancementId.Golden,
-        TarotId.Merchant => EnhancementId.Emerald, TarotId.Glassblower => EnhancementId.Glass, TarotId.Traitor => EnhancementId.Silver,
-        TarotId.Beggar => EnhancementId.Stinky, TarotId.SpringLoaded => EnhancementId.Bouncy, _ => null
+        TarotId.Glassblower => EnhancementId.Glass, TarotId.Traitor => EnhancementId.Silver,
+        TarotId.SpringLoaded => EnhancementId.Bouncy, _ => null
     };
 
     /// <summary>What the target chosen at <paramref name="position"/> becomes, or null when the

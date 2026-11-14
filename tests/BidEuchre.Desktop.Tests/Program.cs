@@ -16,6 +16,7 @@ AppBuilder.Configure<Application>()
 
 EnhancementBackgroundTests.Run();
 CuratedArtTests.Run();
+CollectionTests.Run();
 
 var motion = new PixelMotion();
 motion.SetEnabled(false);

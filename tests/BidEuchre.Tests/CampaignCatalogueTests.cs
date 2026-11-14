@@ -119,13 +119,22 @@ internal static class CampaignCatalogueTests
         bots.ExecuteCampaignAction(2, new CampaignCommand.Pass()); bots.ExecuteCampaignAction(3, new CampaignCommand.Pass());
         Assert.Equal(3, bots.CreateCampaignView(1).LegalActions.OfType<CampaignCommand.ChooseContract>().Select(c => c.Mode).Distinct().Count());
     }
-    public static void StinkyAndWild()
+    public static void EnhancedDealsPreservePhysicalCards()
     {
-        var s = CampaignSnapshot.Create(42);
-        s = s with { Deck = s.Deck.Select((c, i) => c with { Enhancement = i < 18 ? EnhancementId.Stinky : EnhancementId.Wild }).ToArray() };
-        var g = Game(s); var own = g.CreateCampaignView(0).Players[0].VisibleCards;
-        Assert.Equal(6, own.Count); Assert.True(own.All(c => c.Enhancement == EnhancementId.Wild));
-        var invalid = s with { Deck = s.Deck.Select((c, i) => i == 18 ? c with { Enhancement = EnhancementId.Stinky } : c).ToArray() };
-        Assert.Throws<GameRuleException>(() => new CampaignContext(invalid));
+        foreach (var enhancement in Enum.GetValues<EnhancementId>())
+        {
+            var s = CampaignSnapshot.Create(42);
+            s = s with { Deck = s.Deck.Select(c => c with { Enhancement = enhancement }).ToArray() };
+            var g = Game(s);
+            var dealt = Enumerable.Range(0, 4).SelectMany(seat =>
+            {
+                var hand = g.CreateCampaignView(seat).Players[seat].VisibleCards;
+                Assert.Equal(6, hand.Count);
+                Assert.True(hand.All(c => c.Enhancement == enhancement));
+                return hand;
+            }).ToArray();
+            Assert.Equal(24, dealt.Select(c => c.Id).Distinct().Count());
+            Assert.True(dealt.Select(c => c.Id).ToHashSet().SetEquals(s.Deck.Select(c => c.Id)));
+        }
     }
 }

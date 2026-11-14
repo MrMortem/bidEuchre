@@ -52,27 +52,57 @@ internal static class CampaignReviewRegressionTests
         var choices = g.CreateCampaignView(0).LegalActions.OfType<CampaignCommand.Play>().Where(p => p.Id == new CardId(0)).ToArray();
         Assert.Equal(1, choices.Length); Assert.Equal(Suit.Clubs, choices[0].EffectiveSuit!.Value);
     }
-    public static void StinkyCopiesStayDealable()
+    public static void StickyCopiesPreserveUnderlyingCards()
     {
-        var r = Resources(17, JokerId.StickyFingers); var non = new[] { 0, 1, 3, 4, 5, 6 };
-        r = r with { Deck = r.Deck.Select(c => non.Contains(c.Id.Value) ? c : c with { Enhancement = EnhancementId.Stinky }).ToArray() };
+        var r = Resources(17, JokerId.StickyFingers);
+        r.Deck[2] = r.Deck[2] with { Enhancement = EnhancementId.Golden, Sigil = SigilId.Coin };
         var g = Fixture(r); Auction(g, trump: Suit.Clubs); Play(g, new(2)); for (var i = 0; i < 3; i++) Play(g);
-        Assert.True(g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == new CardId(0)).Enhancement != EnhancementId.Stinky, "Sticky Fingers must not leave fewer than six drawable cards.");
+        var copied = g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == new CardId(0));
+        Assert.Equal(r.Deck[2].Face, copied.Face);
+        Assert.Equal(EnhancementId.Golden, copied.Enhancement!.Value);
+        Assert.Equal(SigilId.Coin, copied.Sigil!.Value);
+        Assert.Equal(r.Deck[0], g.ExportCampaignSnapshot().Deck[0], "A copied face must preserve the underlying physical card.");
         while (g.Phase == GamePhase.Playing) Play(g);
-        g.StartNextHand(); Assert.True(g.CreateCampaignView(0).Players[0].VisibleCards.All(c => c.Enhancement != EnhancementId.Stinky));
+        g.StartNextHand();
+        var dealt = Enumerable.Range(0, 4).SelectMany(seat => g.CreateCampaignView(seat).Players[seat].VisibleCards).ToArray();
+        Assert.Equal(24, dealt.Select(c => c.Id).Distinct().Count());
+        Assert.Equal(copied, dealt.Single(c => c.Id == copied.Id), "Sticky Fingers copies last through the match.");
     }
-    public static void DevilishDealUsesUnderlyingState()
+    public static void DevilishDealUpdatesUnderlyingAndCopiedCards()
     {
-        var r = Resources(7); r = r with { Deck = r.Deck.Select((c, i) => i >= 6 ? c with { Enhancement = EnhancementId.Stinky } : c).ToArray(), Inventory = new([], [TarotId.DevilishDeal], []) };
-        var overlays = new[] { new CardOverlay(new(6), r.Deck[6].Face, EnhancementId.Golden, null), new CardOverlay(new(0), r.Deck[0].Face, EnhancementId.Stinky, null) };
-        var g = Fixture(r, overlays: overlays);
-        g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [new(0), new(1), new(2)]));
-        Assert.Equal(0, g.ExportCampaignSnapshot().Inventory.Tarot.Length);
-        Assert.True(g.ExportCampaignSnapshot().Deck.Count(c => c.Enhancement == EnhancementId.Stinky) <= 18);
-        var effectiveFull = Resources(7) with { Deck = CampaignSnapshot.Create(7).Deck.Select((c, i) => i >= 7 ? c with { Enhancement = EnhancementId.Stinky } : c).ToArray(), Inventory = new([], [TarotId.DevilishDeal], []) };
-        var effectiveGame = Fixture(effectiveFull, overlays: [new(new(0), effectiveFull.Deck[0].Face, EnhancementId.Stinky, null)]);
-        effectiveGame.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [new(1), new(2), new(3)]));
-        Assert.Equal(0, effectiveGame.ExportCampaignSnapshot().Inventory.Tarot.Length);
+        var observed = new HashSet<EnhancementId>();
+        for (ulong seed = 1; seed <= 128; seed++)
+        {
+            var r = Resources(seed) with { Inventory = new([], [TarotId.DevilishDeal], []) };
+            r.Deck[0] = r.Deck[0] with { Enhancement = EnhancementId.Golden, Sigil = SigilId.Fish };
+            var overlays = new[]
+            {
+                new CardOverlay(new(0), new(Suit.Diamonds, Rank.Ace), EnhancementId.Silver, SigilId.Coin),
+                new CardOverlay(new(2), new(Suit.Hearts, Rank.Ten), EnhancementId.Wild, SigilId.Frog)
+            };
+            var g = Fixture(r, overlays: overlays);
+            g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [new(0), new(1), new(2)]));
+            var result = g.ExportCampaignSnapshot();
+            Assert.Equal(0, result.Inventory.Tarot.Length);
+            foreach (var index in new[] { 0, 1 })
+            {
+                var enhancement = result.Deck[index].Enhancement!.Value;
+                Assert.True(Enum.IsDefined(enhancement), "Devilish Deal must choose an active enhancement.");
+                observed.Add(enhancement);
+            }
+            Assert.Equal(EnhancementId.Cursed, result.Deck[2].Enhancement!.Value);
+            Assert.Equal(r.Deck[0].Face, result.Deck[0].Face);
+            Assert.Equal(SigilId.Fish, result.Deck[0].Sigil!.Value);
+            foreach (var overlay in overlays)
+            {
+                var visible = g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == overlay.Id);
+                Assert.Equal(overlay.Face, visible.Face);
+                Assert.Equal(overlay.Sigil!.Value, visible.Sigil!.Value);
+                Assert.Equal(result.Deck[overlay.Id.Value].Enhancement!.Value, visible.Enhancement!.Value);
+            }
+            Assert.True(result.Deck.Skip(3).SequenceEqual(r.Deck.Skip(3)), "Devilish Deal must only modify its three targets.");
+        }
+        Assert.True(observed.SetEquals(Enum.GetValues<EnhancementId>()), "Devilish Deal must be able to generate every active enhancement.");
     }
     public static void StaleDiscardDoesNotShiftTarget()
     {
@@ -87,5 +117,30 @@ internal static class CampaignReviewRegressionTests
         for (var i = 0; i < 4; i++) Play(g);
         Assert.Equal(1, g.CompletedTricks[0].Winner);
         Assert.Equal(2, g.ExportCampaignSnapshot().GeneratedTarot[1].Length);
+    }
+    public static void GeneratedTarotUsesActiveCatalogue()
+    {
+        foreach (var winner in new[] { 0, 1 })
+        {
+            var observed = new HashSet<TarotId>();
+            for (ulong seed = 1; seed <= 128; seed++)
+            {
+                var r = Resources(seed);
+                r = r with { Deck = r.Deck.Select(c => c with { Sigil = SigilId.Vulture }).ToArray() };
+                var g = Fixture(r); Auction(g, winner, trump: winner == 0 ? Suit.Clubs : Suit.Diamonds);
+                for (var play = 0; play < 4; play++) Play(g, g.CurrentSeat == winner ? new CardId(winner * 6 + 2) : null);
+                Assert.Equal(winner, g.CompletedTricks[0].Winner);
+                var snapshot = g.ExportCampaignSnapshot();
+                var generated = winner == 0 ? snapshot.Inventory.Tarot : snapshot.GeneratedTarot[winner];
+                Assert.Equal(winner == 0 ? CampaignInventory.ItemSlots : 2, generated.Length);
+                foreach (var tarot in generated)
+                {
+                    Assert.True(Enum.IsDefined(tarot), "Vulture must generate an active Tarot.");
+                    Assert.True(FeatureCatalog.All.Any(feature => feature.Category == FeatureCategory.Tarot && feature.Key == tarot.ToString()));
+                    observed.Add(tarot);
+                }
+            }
+            Assert.True(observed.SetEquals(Enum.GetValues<TarotId>()), "Vulture must be able to generate every active Tarot for humans and bots.");
+        }
     }
 }

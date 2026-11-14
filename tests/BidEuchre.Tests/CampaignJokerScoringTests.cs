@@ -44,7 +44,6 @@ internal static class CampaignJokerScoringTests
         Assert.Equal(28, Sweep([JokerId.LastLaugh], enhancement: EnhancementId.Golden).ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(24, Sweep([], enhancement: EnhancementId.Golden).ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(120, Sweep([], enhancement: EnhancementId.Silver).ExportCampaignSnapshot().Wallets[1]);
-        Assert.Equal(10, Sweep([], enhancement: EnhancementId.Emerald).ExportCampaignSnapshot().Wallets[3]);
         Assert.Equal(-18, Sweep([], enhancement: EnhancementId.Cursed).Scores[0]);
     }
 }

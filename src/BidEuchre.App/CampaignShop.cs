@@ -100,10 +100,6 @@ public static class CampaignShop
         if (targets.Count != required || targets.Distinct().Count() != required || targets.Any(id => deck.All(c => c.Id != id)))
             throw new GameRuleException(required == 1 ? "Choose a card from the shared deck." : $"Choose {required} different cards from the shared deck.");
         if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == CampaignInventory.GumballCount) throw new GameRuleException("All bidding options are unlocked.");
-        // The human must always have six cards that can be dealt to them.
-        bool CanEnhance(CardId id, EnhancementId enhancement) =>
-            deck.Count(c => (c.Id == id ? enhancement : c.Enhancement) == EnhancementId.Stinky) <= 18;
-        if (tarot == TarotId.Beggar && !CanEnhance(targets[0], EnhancementId.Stinky)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         // Everything is checked before the random draws and the changes to the deck.
         var random = new CampaignRandom(resources.RandomState);
         var money = resources.Wallets[0];
@@ -120,8 +116,9 @@ public static class CampaignShop
                 var choices = deck.Select(c => c.Id).ToList(); random.Shuffle(choices);
                 foreach (var id in choices.Take(2)) Enhance(id, EnhancementId.Lucky); break;
             case TarotId.DevilishDeal:
+                var pool = Enum.GetValues<EnhancementId>();
                 foreach (var id in targets.Take(2))
-                { var pool = Enum.GetValues<EnhancementId>().Where(e => CanEnhance(id, e)).ToArray(); Enhance(id, pool[random.NextInt(pool.Length)]); }
+                    Enhance(id, pool[random.NextInt(pool.Length)]);
                 Enhance(targets[2], EnhancementId.Cursed); break;
             default:
                 Enhance(targets[0], Tarot.EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot.")); break;

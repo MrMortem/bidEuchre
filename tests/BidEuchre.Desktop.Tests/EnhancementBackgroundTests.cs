@@ -8,9 +8,7 @@ internal static class EnhancementBackgroundTests
 {
     private static readonly Card Face = Card.Parse("AH");
     private static object Background(EnhancementId? enhancement) => ((Image)((Grid)PixelArt.CardContent(Face,
-        enhancement is null ? "card-background-white" : enhancement is EnhancementId.Emerald or EnhancementId.Stinky
-            ? $"card-background-{enhancement.Value.ToString().ToLowerInvariant()}"
-            : $"curated-enhancement-{enhancement.Value.ToString().ToLowerInvariant()}")).Children[0]).Source!;
+        enhancement is null ? "card-background-white" : $"curated-enhancement-{enhancement.Value.ToString().ToLowerInvariant()}")).Children[0]).Source!;
 
     private static void Contains(Control control, EnhancementId? enhancement)
     {
@@ -30,7 +28,7 @@ internal static class EnhancementBackgroundTests
             if (!ReferenceEquals(((Image)content.Children[1]).Source, ((Image)plain.Children[1]).Source))
                 throw new Exception("Enhancements must not change the printed card face.");
         }
-        Console.WriteLine("PASS  All ten enhancement backgrounds and white fallback preserve printed face sprites");
+        Console.WriteLine("PASS  All active enhancement backgrounds and white fallback preserve printed face sprites");
 
         var deck = Enum.GetValues<EnhancementId>().Select((e, index) => new CardState(new(index), Face, e)).ToArray();
         var motion = new PixelMotion(); motion.SetEnabled(false);

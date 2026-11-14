@@ -2,11 +2,6 @@ namespace BidEuchre.Core;
 
 public sealed partial class GameEngine
 {
-    private bool CanEnhance(CardId id, EnhancementId enhancement)
-    {
-        var deck = _resources.Deck.Select(c => c.Id == id ? c with { Enhancement = enhancement } : c).ToArray();
-        return deck.Count(c => c.Enhancement == EnhancementId.Stinky) <= 18 && CanDeal(deck);
-    }
     /// <summary>Whether the human may play a stored Tarot or Sigil now: on any turn of theirs, in any phase.</summary>
     private bool CanUseItems(int seat) => seat == 0 && CampaignLegal(0).Count > 0;
     private void RequireItemTurn(int seat)
@@ -31,7 +26,6 @@ public sealed partial class GameEngine
         var required = Tarot.TargetCount(tarot);
         if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !_hands[0].Contains(TokenFor(id)))) throw new GameRuleException("Choose the required distinct cards from your hand.");
         if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == CampaignInventory.GumballCount) throw new GameRuleException("All bidding options are unlocked.");
-        if (tarot == TarotId.Beggar && !CanEnhance(targets[0], EnhancementId.Stinky)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         // Validate everything before RNG, consumption, or permanent mutations.
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
@@ -46,9 +40,9 @@ public sealed partial class GameEngine
                 var choices = _hands[0].Select(IdFor).OrderBy(id => id.Value).ToList(); _campaignRandom.Shuffle(choices);
                 foreach (var id in choices.Take(2)) Enhance(id, EnhancementId.Lucky); break;
             case TarotId.DevilishDeal:
-                // Preserve feasibility even when a random enhancement chooses Stinky.
+                var enhancements = Enum.GetValues<EnhancementId>();
                 foreach (var id in targets.Take(2))
-                { var pool = Enum.GetValues<EnhancementId>().Where(e => CanEnhance(id, e)).ToArray(); Enhance(id, pool[_campaignRandom.NextInt(pool.Length)]); }
+                    Enhance(id, enhancements[_campaignRandom.NextInt(enhancements.Length)]);
                 Enhance(targets[2], EnhancementId.Cursed); break;
             default:
                 Enhance(targets[0], Tarot.EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot.")); break;

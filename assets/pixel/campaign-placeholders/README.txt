@@ -1,6 +1,6 @@
 CAMPAIGN PLACEHOLDER PIXEL ART
 
-67 standalone PNG icons: 31 jokers, 12 sigils, 16 tarot cards, 8 planets.
+65 standalone PNG icons: 31 jokers, 12 sigils, 14 tarot cards, 8 planets.
 Each icon is 64 x 64 pixels, with an opaque dark navy background.
 Use nearest-neighbor filtering when enlarging these icons.
 
@@ -12,6 +12,8 @@ preview.png is the original labeled contact sheet of 59 icons.
 preview-planets.png is a separate labeled sheet of the eight planet icons.
 These previews are for review, not asset atlases.
 prompts.json records the original built-in image_gen prompts.
+Merchant and Beggar were retired on 2026-11-14; their original source artwork
+and prompt records are retained for provenance, outside the runtime icon set.
 planet-prompts.json records the matching planet prompts and style reference.
 source/ contains full-size generated originals; these are optional source
 artwork, not the small runtime icons. Originals also remain in the Codex

@@ -11,7 +11,7 @@ public sealed record CampaignSnapshot(long Revision, CardState[] Deck, CampaignI
         && Wallets is { Length: 4 } && Wallets.All(m => m >= 0)
         && Deck.All(c => c is not null && c.Id.Value is >= 0 and < 24 && Enum.IsDefined(c.Face.Suit) && Enum.IsDefined(c.Face.Rank)
             && (c.Enhancement is null || Enum.IsDefined(c.Enhancement.Value)) && (c.Sigil is null || Enum.IsDefined(c.Sigil.Value)))
-        && Deck.Select(c => c.Id).Distinct().Count() == 24 && Deck.Count(c => c.Enhancement == EnhancementId.Stinky) <= 18
+        && Deck.Select(c => c.Id).Distinct().Count() == 24
         && Inventory.Jokers is { Length: <= 5 } && Inventory.Tarot is not null && Inventory.Unlocks is not null
         && Inventory.Jokers.All(j => j is not null && Enum.IsDefined(j.Id)) && Inventory.Jokers.Select(j => j.Id).Distinct().Count() == Inventory.Jokers.Length
         && Inventory.Tarot.All(Enum.IsDefined) && Inventory.Unlocks.All(Enum.IsDefined)
