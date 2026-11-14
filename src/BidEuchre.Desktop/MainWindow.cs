@@ -34,7 +34,7 @@ public sealed partial class MainWindow : Window
     private static readonly IBrush CardInk = Brush.Parse("#17201D");
     private static readonly IBrush CardRed = Brush.Parse("#B63D3D");
 
-    private readonly EngineCatalog _catalog = new();
+    private readonly EngineCatalog _catalog;
     private readonly DispatcherTimer _refreshTimer;
     private readonly ContentControl _playHost = new();
     private readonly TextBlock _status = new() { Foreground = Red, FontSize = 12 };
@@ -123,6 +123,8 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
+        _catalog = new EngineCatalog(Path.Combine(DataDirectory, "BidEuchre", "engines.json"), Path.Combine(AppContext.BaseDirectory, "engines"));
+        _lastTableSetup = LastTableSetup.Load(_lastTableSetupPath);
         Title = "Bid Euchre";
         Width = 1320;
         Height = 860;
@@ -155,7 +157,8 @@ public sealed partial class MainWindow : Window
         StyleInput(_engineArguments);
         StyleInput(_viewerSeat);
         _pace.ItemsSource = PaceOption.All;
-        _pace.SelectedIndex = 1;
+        _tableName.Text = _lastTableSetup.TableName;
+        _pace.SelectedItem = PaceOption.All.First(option => option.Milliseconds == _lastTableSetup.BotDelayMilliseconds);
         _viewerSeat.SelectionChanged += async (_, _) =>
         {
             if (_viewerSeat.SelectedItem is ViewerOption option)
@@ -208,6 +211,7 @@ public sealed partial class MainWindow : Window
 
         Closed += async (_, _) =>
         {
+            SaveTableSetup();
             _refreshTimer.Stop();
             _deckDeal?.Cancel();
             _motion.Cancel();
@@ -240,18 +244,12 @@ public sealed partial class MainWindow : Window
         content.Children.Add(CardPanel(options));
 
         var seats = new StackPanel { Spacing = 10 };
-        var defaults = new[]
-        {
-            ("You", 0),
-            ("TableBot West", 1),
-            ("TableBot North", 1),
-            ("TableBot East", 1)
-        };
+        var defaults = _lastTableSetup.Seats;
         for (var seat = 0; seat < 4; seat++)
         {
-            _seatNames[seat] = new TextBox { Text = defaults[seat].Item1, MaxLength = 30 };
-            _seatKinds[seat] = new ComboBox { ItemsSource = new[] { "Human", "Bot" }, SelectedIndex = defaults[seat].Item2 };
-            _seatEngines[seat] = new ComboBox { IsEnabled = defaults[seat].Item2 == 1 };
+            _seatNames[seat] = new TextBox { Text = defaults[seat].Name, MaxLength = 30 };
+            _seatKinds[seat] = new ComboBox { ItemsSource = new[] { "Human", "Bot" }, SelectedIndex = defaults[seat].Kind == PlayerKind.Bot ? 1 : 0 };
+            _seatEngines[seat] = new ComboBox { IsEnabled = defaults[seat].Kind == PlayerKind.Bot };
             StyleInput(_seatNames[seat]);
             StyleInput(_seatKinds[seat]);
             StyleInput(_seatEngines[seat]);
@@ -530,7 +528,19 @@ public sealed partial class MainWindow : Window
         pathRow.Children.Add(_engineExecutable);
         pathRow.Children.Add(Place(browse, column: 1));
 
-        var load = PrimaryButton("Handshake & load");
+        var load = _engineLoadButton = PrimaryButton("Handshake & load");
+        var cancelRepair = _cancelEngineRepair = QuietButton("Cancel repair");
+        cancelRepair.Name = "CancelEngineRepair";
+        cancelRepair.IsVisible = false;
+        cancelRepair.Click += (_, _) =>
+        {
+            _repairEngineId = null;
+            _engineExecutable.Text = "";
+            _engineArguments.Text = "";
+            load.Content = "Handshake & load";
+            cancelRepair.IsVisible = false;
+            ClearStatus();
+        };
         load.Click += async (_, _) => await LoadEngineAsync(load);
         var form = CardPanel(new StackPanel
         {
@@ -548,7 +558,7 @@ public sealed partial class MainWindow : Window
                     Foreground = Muted,
                     FontSize = 12
                 },
-                load
+                load, cancelRepair
             }
         });
 
@@ -587,17 +597,8 @@ public sealed partial class MainWindow : Window
                 await previousSession.DisposeAsync();
             }
 
-            var engines = _catalog.List();
-            var seats = Enumerable.Range(0, 4).Select(seat =>
-            {
-                var isBot = _seatKinds[seat].SelectedIndex == 1;
-                var engineIndex = Math.Max(0, _seatEngines[seat].SelectedIndex);
-                return new SeatConfiguration(
-                    seat,
-                    string.IsNullOrWhiteSpace(_seatNames[seat].Text) ? $"Player {seat + 1}" : _seatNames[seat].Text!.Trim(),
-                    isBot ? PlayerKind.Bot : PlayerKind.Human,
-                    isBot ? engines[engineIndex].Id : null);
-            }).ToArray();
+            var seats = ReadTableSeats();
+            SaveTableSetup();
             await OpenSessionAsync(seats,
                 string.IsNullOrWhiteSpace(_tableName.Text) ? "Bid Euchre Table" : _tableName.Text!.Trim(), options: null);
         }
@@ -1451,12 +1452,16 @@ public sealed partial class MainWindow : Window
         button.Content = "Handshaking…";
         try
         {
-            var engine = await _catalog.LoadAsync(_engineExecutable.Text.Trim(), _engineArguments.Text?.Trim());
+            var engine = _repairEngineId is null
+                ? await _catalog.LoadAsync(_engineExecutable.Text.Trim(), _engineArguments.Text?.Trim())
+                : await _catalog.RepairAsync(_repairEngineId, _engineExecutable.Text.Trim(), _engineArguments.Text?.Trim());
+            _repairEngineId = null;
+            if (_cancelEngineRepair is not null) _cancelEngineRepair.IsVisible = false;
             _engineExecutable.Text = string.Empty;
             _engineArguments.Text = string.Empty;
             RefreshEngineCatalog();
             _status.Foreground = Green;
-            _status.Text = $"Loaded {engine.Name} by {engine.Author}.";
+            _status.Text = _catalog.PersistenceError ?? $"Loaded {engine.Name} by {engine.Author}.";
             _status.IsVisible = true;
         }
         catch (Exception exception)
@@ -1466,51 +1471,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             button.IsEnabled = true;
-            button.Content = "Handshake & load";
-        }
-    }
-
-    private void RefreshEngineCatalog()
-    {
-        var engines = _catalog.List();
-        _engineList.Children.Clear();
-        foreach (var engine in engines)
-        {
-            var row = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8 };
-            row.Children.Add(new StackPanel
-            {
-                Children =
-                {
-                    new TextBlock { Text = engine.Name, FontWeight = FontWeight.Bold, Foreground = Ink },
-                    new TextBlock { Text = $"by {engine.Author} · {(engine.IsBuiltIn ? "built in" : "BEUCI process")}", Foreground = Muted, FontSize = 11 }
-                }
-            });
-            if (!engine.IsBuiltIn)
-            {
-                var remove = QuietButton("Remove");
-                remove.Foreground = Red;
-                remove.Click += (_, _) =>
-                {
-                    _catalog.Remove(engine.Id);
-                    RefreshEngineCatalog();
-                };
-                row.Children.Add(Place(remove, column: 1));
-            }
-            _engineList.Children.Add(new Border
-            {
-                BorderBrush = Line,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(2),
-                Padding = new Thickness(12),
-                Child = row
-            });
-        }
-
-        foreach (var selector in _seatEngines.Where(selector => selector is not null))
-        {
-            var selected = selector.SelectedIndex;
-            selector.ItemsSource = engines.Select(engine => engine.Name).ToArray();
-            selector.SelectedIndex = Math.Clamp(selected, 0, engines.Count - 1);
+            button.Content = _repairEngineId is null ? "Handshake & load" : "Handshake & repair";
         }
     }
 
@@ -1756,6 +1717,7 @@ public sealed partial class MainWindow : Window
     private void ShowSetup()
     {
         _renderKey = null;
+        if (_seatNames[0] is not null) _lastTableSetup = CaptureTableSetup();
         _playHost.Content = BuildSetupPage();
         _startButton.IsVisible = true;
         _startButton.IsEnabled = true;

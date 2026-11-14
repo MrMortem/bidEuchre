@@ -10,6 +10,7 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Engine catalogue and table setup persistence", EnginePersistenceTests.RunAsync),
     ("Settled ante EveryMatchUsesApprovedRules", () => Run(SettledAnteTests.EveryMatchUsesApprovedRules)),
     ("Settled ante SuccessfulOpponentBonusIsOnceAndPointsOnly", () => Run(SettledAnteTests.SuccessfulOpponentBonusIsOnceAndPointsOnly)),
     ("Settled ante FailedBidsAndDefenderTricksReceiveNoBonus", () => Run(SettledAnteTests.FailedBidsAndDefenderTricksReceiveNoBonus)),

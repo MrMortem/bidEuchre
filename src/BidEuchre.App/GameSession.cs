@@ -56,9 +56,7 @@ public sealed class GameSession : IAsyncDisposable
         _completedTrickDelay = completedTrickDelay ?? (_botActionDelay == TimeSpan.Zero
             ? TimeSpan.Zero
             : TimeSpan.FromMilliseconds(Math.Max(1600, _botActionDelay.TotalMilliseconds * 1.6)));
-        _botDriverFactory = botDriverFactory ?? ((_, descriptor) => descriptor.IsBuiltIn
-            ? new BuiltInBotDriver()
-            : new ProcessBotDriver(descriptor));
+        _botDriverFactory = botDriverFactory ?? ((_, descriptor) => catalog.CreateDriver(descriptor));
     }
 
     public string Id { get; }

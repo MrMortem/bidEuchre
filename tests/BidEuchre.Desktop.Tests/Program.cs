@@ -9,6 +9,8 @@ using BidEuchre.App;
 using BidEuchre.Core;
 using BidEuchre.Desktop;
 
+using var testDataDirectory = new DesktopTestDataDirectory();
+
 AppBuilder.Configure<Application>()
     .UseSkia()
     .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is null })
@@ -21,9 +23,12 @@ if (args.Contains("--contract-ui-only")) { ContractAnnouncementUiTests.Run(); re
 if (args.Contains("--sort-retry-only")) { ContractAnnouncementUiTests.SortRetry(); return; }
 if (args.Contains("--contract-only")) { ContractPresentationTests.Run(); ContractAnnouncementUiTests.Run(); return; }
 
+if (args.Contains("--engine-setup-only")) { EngineSetupUiTests.Run(); return; }
+
 if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
 
 CampaignShopUiTests.Run();
+EngineSetupUiTests.Run();
 ContractPresentationTests.Run();
 ContractAnnouncementUiTests.Run();
 SessionPauseTests.Run();
