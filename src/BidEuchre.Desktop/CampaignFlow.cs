@@ -177,23 +177,23 @@ internal sealed class CampaignFlow(
         if (Run is null) return;
         Persist(CampaignShop.Open(Run));
         var revision = Run!.Resources.Revision;
-        show(_home = CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
+        show(_home = CampaignShopScreen.Build(Run!, new ShopActions(id => Buy(id, revision), id => BuyAndUse(id, revision), id => Sell(id, revision),
             (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
-            () => { Persist(Run!.LeaveShop()); ShowIntro(); }) { Pull = Pull, Refresh = ShowShop }, motion, TakeNote()));
+            () => { Persist(Run!.LeaveShop()); ShowIntro(); }) { Pull = id => Pull(id, revision), Refresh = ShowShop, Reroll = () => Transact(() => CampaignShop.Reroll(Run!, revision)) }, motion, TakeNote()));
     }
     private void InspectDeck()
     {
         if (Run is null) return;
         show(CampaignDeckPicker.Build(Run.Resources.Deck, 0, _ => { }, ShowShop, motion, "Shared deck · changes last for this run"));
     }
-    private void Buy(string id) => Transact(() => CampaignShop.Buy(Run!, id));
+    private void Buy(string id, long revision) => Transact(() => CampaignShop.Buy(Run!, id, expectedRevision: revision));
     // The run is saved before the machine plays, so a pull is never lost or repeated. The shop is redrawn afterwards.
-    private GumballId? Pull(string id)
+    private GumballId? Pull(string id, long revision)
     {
         if (Run is not { Phase: CampaignPhase.Shop } before) return null;
         try
         {
-            var after = CampaignShop.Buy(before, id);
+            var after = CampaignShop.Buy(before, id, expectedRevision: revision);
             var gumball = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks).Single();
             _note = $"The gumball unlocked the {FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name} bid!";
             Persist(after);
@@ -202,15 +202,16 @@ internal sealed class CampaignFlow(
         catch (GameRuleException error) { _note = error.Message; return null; }
     }
     // Items used from the shop are aimed at the shared deck, since there is no hand to aim at.
-    private void BuyAndUse(string id)
+    private void BuyAndUse(string id, long revision)
     {
+        if (Run?.Resources.Revision != revision) { _note = "The shop changed. Choose again."; ShowHome(); return; }
         if (Run?.Shop?.Offers.SingleOrDefault(o => o.Id == id) is not { } offer || offer.Category is not (FeatureCategory.Tarot or FeatureCategory.Sigil)) return;
         var definition = FeatureCatalog.Get(offer.Category, offer.FeatureId);
         var required = offer.Category == FeatureCategory.Sigil ? 1 : CampaignShop.TarotTargets(Enum.Parse<TarotId>(offer.FeatureId));
         CampaignRun Use(CardId[] targets)
         {
             var before = Run!;
-            var after = CampaignShop.BuyAndUse(before, id, targets);
+            var after = CampaignShop.BuyAndUse(before, id, targets, revision);
             _note = UseReport(definition.Name, before, after);
             return after;
         }
@@ -260,7 +261,7 @@ internal sealed class CampaignFlow(
         if (changes.Length > 0) return $"{name}: {string.Join(", ", changes)}!";
         return $"Used {name}!";
     }
-    private void Sell(JokerId id) => Transact(() => CampaignShop.SellJoker(Run!, id));
+    private void Sell(JokerId id, long revision) => Transact(() => CampaignShop.SellJoker(Run!, id, revision));
     private void Discard(FeatureCategory category, int slot, long revision) => Transact(() => category == FeatureCategory.Sigil
         ? CampaignShop.DiscardSigil(Run!, slot, revision) : CampaignShop.DiscardTarot(Run!, slot, revision));
     private void Transact(Func<CampaignRun> update)

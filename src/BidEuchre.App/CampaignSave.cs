@@ -3,4 +3,4 @@ namespace BidEuchre.App;
 
 public sealed record CampaignSave(int Version, CampaignRun Run);
 public sealed record ShopOffer(string Id, FeatureCategory Category, string FeatureId, int Price, bool Sold = false);
-public sealed record ShopState(int MatchJustFinished, ShopOffer[] Offers);
+public sealed record ShopState(int MatchJustFinished, ShopOffer[] Offers, int RerollCount = 0);

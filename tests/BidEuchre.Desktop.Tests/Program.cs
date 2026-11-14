@@ -15,12 +15,15 @@ AppBuilder.Configure<Application>()
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
+if (args.Contains("--shop-only")) { CampaignShopUiTests.Run(); return; }
+
 if (args.Contains("--contract-ui-only")) { ContractAnnouncementUiTests.Run(); return; }
 if (args.Contains("--sort-retry-only")) { ContractAnnouncementUiTests.SortRetry(); return; }
 if (args.Contains("--contract-only")) { ContractPresentationTests.Run(); ContractAnnouncementUiTests.Run(); return; }
 
 if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
 
+CampaignShopUiTests.Run();
 ContractPresentationTests.Run();
 ContractAnnouncementUiTests.Run();
 SessionPauseTests.Run();

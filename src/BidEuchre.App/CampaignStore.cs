@@ -45,7 +45,7 @@ public static class CampaignStore
     private static bool ValidShop(ShopState? shop)
     {
         if (shop is null) return true;
-        if (shop.MatchJustFinished < 0 || shop.Offers is null) return false;
+        if (shop.MatchJustFinished < 0 || shop.Offers is null || shop.RerollCount < 0 || shop.RerollCount > int.MaxValue - 2) return false;
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var machines = 0;
         foreach (var offer in shop.Offers)

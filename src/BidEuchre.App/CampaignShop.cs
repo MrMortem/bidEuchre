@@ -5,35 +5,73 @@ public static class CampaignShop
 {
     public const int GumballPrice = 3;
     private const string Full = "Your card slots are full. Use or discard a card first.";
+    public static int RerollPrice(CampaignRun run) => checked(2 + (run.Shop?.RerollCount ?? 0));
+
+    private static void RequireCurrentShop(CampaignRun run, long? expectedRevision)
+    {
+        if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
+        if (expectedRevision is { } revision && revision != run.Resources.Revision)
+            throw new GameRuleException("The shop changed. Choose again.");
+    }
+
     public static CampaignRun Open(CampaignRun run)
     {
         if (run.Phase is not (CampaignPhase.Shop or CampaignPhase.Victory)) throw new GameRuleException("Shop is only available between matches.");
         if (run.Shop?.MatchJustFinished == run.Match - 1) return run;
         var random = new CampaignRandom(run.Resources.RandomState);
+        // A gumball is a blind pull: which bid comes out is only drawn when it is paid for.
+        var gumball = run.Resources.Inventory.Unlocks.Length < CampaignInventory.GumballCount
+            ? new ShopOffer($"{run.Match - 1}:2", FeatureCategory.Gumball, "", GumballPrice) : null;
+        var offers = Stock(run, random, run.Match - 1, 0, gumball);
+        return run with { Shop = new(run.Match - 1, offers), Resources = run.Resources with { RandomState = random.State, Revision = run.Resources.Revision + 1, Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
+    }
+
+    /// <summary>Replenishes regular stock, including purchased slots, while retaining this visit's gumball pull.</summary>
+    public static CampaignRun Reroll(CampaignRun run, long? expectedRevision = null)
+    {
+        RequireCurrentShop(run, expectedRevision);
+        var shop = run.Shop!;
+        if (shop.RerollCount < 0 || shop.RerollCount >= int.MaxValue - 2) throw new GameRuleException("This shop cannot be rerolled again.");
+        var price = RerollPrice(run);
+        if (run.Money < price) throw new GameRuleException("Not enough money.");
+        // Validate before drawing or copying; payment, RNG, stock and revision form one transaction.
+        var random = new CampaignRandom(run.Resources.RandomState);
+        var count = shop.RerollCount + 1;
+        var offers = Stock(run, random, shop.MatchJustFinished, count, shop.Offers.SingleOrDefault(o => o.Category == FeatureCategory.Gumball));
+        var resources = run.Resources.Copy();
+        resources.Wallets[0] = run.Money - price;
+        return run with
+        {
+            Money = resources.Wallets[0],
+            Shop = shop with { Offers = offers, RerollCount = count },
+            Resources = resources with { RandomState = random.State, Revision = resources.Revision + 1 }
+        };
+    }
+
+    private static ShopOffer[] Stock(CampaignRun run, CampaignRandom random, int visit, int generation, ShopOffer? gumball)
+    {
         var inventory = run.Resources.Inventory;
         var offers = new List<ShopOffer>();
         void Roll(FeatureCategory category, int number)
         {
             var options = FeatureCatalog.All.Where(f => f.Category == category)
-                .Where(f => category != FeatureCategory.Joker || !inventory.Jokers.Any(j => j.Id.ToString() == f.Key))
-                .Where(f => category != FeatureCategory.Gumball || !inventory.Unlocks.Any(p => p.ToString() == f.Key)).ToList();
-            for (var i = 0; i < number; i++)
+                .Where(f => category != FeatureCategory.Joker || !inventory.Jokers.Any(j => j.Id.ToString() == f.Key)).ToList();
+            for (var i = 0; i < number && options.Count > 0; i++)
             {
-                if (options.Count == 0) continue;
                 var choice = options[random.NextInt(options.Count)]; options.Remove(choice);
-                offers.Add(new($"{run.Match - 1}:{offers.Count}", category, choice.Key, choice.Price));
+                var id = generation == 0 ? $"{visit}:{offers.Count}" : $"{visit}:r{generation}:{offers.Count}";
+                offers.Add(new(id, category, choice.Key, choice.Price));
             }
         }
         Roll(FeatureCategory.Joker, 2);
-        // A gumball is a blind pull: which bid comes out is only drawn when it is paid for.
-        if (inventory.Unlocks.Length < CampaignInventory.GumballCount) offers.Add(new($"{run.Match - 1}:{offers.Count}", FeatureCategory.Gumball, "", GumballPrice));
+        if (gumball is not null) offers.Add(gumball);
         Roll(FeatureCategory.Tarot, 1); Roll(FeatureCategory.Sigil, 1);
-        return run with { Shop = new(run.Match - 1, offers.ToArray()), Resources = run.Resources with { RandomState = random.State, Revision = run.Resources.Revision + 1, Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
+        return offers.ToArray();
     }
-    public static CampaignRun Buy(CampaignRun run, string offerId, CardId? sigilTarget = null)
+    public static CampaignRun Buy(CampaignRun run, string offerId, CardId? sigilTarget = null, long? expectedRevision = null)
     {
-        if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
-        var offer = run.Shop.Offers.SingleOrDefault(o => o.Id == offerId);
+        RequireCurrentShop(run, expectedRevision);
+        var offer = run.Shop!.Offers.SingleOrDefault(o => o.Id == offerId);
         if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
         RequireActiveOffer(offer);
         if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
@@ -78,15 +116,15 @@ public static class CampaignShop
 
     /// <summary>Buys a Tarot or Sigil and plays it at once on cards of the shared deck, so it needs no inventory slot.
     /// The changes last for the rest of the run.</summary>
-    public static CampaignRun BuyAndUse(CampaignRun run, string offerId, IReadOnlyList<CardId> targets)
+    public static CampaignRun BuyAndUse(CampaignRun run, string offerId, IReadOnlyList<CardId> targets, long? expectedRevision = null)
     {
-        if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
-        var offer = run.Shop.Offers.SingleOrDefault(o => o.Id == offerId);
+        RequireCurrentShop(run, expectedRevision);
+        var offer = run.Shop!.Offers.SingleOrDefault(o => o.Id == offerId);
         if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
         if (offer.Category == FeatureCategory.Sigil)
         {
             if (targets.Count != 1) throw new GameRuleException("Choose a card from the shared deck.");
-            return Buy(run, offerId, targets[0]);
+            return Buy(run, offerId, targets[0], expectedRevision);
         }
         if (offer.Category != FeatureCategory.Tarot) throw new GameRuleException("Only a Tarot or Sigil can be used from the shop.");
         RequireActiveOffer(offer);
@@ -133,9 +171,10 @@ public static class CampaignShop
         resources.Wallets[0] = money;
         return resources with { Inventory = inventory, RandomState = random.State };
     }
-    public static CampaignRun SellJoker(CampaignRun run, JokerId id)
+    public static CampaignRun SellJoker(CampaignRun run, JokerId id, long? expectedRevision = null)
     {
-        if (run.Phase != CampaignPhase.Shop || !run.Resources.Inventory.Has(id)) throw new GameRuleException("That Joker cannot be sold now.");
+        RequireCurrentShop(run, expectedRevision);
+        if (!run.Resources.Inventory.Has(id)) throw new GameRuleException("That Joker cannot be sold now.");
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money + 2;
         return run with { Money = run.Money + 2, Resources = resources with { Revision = resources.Revision + 1, Inventory = resources.Inventory with { Jokers = resources.Inventory.Jokers.Where(j => j.Id != id).ToArray() } } };
     }
