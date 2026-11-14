@@ -177,7 +177,7 @@ internal sealed class CampaignFlow(
         var revision = Run!.Resources.Revision;
         show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
             (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
-            () => { Persist(Run!.LeaveShop()); ShowIntro(); }), motion, TakeNote()));
+            () => { Persist(Run!.LeaveShop()); ShowIntro(); }) { Pull = Pull, Refresh = ShowShop }, motion, TakeNote()));
     }
     private void InspectDeck()
     {
@@ -185,6 +185,20 @@ internal sealed class CampaignFlow(
         show(CampaignDeckPicker.Build(Run.Resources.Deck, 0, _ => { }, ShowShop, motion, "Shared deck · changes last for this run"));
     }
     private void Buy(string id) => Transact(() => CampaignShop.Buy(Run!, id));
+    // The run is saved before the machine plays, so a pull is never lost or repeated. The shop is redrawn afterwards.
+    private GumballId? Pull(string id)
+    {
+        if (Run is not { Phase: CampaignPhase.Shop } before) return null;
+        try
+        {
+            var after = CampaignShop.Buy(before, id);
+            var gumball = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks).Single();
+            _note = $"The gumball unlocked the {FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name} bid!";
+            Persist(after);
+            return gumball;
+        }
+        catch (GameRuleException error) { _note = error.Message; return null; }
+    }
     // Items used from the shop are aimed at the shared deck, since there is no hand to aim at.
     private void BuyAndUse(string id)
     {
@@ -232,9 +246,9 @@ internal sealed class CampaignFlow(
     private static string UseReport(string name, CampaignRun before, CampaignRun after)
     {
         static string Card(CardState card) => $"{Core.Card.DisplayRank(card.Face.Rank)} of {card.Face.Suit}";
-        var planets = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks)
-            .Select(id => FeatureCatalog.Get(FeatureCategory.Planet, id.ToString()).Name).ToArray();
-        if (planets.Length > 0) return $"{name} unlocked the {planets[0]} bid!";
+        var gumballs = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks)
+            .Select(id => FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Name).ToArray();
+        if (gumballs.Length > 0) return $"{name} unlocked the {gumballs[0]} bid!";
         // Card ids keep their place in the deck, so the same index is the same physical card.
         var changes = after.Resources.Deck.Select((card, index) => (Old: before.Resources.Deck[index], New: card)).Where(pair => pair.Old != pair.New)
             .Select(pair => pair.New.Sigil is { } sigil && pair.Old.Sigil != sigil

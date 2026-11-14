@@ -18,7 +18,7 @@ internal static class CampaignEngineTests
     }
     public static void PanicAndFullMatch()
     {
-        var s = CampaignSnapshot.Create(11) with { Inventory = new([], [], [PlanetId.PanicButton, PlanetId.Lowballer]) };
+        var s = CampaignSnapshot.Create(11) with { Inventory = new([], [], [GumballId.PanicButton, GumballId.Lowballer]) };
         var game = new GameEngine(["You", "West", "Partner", "East"], 11, new MatchOptions(24) { HandLimit = 8, NegativeThreshold = -24 }, new CampaignContext(s));
         game.StartGame(3);
         game.ExecuteCampaignAction(0, new CampaignCommand.PanicButton());

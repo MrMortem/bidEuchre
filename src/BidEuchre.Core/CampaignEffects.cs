@@ -139,7 +139,7 @@ public sealed partial class GameEngine
         var bidderTeam = Bidder!.Value % 2; var success = _tricksByTeam[bidderTeam] >= Contract!.RequiredTricks;
         if (!success && Has(JokerId.ProtectiveBubble) && bidderTeam == 0)
         { normal[0] = 0; _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Where(j => j.Id != JokerId.ProtectiveBubble).ToArray() } }; }
-        else if (!success && _variant == PlanetId.Duelist) normal[bidderTeam]--;
+        else if (!success && _variant == GumballId.Duelist) normal[bidderTeam]--;
         if (success && bidderTeam == 0)
         {
             if (Has(JokerId.ThreesCompany) && Contract.Bid == BidLevel.Three) _jokerPoints[0] += 2;
@@ -149,7 +149,7 @@ public sealed partial class GameEngine
         if (Has(JokerId.DejaVu)) _jokerPoints[0] += _dejaValue;
         if (Has(JokerId.RollerCoaster) && Contract.Mode is ContractMode.High or ContractMode.Low) _jokerPoints[0] += _rollerValue;
         if (Contract.Bid <= BidLevel.Six) _matchOvertricks[bidderTeam] += Math.Max(0, _tricksByTeam[bidderTeam] - Contract.RequiredTricks);
-        var factor = _variant == PlanetId.Chaos ? 2 : 1;
+        var factor = _variant == GumballId.Chaos ? 2 : 1;
         for (var team = 0; team < 2; team++)
         {
             _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}.");

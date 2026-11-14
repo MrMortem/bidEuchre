@@ -105,15 +105,27 @@ The browser interface remains available:
 ```
 
 Then open `http://127.0.0.1:5050`. It uses the same paced session layer as the
-native client.
+native client. This is a **local-only hot-seat interface**, with no user accounts
+or separate authorization for human seats. Every local user of the interface
+can list tables and switch between their human hands. It is not suitable for LAN
+or Internet hosting, reverse proxying, or use on a shared untrusted computer.
 
-Sessions intentionally live in memory and are cleared when the server stops.
+Requests require a loopback peer and host, and browser requests must use the
+interface's own origin. These checks remain in force if `ASPNETCORE_URLS` or
+`AllowedHosts` is overridden. API mutations require `Content-Type: application/json`.
+External process loading over HTTP is disabled; use the desktop **Engines** page.
+
+Sessions live in memory and are cleared when the server stops. The web server
+allows 32 tables and expires tables after 30 minutes without a request to that
+table, releasing any bot resources. Lobby polling does not keep a table alive.
+`WebSessions:MaxSessions` (1–128) and `WebSessions:IdleTimeoutSeconds` (1–86400)
+configure these bounds in the server configuration.
 
 ## Load an external bot
 
 ### Prolog example
 
-With `swipl` installed, open **Engines** in either GUI and enter:
+With `swipl` installed, open **Engines** in the desktop application and enter:
 
 - Executable: the absolute path to `engines/prolog/run.sh`
 - Arguments: leave blank
@@ -131,7 +143,7 @@ Build the included example first:
 dotnet build src/BidEuchre.SampleBot/BidEuchre.SampleBot.csproj
 ```
 
-Open **Engines** in either GUI and enter:
+Open **Engines** in the desktop application and enter:
 
 - Executable: the full path to `dotnet`
 - Arguments: the full path to
@@ -230,7 +242,7 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 **Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
-the other. The campaign includes 10 enhancements, 31 Jokers, 8 Planet bidding
+the other. The campaign includes 10 enhancements, 31 Jokers, 9 Gumball bidding
 unlocks, 12 Sigils, and 16 Tarot consumables.
 
 Both teams start each match at zero. Matches end after a fully scored hand
@@ -238,11 +250,12 @@ reaches either ±24 points in Ante 1, increasing by four per Ante, or after eigh
 hands. Ties continue. Contract success counts tricks only; effect bonuses remain
 even after a failed bid.
 
-Between matches the shop offers two $4 Jokers, a $3 Planet, a $3 Tarot, and a $3
-Sigil. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
-four slots; discard one to free space. Sell Jokers for $2. Planet purchases
-permanently unlock your bidding options; Partners Best and Alone start locked for
-you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+Between matches the shop offers two $4 Jokers, a $3 Tarot, a $3 Sigil, and a
+gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
+four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
+gumball rolls out and permanently unlocks a random bidding option you do not
+have yet; Partners Best, Alone, and the High and Low contracts
+start locked for you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
 shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
 it is yours to act: in the shop and on the screen before a match it is aimed at
 the shared deck, and during a match it is played on cards in your hand on any of

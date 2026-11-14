@@ -133,6 +133,18 @@ internal static class PixelArt
         return image;
     }
 
+    /// <summary>A gumball's own sprite, or null while its art has not been drawn yet.</summary>
+    public static Image? Gumball(GumballId id, double size)
+    {
+        var name = $"campaign/{FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Id.Replace(':', '/')}";
+        if (!Images.ContainsKey(name) && !AssetLoader.Exists(new Uri($"avares://BidEuchre/Pixel/{name}.png"))) return null;
+        var source = Load(name);
+        var image = new Image { Source = source, Width = size, Height = size, Stretch = Stretch.Fill, IsHitTestVisible = false };
+        // Shrunk sprites are smoothed; enlarged ones keep their hard pixels.
+        RenderOptions.SetBitmapInterpolationMode(image, size < source.PixelSize.Width ? BitmapInterpolationMode.HighQuality : BitmapInterpolationMode.None);
+        return image;
+    }
+
     public static Border Portrait(int seat) => new()
     {
         Width = 50, Height = 54, HorizontalAlignment = HorizontalAlignment.Center,
@@ -142,6 +154,11 @@ internal static class PixelArt
 
     // Face identity and paper are independent layers, including cards used in flights.
     // Pass another resource name here to reskin a card without changing its face.
+    public static Control CardContent(Card card, EnhancementId? enhancement) =>
+        CardContent(card, enhancement is { } value
+            ? $"card-background-{value.ToString().ToLowerInvariant()}"
+            : "card-background-white");
+
     public static Control CardContent(Card card, string background = "card-background-white")
     {
         var column = card.Rank switch

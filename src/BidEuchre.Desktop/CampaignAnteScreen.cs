@@ -53,7 +53,7 @@ internal static class CampaignAnteScreen
             var ink = CampaignShopScreen.Ink(category);
             var flyout = new Flyout { Placement = PlacementMode.Bottom };
             var use = MenuParts.Button("Use", true, motion, $"AnteUse{category}{slot}", () => { flyout.Hide(); useItem?.Invoke(category, slot); }, true, ButtonWidth);
-            use.IsEnabled = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == 8);
+            use.IsEnabled = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
             var description = CampaignShopScreen.Label(definition.Description, Ink, 12);
             description.FontFamily = FontFamily.Default;
             flyout.Content = new StackPanel

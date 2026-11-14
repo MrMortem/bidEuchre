@@ -30,7 +30,7 @@ public sealed partial class GameEngine
         var tarot = inventory.Tarot[request.Slot]; var targets = request.Targets?.ToArray() ?? throw new GameRuleException("Choose Tarot targets.");
         var required = Tarot.TargetCount(tarot);
         if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !_hands[0].Contains(TokenFor(id)))) throw new GameRuleException("Choose the required distinct cards from your hand.");
-        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == 8) throw new GameRuleException("All bidding options are unlocked.");
+        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == CampaignInventory.GumballCount) throw new GameRuleException("All bidding options are unlocked.");
         if (tarot == TarotId.Beggar && !CanEnhance(targets[0], EnhancementId.Stinky)) throw new GameRuleException("At least six non-Stinky cards must remain.");
         // Validate everything before RNG, consumption, or permanent mutations.
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
@@ -42,7 +42,7 @@ public sealed partial class GameEngine
             case TarotId.CrystalElixir: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Diamonds)); break;
             case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), "Tax Collector"); break;
             case TarotId.Astronomer:
-                var options = Enum.GetValues<PlanetId>().Except(inventory.Unlocks).ToArray();
+                var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
                 inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[_campaignRandom.NextInt(options.Length)]] }; break;
             case TarotId.Gambler:
                 var choices = _hands[0].Select(IdFor).ToList(); _campaignRandom.Shuffle(choices);

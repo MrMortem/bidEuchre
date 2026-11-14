@@ -46,7 +46,6 @@ function bindNavigation() {
 
 function bindForms() {
   $('#create-session-form').addEventListener('submit', createSession);
-  $('#load-engine-form').addEventListener('submit', loadExternalEngine);
 }
 
 function showView(name) {
@@ -130,23 +129,6 @@ function renderEngines() {
 function populateEngineSelectors() {
   const html = model.engines.map(engine => `<option value="${engine.id}">${escapeHtml(engine.name)}</option>`).join('');
   $$('.seat-engine').forEach(select => select.innerHTML = html);
-}
-
-async function loadExternalEngine(event) {
-  event.preventDefault();
-  const button = event.submitter;
-  button.disabled = true;
-  button.textContent = 'Handshaking…';
-  try {
-    const engine = await api('/api/engines/load', {
-      method: 'POST',
-      body: JSON.stringify({ executable: $('#engine-executable').value, arguments: $('#engine-arguments').value })
-    });
-    toast(`${engine.name} loaded successfully.`);
-    event.target.reset();
-    await loadEngines();
-  } catch (error) { toast(error.message, true); }
-  finally { button.disabled = false; button.textContent = 'Handshake & load'; }
 }
 
 async function removeEngine(id) {

@@ -24,7 +24,7 @@ internal static class CampaignIntegrationTests
                         try { game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, view.Players[0].VisibleCards.Take(count).Select(c => c.Id).ToArray())); continue; }
                         catch (GameRuleException) { } // exhausted Astronomer or constrained mutation is intentionally unavailable
                     }
-                    game.ExecuteCampaignAction(seat, CampaignBotPolicy.Choose(view, seat));
+                    game.ExecuteCampaignAction(seat, CampaignBotPolicy.Choose(game.CreateView(seat), seat));
                 }
                 Assert.True(guard < 1500, $"Run seed {seed}, match {run.Match} stalled");
                 Assert.Equal(24, game.ExportCampaignSnapshot().Deck.Select(c => c.Id).Distinct().Count());

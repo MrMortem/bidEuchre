@@ -1,0 +1,98 @@
+{
+  "kind": "card-face-background",
+  "width": 124,
+  "height": 176,
+  "defaultBackground": "card-background-white.png",
+  "entries": [
+    {
+      "id": "enhancement:lucky",
+      "key": "Lucky",
+      "file": "card-background-lucky.png",
+      "resource": "card-background-lucky",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 246.5
+    },
+    {
+      "id": "enhancement:golden",
+      "key": "Golden",
+      "file": "card-background-golden.png",
+      "resource": "card-background-golden",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 241.4
+    },
+    {
+      "id": "enhancement:wild",
+      "key": "Wild",
+      "file": "card-background-wild.png",
+      "resource": "card-background-wild",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 249.8
+    },
+    {
+      "id": "enhancement:cursed",
+      "key": "Cursed",
+      "file": "card-background-cursed.png",
+      "resource": "card-background-cursed",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 224.3
+    },
+    {
+      "id": "enhancement:stone",
+      "key": "Stone",
+      "file": "card-background-stone.png",
+      "resource": "card-background-stone",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 216.8
+    },
+    {
+      "id": "enhancement:emerald",
+      "key": "Emerald",
+      "file": "card-background-emerald.png",
+      "resource": "card-background-emerald",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 234.5
+    },
+    {
+      "id": "enhancement:silver",
+      "key": "Silver",
+      "file": "card-background-silver.png",
+      "resource": "card-background-silver",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 243.2
+    },
+    {
+      "id": "enhancement:stinky",
+      "key": "Stinky",
+      "file": "card-background-stinky.png",
+      "resource": "card-background-stinky",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 246.6
+    },
+    {
+      "id": "enhancement:glass",
+      "key": "Glass",
+      "file": "card-background-glass.png",
+      "resource": "card-background-glass",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 247.9
+    },
+    {
+      "id": "enhancement:bouncy",
+      "key": "Bouncy",
+      "file": "card-background-bouncy.png",
+      "resource": "card-background-bouncy",
+      "width": 124,
+      "height": 176,
+      "centerBrightness": 229.3
+    }
+  ]
+}

@@ -2,7 +2,7 @@ namespace BidEuchre.Core;
 
 public abstract record CampaignCommand
 {
-    public sealed record Bid(BidLevel Level, PlanetId? Variant = null) : CampaignCommand;
+    public sealed record Bid(BidLevel Level, GumballId? Variant = null) : CampaignCommand;
     public sealed record Pass : CampaignCommand;
     public sealed record PanicButton : CampaignCommand;
     public sealed record Play(CardId Id, Suit? EffectiveSuit = null) : CampaignCommand;
