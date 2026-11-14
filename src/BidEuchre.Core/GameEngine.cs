@@ -494,12 +494,17 @@ public sealed partial class GameEngine
     private void CompleteHandWithBreakdowns(TeamScoreBreakdown[] breakdowns, string reason, bool madeContract)
     {
         int[] deltas;
-        try { deltas = breakdowns.Select(part => part.FinalDelta).ToArray(); }
+        (int Team0, int Team1) totals;
+        try
+        {
+            deltas = breakdowns.Select(part => part.FinalDelta).ToArray();
+            totals = (checked(_scores[0] + deltas[0]), checked(_scores[1] + deltas[1]));
+        }
         catch (OverflowException) { throw new GameRuleException("The hand score exceeds the supported point total."); }
         var biddingTeam = GameRules.TeamForSeat(Bidder!.Value);
         CompletionReason = reason;
-        _scores[0] += deltas[0];
-        _scores[1] += deltas[1];
+        _scores[0] = totals.Team0;
+        _scores[1] = totals.Team1;
         _handHistory.Add(new HandResult(
             HandNumber,
             Bidder.Value,

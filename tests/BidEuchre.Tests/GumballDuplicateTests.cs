@@ -218,6 +218,63 @@ internal static class GumballDuplicateTests
         var before = JsonSerializer.Serialize(max);
         Assert.Throws<GameRuleException>(() => GumballGrants.Pull(max, 17));
         Assert.Equal(before, JsonSerializer.Serialize(max));
+        CumulativeScoreOverflowDoesNotCommitEitherTeam();
+    }
+
+    private static void CumulativeScoreOverflowDoesNotCommitEitherTeam()
+    {
+        // A legal duplicate reward can fit the hand delta but overflow the previous match score.
+        foreach (var (scores, extras, splitTricks) in new[]
+        {
+            (new[] { 20, 0 }, int.MaxValue - 10, false),
+            (new[] { 20, int.MaxValue - 1 }, 1, true)
+        })
+        {
+            var (game, finish) = AtLastPlay(scores, extras, splitTricks);
+            var error = Assert.Throws<GameRuleException>(finish);
+            Assert.Equal("The hand score exceeds the supported point total.", error.Message);
+            Assert.Equal(scores[0], game.Scores[0]);
+            Assert.Equal(scores[1], game.Scores[1]);
+            Assert.True(game.GameWinner is null);
+            Assert.Equal(0, game.HandHistory.Count);
+        }
+        // The representable boundary remains playable; there is no smaller product limit.
+        var (boundary, lastPlay) = AtLastPlay([4, 0], int.MaxValue - 10, false);
+        lastPlay();
+        Assert.Equal(int.MaxValue, boundary.Scores[0]);
+        Assert.Equal(0, boundary.Scores[1]);
+        Assert.True(boundary.GameWinner == 0);
+
+        static (GameEngine Game, Action Finish) AtLastPlay(int[] scores, int extras, bool splitTricks)
+        {
+            var tokens = GameRules.CreateDeck().ToArray();
+            var resources = CampaignSnapshot.Create(5) with
+            {
+                Inventory = new([], [], Enum.GetValues<GumballId>()) { GumballExtraCopies = new() { [GumballId.Lowballer] = extras } },
+                Deck = CampaignCards.CreateDeck().Select(card => card with
+                {
+                    Face = new Card(Suit.Clubs, !splitTricks ? card.Id.Value / 6 % 2 == 0 ? Rank.Ace : Rank.Nine
+                        : card.Id.Value < 3 ? Rank.Ace : card.Id.Value / 6 % 2 == 1 ? Rank.King : Rank.Nine)
+                }).ToArray()
+            };
+            Assert.True(resources.IsValid());
+            var game = GameEngine.CreateFixture(new FixtureStart(["You", "W", "P", "E"],
+                Enumerable.Range(0, 4).Select(seat => tokens.Skip(seat * 6).Take(6).ToArray()).ToArray(), 3, scores,
+                Campaign: resources, Options: new MatchOptions(int.MaxValue) { NegativeThreshold = -1000 }));
+            game.ExecuteCampaignAction(0, new CampaignCommand.Bid((BidLevel)2));
+            while (game.Phase == GamePhase.Bidding) game.ExecuteCampaignAction(game.CampaignActor!.Value, new CampaignCommand.Pass());
+            game.ExecuteCampaignAction(0, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Clubs));
+            for (var plays = 0; plays < 23; plays++)
+            {
+                var seat = game.CampaignActor!.Value;
+                game.ExecuteCampaignAction(seat, game.CreateCampaignView(seat).LegalActions.OfType<CampaignCommand.Play>().First());
+            }
+            Assert.Equal(5, game.CompletedTricks.Count);
+            Assert.Equal(3, game.CurrentTrick.Count);
+            var lastSeat = game.CampaignActor!.Value;
+            var action = game.CreateCampaignView(lastSeat).LegalActions.OfType<CampaignCommand.Play>().Single();
+            return (game, () => game.ExecuteCampaignAction(lastSeat, action));
+        }
     }
 
     public static void MalformedSavedCounts()
