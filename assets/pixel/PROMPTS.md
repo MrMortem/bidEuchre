@@ -85,3 +85,21 @@ dotnet run --project tools/EnhancementBackgroundBuilder -- assets/enhancement-so
 ```
 
 The builder verifies opaque pixels and light centers, then assembles previews with the existing transparent faces. The existing native `CardContent(card, background)` can render any of these resource names. The C# GUI automatically selects the substrate from the visible physical card's enhancement in campaign hands, current/completed tricks, card-flight visuals and deck/shop pickers. Unenhanced cards use white; hidden reverse sides retain the ordinary back. Duplicate printed faces keep their own physical-card enhancement. The web client has not been connected to enhancement state by this integration.
+
+## User-curated card artwork (2026-11-13)
+
+Imported the user's supplied artwork using the correctly labeled original files in Downloads. No image generation or restyling was used. Exact originals are preserved in `assets/curated-source/2026-11-13/`; its manifest records the filename-to-feature mapping. All nineteen preserved files were verified byte-for-byte against Downloads.
+
+Eight enhancement backgrounds: Lucky (`Lucky Card.png`), Golden (`Gold Card.png`), Wild (`Wild Card.png`), Cursed (`Curse Card.png`), Stone (`Stone BG.png`), Silver (`Silver Card.png`), Glass (`Glass Card.png`), and Bouncy (`Bouncy Card.png`). Eight Sigils: Fish, Vulture, Frog, Spider, Eagle, Duck, Bear and Chameleon. Three Gumballs: High/Low (`High_Low Gumball.png`), Chaos and Alone.
+
+Runtime PNG resources use `curated-enhancement-`, `curated-sigil-`, or `curated-gumball-` prefixes. `curated-art.json` records their dimensions and feature IDs. Original alpha is preserved during sprite export. Enhancement sprites are124x176; Sigil/Gumball icons are128x128. Existing resources remain available for every item without supplied curated art.
+
+The C# GUI automatically prefers curated enhancement backgrounds and campaign icons. Cards also show a proportional Sigil badge below the upper-left rank and suit, including in hands, deck/shop views, public tricks and flight visuals. White underlay supports the transparent Glass substrate; a small white halo behind the original face artwork keeps red/black markings readable on dark curated backgrounds. Neither adjustment changes the curated image pixels or game rules.
+
+Re-export resources and labeled contact sheet:
+
+```sh
+dotnet run --project tools/CuratedCardArtBuilder -- assets/curated-source/2026-11-13 assets/pixel
+```
+
+Contact sheet: `curated-art-preview.png`. Native GUI verification screenshot: `docs/previews/curated-art-native-sigils-63.png`. Existing `card-background-*` sprites are retained as fallbacks; curated preference applies to the native C# GUI.

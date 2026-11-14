@@ -935,7 +935,7 @@ public sealed class MainWindow : Window
                 {
                     var card = visible[i];
                     var choices = campaign.LegalActions.Where(c => c is CampaignCommand.Play p && p.Id == card.Id || c is CampaignCommand.Exchange e && e.Id == card.Id).ToArray();
-                    var button = CardButton(card.Face, choices.Length == 1, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : null, card.Enhancement);
+                    var button = CardButton(card.Face, choices.Length == 1, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : null, card.Enhancement, card.Sigil);
                     ToolTip.SetTip(button, $"#{card.Id.Value + 1} · {card.Enhancement?.ToString() ?? "No enhancement"} · {card.Sigil?.ToString() ?? "No Sigil"}");
                     var key = $"id{card.Id.Value}";
                     _cardFlights?.HandCard($"{player.Seat}:{key}", button, HandFan.Angle(player.Seat, i, player.CardCount));
@@ -996,7 +996,8 @@ public sealed class MainWindow : Window
             // Match the public physical card by seat, not its printed face: copies may have different enhancements.
             var physical = view.Campaign is { } cv ? (cv.Trick.Count > 0 ? cv.Trick : cv.LastTrick).FirstOrDefault(p => p.Seat == play.Seat) : null;
             var enhancement = physical?.Card.Enhancement;
-            var card = CardFace(play.Card, enhancement);
+            var sigil = physical?.Card.Sigil;
+            var card = CardFace(play.Card, enhancement, sigil);
             card.ZIndex = play.Seat switch { 2 => 0, 1 => 1, 3 => 2, _ => 3 };
             card.HorizontalAlignment = play.Seat switch { 1 => HorizontalAlignment.Left, 3 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center };
             card.VerticalAlignment = play.Seat switch { 2 => VerticalAlignment.Top, 0 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center };
@@ -1007,7 +1008,7 @@ public sealed class MainWindow : Window
                 if (_motionCue.WinnerSeat is not null) _motion.Pulse(card, 1.065);
             }
             var key = physical is null ? $"{play.Seat}:{play.Card.Code}" : $"{play.Seat}:id{physical.Card.Id.Value}";
-            _cardFlights?.PlayedCard(key, card, _motionCue.AddedPlays.Contains(key), () => CardFace(play.Card, enhancement));
+            _cardFlights?.PlayedCard(key, card, _motionCue.AddedPlays.Contains(key), () => CardFace(play.Card, enhancement, sigil));
             cards.Children.Add(card);
         }
 
@@ -1287,7 +1288,7 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction = null, EnhancementId? enhancement = null)
+    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction = null, EnhancementId? enhancement = null, SigilId? sigil = null)
     {
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         var button = new Button
@@ -1306,7 +1307,7 @@ public sealed class MainWindow : Window
             // Unplayable cards still take the pointer so their tooltip can open; they just have no click.
             Focusable = legal,
             Opacity = 1,
-            Content = PixelArt.CardContent(card, enhancement)
+            Content = PixelArt.CardContent(card, enhancement, sigil)
         };
         // Card art has its own paper/ink palette. Fluent's dark button hover and
         // pressed template must not replace the paper behind transparent artwork.
@@ -1358,7 +1359,7 @@ public sealed class MainWindow : Window
         return button;
     }
 
-    private static Border CardFace(Card card, EnhancementId? enhancement = null)
+    private static Border CardFace(Card card, EnhancementId? enhancement = null, SigilId? sigil = null)
     {
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         return new Border
@@ -1372,7 +1373,7 @@ public sealed class MainWindow : Window
             BorderBrush = Brush.Parse("#D8CDB9"),
             BorderThickness = new Thickness(1),
             Background = CardPaper,
-            Child = PixelArt.CardContent(card, enhancement)
+            Child = PixelArt.CardContent(card, enhancement, sigil)
         };
     }
 
