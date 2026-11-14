@@ -42,15 +42,15 @@ Behavior tests first: successful/failed DELETE, active confirmation, current-tab
 Issues #75,#83,#84,#86,#87,#88,#89,#90. Depends Task1. Read issue snapshot bodies.
 Own Core effects/engine/inventory/catalog and tests, metadata/current rules as needed.
 Duck1in3 +4. SnakeEyes+4. RollerCoaster zero each round. Cure-All player/partner wins only. LoverBoy/Clubhouse/RoyalCouncil remain player-team-only and descriptions explicit; LoverBoy requires human calledHearts.
-DoubleDown retriggers first human card each round once, bounded independent interactions with Frog/LuckyDuck/Bouncy/Glass/LastLaugh; read #87 criteria. LastLaugh final trick each round unchanged.
+DoubleDown retriggers first human card each round once, bounded independent interactions with Frog/LuckyDuck/Bouncy/Glass/LastLaugh; read #87 criteria. LastLaugh final trick each round unchanged. Ensure Desktop collection/shop renders the new Joker: PixelArt.CampaignIcon currently throws on missing embedded artwork. Use an existing generic card-back placeholder for missing Joker art, or an appropriate embedded placeholder; no bespoke art is required. Coordinate PixelArt.cs with Task2 owner before editing. Verify all catalogue entries render.
 Tests first for team scope, round resets, deterministic chance, first-card triggers, bounded combination effects. Commit/report.
 
 ## Task 5: Campaign bidding eligibility and Duelist
-Issues #69-73,#91. Depends Task4. Read issue snapshot.
+Issues #69,#71,#72,#73,#91. Depends Task4. Read issue snapshot.
 Own Core bidding, App CampaignBotPolicy, core tests/catalog.
-All seats share campaign unlock restrictions incl High/Low; freeplay unaffected. Partner prefers pass until humanpassed, preserves forceddealer/VowOfSilence. Opponent evaluation unchanged.
-Duelist4-5, failureextra2, oncepermatch (not round), rejectedcommands don't consume. Alpha any eligible unlocked partnerbid inclSafetyNet2,PartnersBest,Alone, neveropponent/locked.
-Tests across seats/unlocks/direct rejection; partner before/after human pass; forceddealer; Alpha special; Duelist round/match reset. Commit/report.
+All seats share campaign unlock restrictions incl High/Low; freeplay unaffected. Preserve forceddealer/VowOfSilence and current bot evaluation. #70 passivity policy is deferred: its issue explicitly identifies threshold/pass policy as a design choice still unanswered.
+Duelist4-5, failureextra2, oncepermatch (not round), rejectedcommands don't consume. Consume use when Duelist wins the auction and activates, not when an overcalled bid loses; document this activation rule. Alpha any eligible unlocked partnerbid inclSafetyNet2,PartnersBest,Alone, neveropponent/locked.
+Tests across seats/unlocks/direct rejection; forceddealer; Alpha special; Duelist round/match reset. Commit/report.
 
 ## Task 6: Ante targets and successful opponent bid bonus
 Issues #67,#93. Depends Task5. Read issue snapshot.
@@ -62,7 +62,7 @@ Tests allspecifiedantes/boundaries/success/failure/team/boss/overtime. Commit/re
 ## Task 7: Duplicate gumballs and immediate Astronomer
 Issues #68,#82. Depends Task6. Read issue snapshot.
 Core inventory/snapshot/effects, App Shop/Store, count/payout UI and tests.
-Keep pull after9 unlocked. Locked-first then random duplicate; +1 per extra acquisition on matching successful human bid. Persist extra-copy counts while keeping unique Unlocks semantic; oldsave extras0.
+Keep pull after9 unlocked. Locked-first then random duplicate; +1 per extra acquisition on matching successful human bid. Award fixed bonuses after round multiplier; if multiple owned bid types match (e.g. Alone and High/Low), each earns its own extras once. Partner-made bids do not qualify. Panic Button has no successful contract, so its duplicates add no successful-bid points; do not invent an alternate effect. Persist extra-copy counts while keeping unique Unlocks semantic; oldsave extras0.
 Astronomer grants immediately both shop/match through same helper; never heldconsumable, usable after allunlocked, fullinventory doesn't block immediate use.
 Tests RNG, roundtrip, success/failure/matching/stacking, bothgrantpaths and invaliddata. Document engineering rulings. Commit/report.
 
