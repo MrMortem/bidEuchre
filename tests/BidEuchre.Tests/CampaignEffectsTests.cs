@@ -47,7 +47,7 @@ internal static class CampaignEffectsTests
             for (var step = 0; step < 200 && !until(); step++)
             {
                 var seat = g.CampaignActor!.Value;
-                g.ExecuteCampaignAction(seat, BidEuchre.App.CampaignBotPolicy.Choose(g.CreateCampaignView(seat), seat));
+                g.ExecuteCampaignAction(seat, BidEuchre.App.CampaignBotPolicy.Choose(g.CreateView(seat), seat));
             }
             Assert.True(until());
         }
@@ -67,7 +67,7 @@ internal static class CampaignEffectsTests
         Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(1, hand[0].Id)));
         Assert.Equal(1, g.ExportCampaignSnapshot().Inventory.Sigils.Length);
         // Not on another player's turn.
-        g.ExecuteCampaignAction(0, BidEuchre.App.CampaignBotPolicy.Choose(g.CreateCampaignView(0), 0));
+        g.ExecuteCampaignAction(0, BidEuchre.App.CampaignBotPolicy.Choose(g.CreateView(0), 0));
         Advance(() => !Mine() && g.CampaignActor is not null);
         Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, hand[1].Id)));
         Assert.Throws<GameRuleException>(() => g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [hand[1].Id])));

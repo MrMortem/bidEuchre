@@ -373,8 +373,7 @@ public sealed class GameSession : IAsyncDisposable
                     timeout.CancelAfter(TimeSpan.FromSeconds(8));
                     if (Game.IsCampaign)
                     {
-                        var campaignView = Game.CreateCampaignView(expectedSeat);
-                        Game.ExecuteCampaignAction(expectedSeat, CampaignBotPolicy.Choose(campaignView, expectedSeat));
+                        Game.ExecuteCampaignAction(expectedSeat, CampaignBotPolicy.Choose(Game.CreateView(expectedSeat), expectedSeat));
                     }
                     else
                     {
