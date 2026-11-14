@@ -45,7 +45,8 @@ public sealed partial class GameEngine
                 var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
                 inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[_campaignRandom.NextInt(options.Length)]] }; break;
             case TarotId.Gambler:
-                var choices = _hands[0].Select(IdFor).ToList(); _campaignRandom.Shuffle(choices);
+                // Physical order, so how the player arranged their hand cannot steer the draw.
+                var choices = _hands[0].Select(IdFor).OrderBy(id => id.Value).ToList(); _campaignRandom.Shuffle(choices);
                 foreach (var id in choices.Take(2)) Enhance(id, EnhancementId.Lucky); break;
             case TarotId.DevilishDeal:
                 // Preserve feasibility even when a random enhancement chooses Stinky.

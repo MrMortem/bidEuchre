@@ -8,7 +8,9 @@ internal static class EnhancementBackgroundTests
 {
     private static readonly Card Face = Card.Parse("AH");
     private static object Background(EnhancementId? enhancement) => ((Image)((Grid)PixelArt.CardContent(Face,
-        enhancement is { } value ? $"card-background-{value.ToString().ToLowerInvariant()}" : "card-background-white")).Children[0]).Source!;
+        enhancement is null ? "card-background-white" : enhancement is EnhancementId.Emerald or EnhancementId.Stinky
+            ? $"card-background-{enhancement.Value.ToString().ToLowerInvariant()}"
+            : $"curated-enhancement-{enhancement.Value.ToString().ToLowerInvariant()}")).Children[0]).Source!;
 
     private static void Contains(Control control, EnhancementId? enhancement)
     {
@@ -39,8 +41,8 @@ internal static class EnhancementBackgroundTests
         var window = new MainWindow();
         try
         {
-            var first = new CampaignCardView(new(0), Face, EnhancementId.Golden, null);
-            var second = new CampaignCardView(new(1), Face, EnhancementId.Glass, null);
+            var first = new CampaignCardView(new(0), Face, EnhancementId.Golden, SigilId.Fish);
+            var second = new CampaignCardView(new(1), Face, EnhancementId.Glass, SigilId.Frog);
             var players = Enumerable.Range(0, 4).Select(seat => new CampaignPlayerView(seat, seat < 2 ? 1 : 0,
                 seat == 0 ? [first] : seat == 1 ? [second] : [], false)).ToArray();
             CampaignTrickPlay[] trick = [new(0, first, Suit.Hearts), new(1, second, Suit.Hearts)];
@@ -53,12 +55,14 @@ internal static class EnhancementBackgroundTests
             Contains(Invoke("PlayerPanel", plain.Players[1] with { CardCount = 1 }, view), EnhancementId.Glass);
             var current = Invoke("TrickPanel", view);
             Contains(current, EnhancementId.Golden); Contains(current, EnhancementId.Glass);
+            CuratedArtTests.ContainsSigil(current, SigilId.Fish); CuratedArtTests.ContainsSigil(current, SigilId.Frog);
             var completed = Invoke("TrickPanel", view with
             {
                 CurrentTrick = [], CompletedTricks = [new(1, 0, 0, view.CurrentTrick)],
                 Campaign = campaign with { Trick = [], LastTrick = trick }
             });
             Contains(completed, EnhancementId.Golden); Contains(completed, EnhancementId.Glass);
+            CuratedArtTests.ContainsSigil(completed, SigilId.Fish); CuratedArtTests.ContainsSigil(completed, SigilId.Frog);
             Contains(Invoke("TrickPanel", view with { Campaign = null }), null);
             Console.WriteLine("PASS  Campaign hands and current/completed tricks preserve enhancements for duplicate printed cards; ordinary Table stays white");
         }

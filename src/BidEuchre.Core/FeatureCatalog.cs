@@ -40,7 +40,7 @@ public static class FeatureCatalog
         new("joker:people-pleaser", FeatureCategory.Joker, "PeoplePleaser", "People Pleaser", "When the human wins a trick, earn $1 per face card remaining in hand.", 4),
         new("joker:millionaire", FeatureCategory.Joker, "Millionaire", "Millionaire", "Diamonds the human plays also count as Golden.", 4),
         new("joker:king-midas", FeatureCategory.Joker, "KingMidas", "King Midas", "Kings the human plays have a 1 in 3 chance to permanently become Golden.", 4),
-        new("joker:sticky-fingers", FeatureCategory.Joker, "StickyFingers", "Sticky Fingers", "After the human's first trick win each hand, the leftmost remaining card copies the winning card for the rest of the match.", 4),
+        new("joker:sticky-fingers", FeatureCategory.Joker, "StickyFingers", "Sticky Fingers", "After the human's first trick win each hand, the leftmost card left in their hand copies the winning card for the rest of the match. Drag cards to choose which one.", 4),
         new("joker:medusa", FeatureCategory.Joker, "Medusa", "Medusa", "The last card played in each match permanently becomes Stone.", 4),
         new("joker:cheese-touch", FeatureCategory.Joker, "CheeseTouch", "Cheese Touch", "The first card played in each match permanently becomes Cursed.", 4),
         new("joker:one-up", FeatureCategory.Joker, "OneUp", "One Up", "At each hand's start, choose a hand card to swap with a random partner card.", 4),

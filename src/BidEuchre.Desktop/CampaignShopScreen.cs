@@ -346,7 +346,7 @@ internal static class CampaignDeckPicker
             var frame = new Border
             {
                 Width = CardWidth + 6, Height = CardHeight + 6, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(3),
-                CornerRadius = new CornerRadius(6), Child = PixelArt.CardContent(card.Face, card.Enhancement)
+                CornerRadius = new CornerRadius(6), Child = PixelArt.CardContent(card.Face, card.Enhancement, card.Sigil)
             };
             frames.Add(frame);
             var marks = new StackPanel { Spacing = 1, Height = 30 };

@@ -126,6 +126,7 @@ public sealed partial class GameEngine
         _modifierPoints[team] += multiplier - 1;
         if (Contract!.Mode is ContractMode.High or ContractMode.Low) _rollerValue += team == 0 ? 1 : -1;
         if (winner == 0 && Has(JokerId.PeoplePleaser)) Money(0, _hands[0].Count(c => StateFor(c).Face.Rank is Rank.Jack or Rank.Queen or Rank.King) * lastDouble, "People Pleaser");
+        // The hand keeps the order the player arranged it in, so its first card is the leftmost one on screen.
         if (winner == 0 && Has(JokerId.StickyFingers) && _stickyTriggered.Add(0) && _hands[0].Count > 0)
         {
             var copy = StateFor(plays.Single(p => p.Seat == 0).Card); var id = IdFor(_hands[0][0]); var overlay = new CardOverlay(id, copy.Face, copy.Enhancement, copy.Sigil);

@@ -1,0 +1,119 @@
+{
+  "origin": "User-supplied curated art; mapping follows filenames in Downloads.",
+  "entries": [
+    {
+      "id": "sigil:fish",
+      "key": "Fish",
+      "source": "Fish.png",
+      "resource": "curated-sigil-fish"
+    },
+    {
+      "id": "enhancement:glass",
+      "key": "Glass",
+      "source": "Glass Card.png",
+      "resource": "curated-enhancement-glass"
+    },
+    {
+      "id": "enhancement:silver",
+      "key": "Silver",
+      "source": "Silver Card.png",
+      "resource": "curated-enhancement-silver"
+    },
+    {
+      "id": "enhancement:golden",
+      "key": "Golden",
+      "source": "Gold Card.png",
+      "resource": "curated-enhancement-golden"
+    },
+    {
+      "id": "sigil:vulture",
+      "key": "Vulture",
+      "source": "Vulture.png",
+      "resource": "curated-sigil-vulture"
+    },
+    {
+      "id": "gumball:high-low",
+      "key": "HighLow",
+      "source": "High_Low Gumball.png",
+      "resource": "curated-gumball-high-low"
+    },
+    {
+      "id": "sigil:frog",
+      "key": "Frog",
+      "source": "Frog.png",
+      "resource": "curated-sigil-frog"
+    },
+    {
+      "id": "sigil:spider",
+      "key": "Spider",
+      "source": "Spider.png",
+      "resource": "curated-sigil-spider"
+    },
+    {
+      "id": "sigil:eagle",
+      "key": "Eagle",
+      "source": "Eagle.png",
+      "resource": "curated-sigil-eagle"
+    },
+    {
+      "id": "enhancement:lucky",
+      "key": "Lucky",
+      "source": "Lucky Card.png",
+      "resource": "curated-enhancement-lucky"
+    },
+    {
+      "id": "sigil:duck",
+      "key": "Duck",
+      "source": "Duck.png",
+      "resource": "curated-sigil-duck"
+    },
+    {
+      "id": "enhancement:bouncy",
+      "key": "Bouncy",
+      "source": "Bouncy Card.png",
+      "resource": "curated-enhancement-bouncy"
+    },
+    {
+      "id": "sigil:bear",
+      "key": "Bear",
+      "source": "Bear.png",
+      "resource": "curated-sigil-bear"
+    },
+    {
+      "id": "enhancement:cursed",
+      "key": "Cursed",
+      "source": "Curse Card.png",
+      "resource": "curated-enhancement-cursed"
+    },
+    {
+      "id": "sigil:chameleon",
+      "key": "Chameleon",
+      "source": "Chameleon.png",
+      "resource": "curated-sigil-chameleon"
+    },
+    {
+      "id": "gumball:chaos",
+      "key": "Chaos",
+      "source": "Chaos Gumball.png",
+      "resource": "curated-gumball-chaos"
+    },
+    {
+      "id": "gumball:alone",
+      "key": "Alone",
+      "source": "Alone Gumball.png",
+      "resource": "curated-gumball-alone"
+    },
+    {
+      "id": "enhancement:wild",
+      "key": "Wild",
+      "source": "Wild Card.png",
+      "resource": "curated-enhancement-wild"
+    },
+    {
+      "id": "enhancement:stone",
+      "key": "Stone",
+      "source": "Stone BG.png",
+      "resource": "curated-enhancement-stone"
+    }
+  ]
+}
