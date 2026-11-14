@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using BidEuchre.App;
+using BidEuchre.Core;
 using static BidEuchre.Desktop.MainWindow;
 
 namespace BidEuchre.Desktop;
@@ -48,7 +49,7 @@ internal static class CampaignScreens
             buttons, null);
     }
 
-    public static Control Result(CampaignRun run, MatchOutcome outcome, int[]? scores, Action next, string? note, PixelMotion motion)
+    public static Control Result(CampaignRun run, MatchOutcome outcome, int[]? scores, Action next, string? note, PixelMotion motion, GameView? summary = null)
     {
         var lines = new List<Control>();
         if (scores is not null) lines.Add(Line($"{scores[0]} – {scores[1]}", Ink, 28));
@@ -59,8 +60,9 @@ internal static class CampaignScreens
         lines.Add(Line("Card and Joker money is included in your balance.", Muted));
         lines.Add(Line($"INTEREST +${outcome.Interest}", Muted));
         lines.Add(Line($"TOTAL ${outcome.Money}", Ink, 20));
+        if (summary is not null) lines.Add(ScoreHistoryControls.Summary(summary, wholeMatch: true, height: 190));
         return Frame(motion, outcome.Won ? "MATCH WON" : "MATCH LOST", lines,
-            Buttons(motion, lines.Count, ScreenButton(motion, "Continue", next, primary: true)), note);
+            Buttons(motion, lines.Count, ScreenButton(motion, "Continue", next, primary: true)), note, scroll: true);
     }
 
     public static Control Shop(CampaignRun run, Action next, PixelMotion motion) =>
@@ -85,7 +87,7 @@ internal static class CampaignScreens
     private static int ButtonDelay(int lines) => 220 + lines * 50;
 
     // Every screen arrives the same way: title, rule, each line in turn, then the buttons.
-    private static Control Frame(PixelMotion motion, string title, IReadOnlyList<Control> lines, Control buttons, string? note)
+    private static Control Frame(PixelMotion motion, string title, IReadOnlyList<Control> lines, Control buttons, string? note, bool scroll = false)
     {
         var rule = MenuParts.Rule(260);
         rule.Margin = new Thickness(0, 0, 0, 8);
@@ -107,7 +109,7 @@ internal static class CampaignScreens
             noteLine.Name = "CampaignNote";
             stack.Children.Add(motion.Enter(noteLine, ButtonDelay(lines.Count) + 200, 0, 0));
         }
-        return MenuParts.Scene(motion, stack);
+        return MenuParts.Scene(motion, stack, scroll ? new ScrollViewer { Content = stack, Padding = new Thickness(20), HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled } : null);
     }
 
     private static StackPanel Buttons(PixelMotion motion, int lines, params Button[] buttons)

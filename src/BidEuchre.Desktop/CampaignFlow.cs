@@ -16,7 +16,7 @@ internal sealed class CampaignFlow(
     // The ante or shop screen last shown, so a developer change can redraw it.
     private Control? _home;
     private bool _starting;
-    private (MatchOutcome Outcome, int[] Scores)? _pendingResult;
+    private (MatchOutcome Outcome, int[] Scores, GameView? Summary)? _pendingResult;
 
     public CampaignRun? Run { get; private set; }
 
@@ -41,12 +41,12 @@ internal sealed class CampaignFlow(
 
     // The result is recorded the moment the match ends, so leaving the finished table cannot turn it into a
     // forfeit. A second report finds the run out of InMatch and is ignored.
-    public void MatchCompleted(bool won, int[] scores)
+    public void MatchCompleted(bool won, int[] scores, GameView? summary = null)
     {
         if (Run is not { Phase: CampaignPhase.InMatch } run) return;
         var (next, outcome) = run.ApplyResult(won, scores[0], scores[1]);
         Record(next);
-        _pendingResult = (outcome, scores);
+        _pendingResult = (outcome, scores.ToArray(), summary);
     }
 
     // Shown a moment later so the last trick can be seen before the table is replaced.
@@ -54,7 +54,7 @@ internal sealed class CampaignFlow(
     {
         if (_pendingResult is not { } pending || Run is not { } run) return;
         _pendingResult = null;
-        show(CampaignScreens.Result(run, pending.Outcome, pending.Scores, AfterResult, TakeNote(), motion));
+        show(CampaignScreens.Result(run, pending.Outcome, pending.Scores, AfterResult, TakeNote(), motion, pending.Summary));
     }
 
     private void StartNewRun()

@@ -144,8 +144,8 @@ public sealed partial class MainWindow : Window
             Background = Brush.Parse("#EE100B28"), BorderBrush = Gold, BorderThickness = new Thickness(2),
             Child = new ScrollViewer
             {
-                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                Content = new StackPanel { Spacing = 7, Children = { _centerTitle, _actionHelp, _actionButtons } }
+                Name = "TableActionScroll", HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = new StackPanel { Spacing = 7, Children = { _centerTitle, _actionHelp, _handScoreSummary, _actionButtons } }
             }
         };
         _campaign = new CampaignFlow(_campaignPath, screen => _screenHost.Content = screen,
@@ -313,7 +313,7 @@ public sealed partial class MainWindow : Window
         // These controls survive sessions; detached pages still own their logical children.
         // Release each immediate parent before constructing the next table page.
         foreach (var control in new Control[]{_startButton,_viewerSeat,_contractText,_dealerText,
-            _scoreEyebrow,_teamZeroScore,_teamOneScore,_actionTitle,_sessionError,_centerPanel,_jokerRow,_tarotRow,_tableHost})
+            _scoreEyebrow,_teamZeroScore,_teamOneScore,_actionTitle,_sessionError,_centerPanel,_jokerRow,_tarotRow,_tableHost,_publicLogPanel})
         {
             switch (control.Parent)
             {
@@ -413,7 +413,7 @@ public sealed partial class MainWindow : Window
                 }, row: 1)
             }
         };
-        return new Grid { Children = { page, bidOverlay } };
+        return new Grid { Children = { page, bidOverlay, PublicLogButton(), PublicLogPanel() } };
     }
 
     // Illustrated campaign cards retain their names and rules on hover.
@@ -693,7 +693,7 @@ public sealed partial class MainWindow : Window
     // Records the result at once, then swaps to the result screen after the last trick has been seen.
     private void CompleteCampaignMatch(GameSession session, GameView view)
     {
-        _campaign.MatchCompleted(view.GameWinner == 0, view.Scores);
+        _campaign.MatchCompleted(view.GameWinner == 0, view.Scores, view);
         DispatcherTimer.RunOnce(async () =>
         {
             if (!ReferenceEquals(session, _session)) return;
@@ -810,7 +810,8 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
-            if (RenderHotseatHandoff(session, view)) return;
+            UpdatePublicLog(view);
+            if (RenderHotseatHandoff(session, view)) { RenderScoreSummary(view); return; }
 
             var renderKey = JsonSerializer.Serialize(view) + '\n' + (session.LastError ?? string.Empty);
             if (renderKey == _renderKey)
@@ -1194,6 +1195,7 @@ public sealed partial class MainWindow : Window
         _actionButtons.Children.Clear();
         _actionHelp.Text = string.Empty;
         _actionView = view;
+        RenderScoreSummary(view);
         RenderChoices(view);
         ShowCenter(view.Phase is GamePhase.GameComplete);
     }
@@ -1765,6 +1767,7 @@ public sealed partial class MainWindow : Window
 
     private void RenderWaitingTable()
     {
+        ResetScoreHistory();
         _startButton.IsVisible = true;
         _startButton.IsEnabled = true;
         _startButton.Content = "Start session";

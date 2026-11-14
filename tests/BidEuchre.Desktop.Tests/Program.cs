@@ -17,6 +17,10 @@ AppBuilder.Configure<Application>()
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
+if (args.Contains("--table-rendering-only")) { TableRenderingTests.Run(); return; }
+
+if (args.Contains("--score-history-only")) { ScoreHistoryUiTests.Run(); return; }
+
 if (args.Contains("--shop-only")) { CampaignShopUiTests.Run(); return; }
 
 if (args.Contains("--contract-ui-only")) { ContractAnnouncementUiTests.Run(); return; }
@@ -30,6 +34,7 @@ if (args.Contains("--engine-setup-only")) { EngineSetupUiTests.Run(); return; }
 if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
 
 CampaignShopUiTests.Run();
+ScoreHistoryUiTests.Run();
 EngineSetupUiTests.Run();
 RematchHotseatTests.Run();
 ContractPresentationTests.Run();
