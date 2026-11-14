@@ -139,14 +139,21 @@ internal static class CampaignShopScreen
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
             var ink = Ink(category);
-            var use = MenuParts.Button("Use", true, motion, $"Use{category}{slot}", () => actions.UseItem(category, slot), true, 264);
-            use.IsEnabled = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
+            var usable = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
+            // The detail panel is rebuilt on every press, so it needs its own Use button each time:
+            // a control can only sit in one panel, and reusing one crashed on the second press.
+            Button Use()
+            {
+                var use = MenuParts.Button("Use", true, motion, $"Use{category}{slot}", () => actions.UseItem(category, slot), true, 264);
+                use.IsEnabled = usable;
+                return use;
+            }
             ownedItems.Children.Add(Selectable(Small(definition, ink), ink, $"Owned{category}{slot}", $"Your {category}: {definition.Name}", () => Detail(
                 $"YOUR {category.ToString().ToUpperInvariant()}", ink, definition.Name, definition.Description,
                 category == FeatureCategory.Sigil
                     ? "Use it now on a card of the shared deck, or keep it to play on a card in your hand during a match. Replaces that card's current Sigil."
                     : "Use it now on the shared deck, or keep it to play on your hand on any of your turns in a match.",
-                use, MenuParts.Button("Discard", false, motion, $"Discard{category}{slot}", () => actions.DiscardItem(category, slot), true, 264))));
+                Use(), MenuParts.Button("Discard", false, motion, $"Discard{category}{slot}", () => actions.DiscardItem(category, slot), true, 264))));
         }
         while (ownedItems.Children.Count < CampaignTableControls.ItemSlots) ownedItems.Children.Add(EmptySlot());
 
