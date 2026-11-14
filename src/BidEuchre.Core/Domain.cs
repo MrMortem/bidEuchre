@@ -178,7 +178,31 @@ public sealed record HandResult(
     int DefendingTeamTricks,
     int TeamZeroDelta,
     int TeamOneDelta,
-    string Reason);
+    string Reason)
+{
+    // Illegal-play awards may make a contract before its normal six tricks finish.
+    public bool MadeContract { get; init; } = BiddingTeamTricks >= Contract.RequiredTricks;
+    private readonly IReadOnlyList<TeamScoreBreakdown> _scoreBreakdowns = Array.Empty<TeamScoreBreakdown>();
+    public IReadOnlyList<TeamScoreBreakdown> ScoreBreakdowns
+    {
+        get => _scoreBreakdowns;
+        init => _scoreBreakdowns = Array.AsReadOnly(value.ToArray());
+    }
+}
+
+/// <summary>Exact score arithmetic. Fixed bid rewards apply after the whole-hand multiplier.</summary>
+public sealed record TeamScoreBreakdown(int Team, int ContractPoints, int CardPoints, int JokerPoints,
+    int TrickModifierPoints, int HandMultiplier, int OpponentBidBonus)
+{
+    private readonly IReadOnlyList<GumballBidBonus> _gumballBonuses = Array.Empty<GumballBidBonus>();
+    public IReadOnlyList<GumballBidBonus> GumballBonuses
+    {
+        get => _gumballBonuses;
+        init => _gumballBonuses = Array.AsReadOnly(value.ToArray());
+    }
+    public int FinalDelta => checked((ContractPoints + CardPoints + JokerPoints + TrickModifierPoints)
+        * HandMultiplier + OpponentBidBonus + GumballBonuses.Sum(bonus => bonus.Points));
+}
 
 // Free play uses the defaults; campaign options set ante thresholds and successful opponent bid points.
 public sealed record MatchOptions(int TargetScore = 40, int StartingScoreTeam0 = 0, int StartingScoreTeam1 = 0)

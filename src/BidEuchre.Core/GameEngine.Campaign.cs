@@ -182,7 +182,7 @@ public sealed partial class GameEngine
                     PlayCard(seat, TokenFor(p.Id)); break;
                 case CampaignCommand.Exchange e: ExchangeCard(seat, TokenFor(e.Id)); break;
                 case CampaignCommand.PanicButton:
-                    _scores[0] -= 8; _events.Add("Panic Button: your team -8; hand consumed.");
+                    _scores[0] -= 8; CompletionReason = "Panic Button: your team -8; hand consumed."; _events.Add(CompletionReason);
                     CurrentSeat = null; GameWinner = DetermineGameWinner(); Phase = GameWinner is null ? GamePhase.HandComplete : GamePhase.GameComplete;
                     if (GameWinner is not null) CampaignMatchEnd(); break;
                 case CampaignCommand.SwapPartnerCard swap:
@@ -292,7 +292,7 @@ public sealed partial class GameEngine
         _campaignTrickHistory[_completedTricks.Count] = plays.Select(p => new CampaignTrickPlay(p.Seat, CardView(p.Card), EffectiveCampaignSuit(p.Card))).ToArray();
         ResolveWonTrick(winner, plays);
     }
-    private int[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
+    private TeamScoreBreakdown[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
     private void CampaignMatchEnd() => ResolveMatchEnd();
     // A stored Tarot or Sigil is played on any of the human's own turns; a failed one leaves nothing behind.
     private void UseItem(Action resolve)

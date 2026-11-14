@@ -134,7 +134,7 @@ public sealed partial class GameEngine
         _trickPoints.Clear();
     }
     private static bool IsRed(Suit s) => s is Suit.Hearts or Suit.Diamonds;
-    private int[] SettleCampaignHand(int[] normal)
+    private TeamScoreBreakdown[] SettleCampaignHand(int[] normal)
     {
         var bidderTeam = Bidder!.Value % 2; var success = _tricksByTeam[bidderTeam] >= Contract!.RequiredTricks;
         if (!success && Has(JokerId.ProtectiveBubble) && bidderTeam == 0)
@@ -154,16 +154,16 @@ public sealed partial class GameEngine
         var gumballBonuses = GumballRewards.SuccessfulBidBonuses(_resources.Inventory, Bidder.Value, success, Contract.Bid, Contract.Mode, _variant);
         foreach (var reward in gumballBonuses)
             _events.Add($"{FeatureCatalog.Get(FeatureCategory.Gumball, reward.Id.ToString()).Name} duplicates: +{reward.Points} points for team {reward.Team + 1} after hand multiplier.");
+        var breakdowns = new TeamScoreBreakdown[2];
         for (var team = 0; team < 2; team++)
         {
-            var bonus = (team == 1 ? opponentBonus : 0) + gumballBonuses.Where(reward => reward.Team == team).Sum(reward => reward.Points);
             _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}; opponent bid bonus {Signed(team == 1 ? opponentBonus : 0)} after hand multiplier.");
-            // Ante and duplicate-gumball rewards are fixed, outside all trick and whole-hand multipliers.
-            try { normal[team] = checked((normal[team] + _cardPoints[team] + _jokerPoints[team] + _modifierPoints[team]) * factor + bonus); }
-            catch (OverflowException) { throw new GameRuleException("The hand score exceeds the supported point total."); }
+            // Settlement and its public explanation share the same arithmetic and reward entries.
+            breakdowns[team] = new(team, normal[team], _cardPoints[team], _jokerPoints[team], _modifierPoints[team], factor, team == 1 ? opponentBonus : 0)
+            { GumballBonuses = gumballBonuses.Where(reward => reward.Team == team).ToArray() };
         }
         _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Select(j => j.Id == JokerId.DejaVu ? j with { Value = _dejaValue } : j).ToArray() } };
-        return normal;
+        return breakdowns;
     }
     private void ResolveMatchEnd()
     {

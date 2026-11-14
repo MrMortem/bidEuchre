@@ -10,6 +10,12 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Score explanations plain and illegal penalty results", () => Run(ScoreExplanationTests.PlainAndPenaltyResults)),
+    ("Score explanations campaign factors and fixed bonuses", () => Run(ScoreExplanationTests.CampaignFactorsAndFixedBonuses)),
+    ("Score explanations failure protection and Duelist", () => Run(ScoreExplanationTests.FailedProtectionAndDuelist)),
+    ("Score explanations history and public events", () => Run(ScoreExplanationTests.HistoryAndPublicEvents)),
+    ("Score explanations copied history and additive protocol", () => Run(ScoreExplanationTests.HistoryCopiesAndAdditiveProtocol)),
+    ("Score explanations Panic completion has no fabricated contract", () => Run(ScoreExplanationTests.PanicCompletionHasNoFabricatedContract)),
     ("Duplicate gumballs Astronomer remains usable in a match after all unlocks", () => Run(GumballDuplicateTests.MatchAstronomerAfterAllUnlocks)),
     ("Duplicate gumballs successful human matching bid earns extra copies", () => Run(GumballDuplicateTests.SuccessfulHumanBonus)),
     ("Duplicate gumballs bid types stack after multipliers and exclude failed partner unrelated bids", () => Run(GumballDuplicateTests.AllMatchingTypesAndExclusions)),
