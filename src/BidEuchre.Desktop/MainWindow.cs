@@ -188,7 +188,7 @@ public sealed partial class MainWindow : Window
             Children =
             {
                 _pageHost,
-                menuButton,
+                BuildTableNavigation(menuButton),
                 Place(_status, row: 1)
             }
         };
@@ -760,7 +760,7 @@ public sealed partial class MainWindow : Window
         var viewer = _viewer;
         var revision = _input.Revision;
         // Redrawing would drop a card the player is holding; the drop refreshes the table itself.
-        if (_refreshing || session is null || HandDrag.Active)
+        if (_refreshing || session is null || HandDrag.Active || _liveSettingsOpen)
         {
             return;
         }
@@ -768,11 +768,12 @@ public sealed partial class MainWindow : Window
         try
         {
             var view = await session.GetViewAsync(viewer);
+            if (_liveSettingsOpen || revision != _input.Revision) return;
             if (view?.Campaign is { } arranging && await AutoArrangeCampaignHandAsync(session, view, arranging))
                 view = await session.GetViewAsync(viewer);
             if (generation != _sessionGeneration ||
                 viewer != _viewer || revision != _input.Revision ||
-                !ReferenceEquals(session, _session))
+                !ReferenceEquals(session, _session) || _liveSettingsOpen)
             {
                 return;
             }
@@ -1665,7 +1666,8 @@ public sealed partial class MainWindow : Window
         _screenHost.Content = MainMenu.Build(_campaign.Open, ShowTable, ShowCollection, ShowEngines, ShowRules, ShowSettings, _motion);
     }
 
-    private bool TableShown => ReferenceEquals(_pageHost.Content, _playHost);
+    private bool TableShown => !_liveSettingsOpen && ReferenceEquals(_screenHost.Content, _tableScreen)
+        && ReferenceEquals(_pageHost.Content, _playHost);
 
     private void ShowTable() => ShowPage(_playHost);
 

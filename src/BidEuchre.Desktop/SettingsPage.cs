@@ -10,7 +10,7 @@ namespace BidEuchre.Desktop;
 internal static class SettingsPage
 {
     // Every change is reported immediately; the window applies and saves it.
-    public static Control Build(GamePreferences current, Func<GamePreferences, bool> changed, Action back, PixelMotion effects)
+    public static Control Build(GamePreferences current, Func<GamePreferences, bool> changed, Action back, PixelMotion effects, bool matchPaused = false)
     {
         var preferences = current;
         var saveError = new TextBlock
@@ -61,7 +61,7 @@ internal static class SettingsPage
             if (scale.SelectedIndex >= 0) Publish(preferences with { UiScale = scales[scale.SelectedIndex] });
         };
 
-        var menu = MenuParts.Button("← Menu", false, effects, "SettingsBack", back, width: 180);
+        var menu = MenuParts.Button(matchPaused ? "Back to table" : "← Menu", false, effects, "SettingsBack", back, width: matchPaused ? 240 : 180);
         menu.HorizontalAlignment = HorizontalAlignment.Left;
 
         var rows = new StackPanel { Spacing = 14 };
@@ -89,6 +89,11 @@ internal static class SettingsPage
             rows.Children.Add(row);
         }
 
+        var pause = new TextBlock
+        {
+            Name = "SettingsMatchPaused", IsVisible = matchPaused, Text = "Match paused",
+            Foreground = Gold, FontSize = 17, FontFamily = PixelArt.Font
+        };
         var title = MenuParts.Title(effects, "SETTINGS", 46);
         title.HorizontalAlignment = HorizontalAlignment.Left;
         var content = new StackPanel
@@ -97,6 +102,7 @@ internal static class SettingsPage
             Children =
             {
                 effects.Enter(menu, 0, -16, 0),
+                pause,
                 effects.Enter(title, 80, 0, -22, easing: new BackEaseOut(), duration: 360),
                 effects.Enter(new TextBlock
                 {

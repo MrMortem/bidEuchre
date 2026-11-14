@@ -15,6 +15,10 @@ AppBuilder.Configure<Application>()
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
+if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
+
+SessionPauseTests.Run();
+LiveSettingsTests.Run();
 EnhancementBackgroundTests.Run();
 HandReadabilityTests.Run();
 CuratedArtTests.Run();

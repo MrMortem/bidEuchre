@@ -22,6 +22,8 @@ public sealed class GameSession : IAsyncDisposable
     private Task? _disposeTask;
     private int? _observedTerminalHand;
     private TaskCompletionSource? _dealReady;
+    private TaskCompletionSource? _resumeReady;
+    private bool _paused;
     public bool WaitingForDeal => _dealReady is { Task.IsCompleted: false };
 
     public GameSession(
@@ -66,9 +68,11 @@ public sealed class GameSession : IAsyncDisposable
     {
         using var startup = CreateStartupCancellation(cancellationToken);
         await _gate.WaitAsync(startup.Token);
+        var initializing = false;
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game is not null)
             {
                 throw new GameRuleException("This session has already started.");
@@ -76,6 +80,7 @@ public sealed class GameSession : IAsyncDisposable
 
             if (_campaign is not null && Seats.Any(s => s.Kind == PlayerKind.Bot && s.EngineId is not null && s.EngineId != EngineCatalog.BuiltInEngineId))
                 throw new GameRuleException("External engines do not support campaign cards and bidding options.");
+            initializing = true;
             foreach (var seat in Seats.Where(seat => seat.Kind is PlayerKind.Bot))
             {
                 ThrowIfClosing();
@@ -96,14 +101,48 @@ public sealed class GameSession : IAsyncDisposable
         }
         catch
         {
-            await DisposeBotsAsync();
-            Game = null;
+            if (initializing)
+            {
+                await DisposeBotsAsync();
+                Game = null;
+            }
             throw;
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>Stops table mutations after the current locked operation has completed.
+    /// A cancelled visual deal is acknowledged here so hiding the table cannot strand its bots.</summary>
+    public async Task PauseAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (_paused) return;
+            _paused = true;
+            _resumeReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _dealReady?.TrySetResult();
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task ResumeAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            _paused = false;
+            _resumeReady?.TrySetResult();
+            _resumeReady = null;
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<GameView?> GetViewAsync(int? viewerSeat, CancellationToken cancellationToken = default)
@@ -128,6 +167,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (WaitingForDeal) throw new GameRuleException("Wait for dealing to finish before bidding.");
             if (Game?.IsCampaign is true) throw new GameRuleException("Campaign tables only accept campaign actions.");
             EnsureHumanTurn(request.Seat);
@@ -170,6 +210,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game?.IsCampaign is not true || WaitingForDeal) throw new GameRuleException("Wait for the campaign deal to finish.");
             GameRules.ValidateSeat(request.Seat);
             if (Seats[request.Seat].Kind != PlayerKind.Human) throw new GameRuleException("Bot actions come from the campaign policy.");
@@ -191,6 +232,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game is null) throw new GameRuleException("The session has not started.");
             change(Game);
             LastError = null; CheckpointCampaign(); await ObserveTerminalStateLockedAsync(_lifetime.Token);
@@ -207,6 +249,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game?.IsCampaign is not true) throw new GameRuleException("Only campaign hands are arranged on the table.");
             GameRules.ValidateSeat(seat);
             if (Seats[seat].Kind != PlayerKind.Human) throw new GameRuleException("Only a human seat arranges its hand.");
@@ -222,6 +265,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game is null)
             {
                 throw new GameRuleException("The session has not started.");
@@ -370,11 +414,16 @@ public sealed class GameSession : IAsyncDisposable
         for (var actions = 0; actions < 200; actions++)
         {
             if (_dealReady is { } deal) await deal.Task.WaitAsync(cancellationToken);
-            int expectedSeat;
+            int expectedSeat = -1;
+            Task? resume = null;
             await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (Game is null ||
+                if (_paused)
+                {
+                    resume = _resumeReady!.Task;
+                }
+                else if (Game is null ||
                     Game.Phase is GamePhase.HandComplete or GamePhase.GameComplete ||
                     (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) is null ||
                     !_bots.ContainsKey((Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value))
@@ -382,11 +431,18 @@ public sealed class GameSession : IAsyncDisposable
                     return;
                 }
 
-                expectedSeat = (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value;
+                if (resume is null) expectedSeat = (Game!.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value;
             }
             finally
             {
                 _gate.Release();
+            }
+
+            if (resume is not null)
+            {
+                await resume.WaitAsync(cancellationToken);
+                actions--; // A pause does not consume the bot action guard or an action delay.
+                continue;
             }
 
             if (nextDelay > TimeSpan.Zero)
@@ -397,6 +453,7 @@ public sealed class GameSession : IAsyncDisposable
             await _gate.WaitAsync(cancellationToken);
             try
             {
+                if (_paused) { actions--; continue; }
                 if (WaitingForDeal) continue;
                 if (Game is null || (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) != expectedSeat || !_bots.TryGetValue(expectedSeat, out var bot))
                 {
@@ -656,6 +713,11 @@ public sealed class GameSession : IAsyncDisposable
 
             return CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         }
+    }
+
+    private void ThrowIfPaused()
+    {
+        if (_paused) throw new GameRuleException("Match paused. Return to the table to continue.");
     }
 
     private void ThrowIfClosing()
