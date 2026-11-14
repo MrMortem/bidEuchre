@@ -6,14 +6,15 @@ const os = require('node:os');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const dotnet = process.env.BIDEUCHRE_DOTNET || 'dotnet';
-let directory, server, base, logs = '';
+let directory, campaignRoot, server, base, logs = '';
 before(async () => {
+  campaignRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bideuchre-published-campaign-'));
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'bideuchre-published-'));
   execFileSync(dotnet, ['publish', path.join(root, 'src/BidEuchre.Server/BidEuchre.Server.csproj'),
     '-c', 'Debug', '-o', directory, '--nologo', '-p:UseSharedCompilation=false'], {
     cwd: root, env: { ...process.env, DOTNET_CLI_HOME: path.join(root, '.dotnet-home') }, stdio: 'pipe'
   });
-  server = spawn(dotnet, [path.join(directory, 'BidEuchre.Server.dll'), '--urls=http://127.0.0.1:0'], {
+  server = spawn(dotnet, [path.join(directory, 'BidEuchre.Server.dll'), '--urls=http://127.0.0.1:0', `--WebCampaigns:DataDirectory=${campaignRoot}`], {
     cwd: directory, env: { ...process.env, DOTNET_CLI_HOME: path.join(root, '.dotnet-home') }
   });
   server.stdout.on('data', data => { logs += data; });
@@ -31,6 +32,7 @@ after(async () => {
   if (server && server.exitCode === null) {
     server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve));
   }
+  if (campaignRoot) fs.rmSync(campaignRoot, { recursive: true, force: true });
   if (directory) fs.rmSync(directory, { recursive: true, force: true });
 });
 test('published server serves authoritative rules outside the source tree', async () => {

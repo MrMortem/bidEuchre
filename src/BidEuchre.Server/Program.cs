@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<EngineCatalog>();
 builder.Services.AddSingleton<WebSessions>();
 builder.Services.AddHostedService<WebSessionReaper>();
+builder.Services.AddSingleton<WebCampaigns>();
+builder.Services.AddHostedService<WebCampaignReaper>();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
@@ -18,6 +20,20 @@ var app = builder.Build();
 app.UseExceptionHandler(handler => handler.Run(async context =>
 {
     var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    if (exception is CampaignApiException campaign)
+    {
+        context.Response.StatusCode = campaign.Status;
+        context.Response.Headers.CacheControl = "no-store";
+        await context.Response.WriteAsJsonAsync(new { code = campaign.Code, error = campaign.Message, refresh = campaign.Code is "stale_state" or "profile_required" });
+        return;
+    }
+    if (context.Request.Path.StartsWithSegments("/api/campaign") && exception is GameRuleException)
+    {
+        context.Response.StatusCode = 400;
+        context.Response.Headers.CacheControl = "no-store";
+        await context.Response.WriteAsJsonAsync(new { code = "illegal_action", error = exception.Message, refresh = false });
+        return;
+    }
     var status = exception is SessionCapacityException ? StatusCodes.Status429TooManyRequests
         : exception is KeyNotFoundException ? StatusCodes.Status404NotFound
         : exception is GameRuleException or ProtocolException or ArgumentException
@@ -127,6 +143,8 @@ app.MapGet("/api/rules", async () =>
     var path = Path.Combine(AppContext.BaseDirectory, "bid-euchre-final-rules.md");
     return Results.Text(await File.ReadAllTextAsync(path), "text/markdown");
 });
+
+app.MapCampaignEndpoints();
 
 app.MapFallbackToFile("index.html");
 

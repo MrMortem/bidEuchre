@@ -304,10 +304,13 @@ continues.
 
 Win rewards are $5/$6/$8 for Small/Medium/Boss matches, plus $2/$4/$6 for victory
 margins of 1–4/5–9/10+. Losses keep card and Joker earnings. Interest is $1 per $5
-held after rewards, capped at $5. Match-end earnings and shop purchases are saved;
-quitting an unfinished match retains committed card/inventory/money changes and
-counts as a loss on Continue. A failed save is reported, and play can continue
-in memory.
+held after rewards, capped at $5. Version 3 saves commit the hand, auction, pending
+choices, effects, physical card order and arrangement policy atomically with campaign
+resources after accepted actions. Closing the window preserves the match; Continue
+restores it without charging a life. The menu's explicit Forfeit applies the loss
+immediately. Older version 2 or bare saves restart the same match with a visible
+legacy notice because they did not store the hand. Invalid saves are preserved until
+explicit recovery. Failed saves are reported and accepted changes remain in memory.
 
 Campaign bots use the campaign's legal actions. Opponents can benefit from shared
 card effects; they do not buy or use items in this version. External engines remain
@@ -318,3 +321,21 @@ claim of competitive balance or improved bot strength.
 For an isolated local profile, set `BIDEUCHRE_DATA_DIRECTORY` before launching.
 The app creates its `BidEuchre` subfolder there. Without the variable it uses the
 normal local application-data directory.
+
+### Browser campaigns
+
+Choose **Play campaign** for a persistent single-player run: you control seat 0 and three built-in campaign bots control the other seats. Campaigns use the shared desktop game rules, shop, physical card identities, and exact match saves. Freeplay tables remain shared, memory-only tables under `/api/sessions`; campaigns never appear in that list.
+
+Each browser cookie jar has one private run. Closing a tab or returning to Tables keeps progress; **Forfeit** explicitly charges the campaign loss. **Continue** restores the saved hand, auction, pending choices, items and card order with fresh bots. Results and their scoring history survive server restarts. New run replaces your current run; Delete removes your own saved run. An unreadable save stays untouched until you explicitly choose recovery by New run or Delete.
+
+Campaign saves default to `BidEuchre/web-campaigns` beneath .NET's user `LocalApplicationData` directory. Each file is `<root>/<hashed-browser-identity>/campaign.json`, separate from the desktop `BidEuchre/campaign.json`. No browser input controls a filesystem path. The directory must be outside `wwwroot` and the published application output. Configure it using ASP.NET configuration, for example:
+
+```sh
+dotnet run --project src/BidEuchre.Server -- --WebCampaigns:DataDirectory=/absolute/private/campaign-data
+```
+
+`WebCampaigns:MaxSessions` defaults to 32 (range 1–128) and `WebCampaigns:IdleTimeoutSeconds` to 1800 (range 1–86400). Idle eviction stops resident bots without losing a life or deleting the save. GET displays a dormant saved match; Continue activates it. Each resident profile holds at most one session. The root is exclusively locked for the process lifetime: two servers cannot safely write the same directory. Automated server tests use separate temporary roots.
+
+The persistent `bideuchre.campaign` cookie lasts one year and is HttpOnly, SameSite Strict, host-only, scoped to `/api/campaign`, and Secure on HTTPS. Plain loopback HTTP remains supported. `localhost` and `127.0.0.1` have distinct identities; cookies are shared across ports on the same host. Separate instances on one host should configure both separate roots and distinct `WebCampaigns:CookieName` values. Losing/clearing the cookie loses access to that run; there is no public profile listing or account recovery. Saved files are not automatically deleted on cookie or runtime expiry.
+
+All existing loopback, Host, same-origin and JSON mutation protections remain active. This is a local browser client, not a hosted account service. If saving fails, the accepted action stays in memory and the UI reports unsaved progress. Dirty sessions are retained at the capacity limit while saves retry; shutting down with persistent disk failure cannot guarantee that unsaved progress survives. After a network failure, refresh the current state before choosing another action; purchases and game moves are never automatically replayed.

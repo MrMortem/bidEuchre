@@ -4,6 +4,7 @@ namespace BidEuchre.App;
 public static class CampaignShop
 {
     public const int GumballPrice = 3;
+    public const int JokerSellValue = 2;
     private const string Full = "Your card slots are full. Use or discard a card first.";
     public static int RerollPrice(CampaignRun run) => checked(2 + (run.Shop?.RerollCount ?? 0));
 
@@ -186,8 +187,8 @@ public static class CampaignShop
     {
         RequireCurrentShop(run, expectedRevision);
         if (!run.Resources.Inventory.Has(id)) throw new GameRuleException("That Joker cannot be sold now.");
-        var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money + 2;
-        return run with { Money = run.Money + 2, Resources = resources with { Revision = resources.Revision + 1, Inventory = resources.Inventory with { Jokers = resources.Inventory.Jokers.Where(j => j.Id != id).ToArray() } } };
+        var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money + JokerSellValue;
+        return run with { Money = run.Money + JokerSellValue, Resources = resources with { Revision = resources.Revision + 1, Inventory = resources.Inventory with { Jokers = resources.Inventory.Jokers.Where(j => j.Id != id).ToArray() } } };
     }
     private static CampaignSnapshot ApplySigil(CampaignSnapshot resources, SigilId sigil, CardId target)
     {

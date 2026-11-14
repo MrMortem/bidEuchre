@@ -2,15 +2,18 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
+const fs = require('node:fs'), os = require('node:os');
+let campaignRoot;
 let chromium;
 try { ({ chromium } = require('../browser/node_modules/playwright')); } catch {}
 const root = path.resolve(__dirname, '../..');
 let browser, server, base, logs = '';
 before(async () => {
   if (!chromium) return;
+  campaignRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bideuchre-browser-campaign-'));
   browser = await chromium.launch({ headless: true });
   server = spawn(process.env.BIDEUCHRE_DOTNET || 'dotnet', [
-    path.join(root, 'src/BidEuchre.Server/bin/Debug/net10.0/BidEuchre.Server.dll'), '--urls=http://127.0.0.1:0', '--WebSessions:MaxSessions=4'
+    path.join(root, 'src/BidEuchre.Server/bin/Debug/net10.0/BidEuchre.Server.dll'), '--urls=http://127.0.0.1:0', '--WebSessions:MaxSessions=4', `--WebCampaigns:DataDirectory=${campaignRoot}`
   ], { cwd: path.join(root, 'src/BidEuchre.Server'), env: {
     ...process.env, DOTNET_CLI_HOME: path.join(root, '.dotnet-home')
   } });
@@ -30,6 +33,7 @@ after(async () => {
   if (server && server.exitCode === null) {
     server.kill('SIGTERM'); await new Promise(resolve => server.once('exit', resolve));
   }
+  if (campaignRoot) fs.rmSync(campaignRoot, { recursive: true, force: true });
 });
 const skip = chromium ? false : 'Run npm ci --prefix tests/browser and install Chromium to enable real browser regressions';
 test('Tab, Enter and Space reopen lobby tables and move focus into the table', { skip }, async () => {
