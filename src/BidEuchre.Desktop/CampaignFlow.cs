@@ -199,8 +199,8 @@ internal sealed class CampaignFlow(
         try
         {
             var after = CampaignShop.Buy(before, id, expectedRevision: revision);
-            var gumball = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks).Single();
-            _note = $"The gumball unlocked the {FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name} bid!";
+            var gumball = Enum.Parse<GumballId>(after.Shop!.Offers.Single(offer => offer.Id == id).FeatureId);
+            _note = GumballReport("The gumball", before.Resources.Inventory, after.Resources.Inventory, gumball);
             Persist(after);
             return gumball;
         }
@@ -254,9 +254,8 @@ internal sealed class CampaignFlow(
     private static string UseReport(string name, CampaignRun before, CampaignRun after)
     {
         static string Card(CardState card) => $"{Core.Card.DisplayRank(card.Face.Rank)} of {card.Face.Suit}";
-        var gumballs = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks)
-            .Select(id => FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Name).ToArray();
-        if (gumballs.Length > 0) return $"{name} unlocked the {gumballs[0]} bid!";
+        var gumballs = Enum.GetValues<GumballId>().Where(id => after.Resources.Inventory.GumballCopies(id) > before.Resources.Inventory.GumballCopies(id)).ToArray();
+        if (gumballs.Length > 0) return GumballReport(name, before.Resources.Inventory, after.Resources.Inventory, gumballs[0]);
         // Card ids keep their place in the deck, so the same index is the same physical card.
         var changes = after.Resources.Deck.Select((card, index) => (Old: before.Resources.Deck[index], New: card)).Where(pair => pair.Old != pair.New)
             .Select(pair => pair.New.Sigil is { } sigil && pair.Old.Sigil != sigil
@@ -265,6 +264,14 @@ internal sealed class CampaignFlow(
                 ? $"{Card(pair.Old)} is now {enhancement}" : $"{Card(pair.Old)} is now the {Card(pair.New)}").ToArray();
         if (changes.Length > 0) return $"{name}: {string.Join(", ", changes)}!";
         return $"Used {name}!";
+    }
+    private static string GumballReport(string source, CampaignInventory before, CampaignInventory after, GumballId id)
+    {
+        var name = FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Name;
+        if (!before.Unlocks.Contains(id)) return $"{source} unlocked the {name} bid!";
+        var reward = id == GumballId.PanicButton ? "No successful contract reward!"
+            : $"+{after.GumballExtraCopies.GetValueOrDefault(id)} points on your successful matching bid, after hand multipliers!";
+        return $"{source} granted {name} copy {after.GumballCopies(id)}! {reward}";
     }
     private void Sell(JokerId id, long revision) => Transact(() => CampaignShop.SellJoker(Run!, id, revision));
     private void Discard(FeatureCategory category, int slot, long revision) => Transact(() => category == FeatureCategory.Sigil

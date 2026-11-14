@@ -25,15 +25,16 @@ public sealed partial class GameEngine
         var tarot = inventory.Tarot[request.Slot]; var targets = request.Targets?.ToArray() ?? throw new GameRuleException("Choose Tarot targets.");
         var required = Tarot.TargetCount(tarot);
         if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !_hands[0].Contains(TokenFor(id)))) throw new GameRuleException("Choose the required distinct cards from your hand.");
-        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == CampaignInventory.GumballCount) throw new GameRuleException("All bidding options are unlocked.");
         // Validate everything before RNG, consumption, or permanent mutations.
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
         {
             case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), "Taxes"); break;
             case TarotId.Astronomer:
-                var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
-                inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[_campaignRandom.NextInt(options.Length)]] }; break;
+                var grant = GumballGrants.Pull(inventory, _campaignRandom.State);
+                inventory = grant.Inventory; _campaignRandom = new(grant.RandomState);
+                _events.Add($"Astronomer granted {FeatureCatalog.Get(FeatureCategory.Gumball, grant.Id.ToString()).Name} (copy {inventory.GumballCopies(grant.Id)}).");
+                break;
             case TarotId.Gambler:
                 // Physical order, so how the player arranged their hand cannot steer the draw.
                 var choices = _hands[0].Select(IdFor).OrderBy(id => id.Value).ToList(); _campaignRandom.Shuffle(choices);

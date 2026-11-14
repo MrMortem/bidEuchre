@@ -35,9 +35,12 @@ public sealed record CampaignInventory(JokerState[] Jokers, TarotId[] Tarot, Gum
     /// <summary>How many bidding options there are to unlock.</summary>
     public static readonly int GumballCount = Enum.GetValues<GumballId>().Length;
     public SigilId[] Sigils { get; init; } = [];
+    /// <summary>Acquisitions beyond the first, separate from the unique bidding unlocks.</summary>
+    public Dictionary<GumballId, int> GumballExtraCopies { get; init; } = [];
+    public long GumballCopies(GumballId id) => (Unlocks.Contains(id) ? 1L : 0L) + GumballExtraCopies.GetValueOrDefault(id);
     public int ItemCount => Tarot.Length + Sigils.Length;
     public bool HasItemRoom => ItemCount < ItemSlots;
     public static CampaignInventory Empty => new([], [], []);
-    public CampaignInventory Copy() => new(Jokers.ToArray(), Tarot.ToArray(), Unlocks.ToArray()) { Sigils = Sigils.ToArray() };
+    public CampaignInventory Copy() => new(Jokers.ToArray(), Tarot.ToArray(), Unlocks.ToArray()) { Sigils = Sigils.ToArray(), GumballExtraCopies = new(GumballExtraCopies) };
     public bool Has(JokerId id) => Jokers.Any(j => j.Id == id);
 }

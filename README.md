@@ -286,8 +286,14 @@ Between matches the shop offers two $4 Jokers, a $3 Tarot, a $3 Sigil, and a
 gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
 four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
 gumball rolls out and permanently unlocks a random bidding option you do not
-have yet; Partners Best, Alone, and the High and Low contracts
-start locked for you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+have yet. After all nine unique bids are unlocked, pulls grant random duplicates.
+Astronomer uses the same rule and grants its gumball immediately, without a held
+Planet card. Each extra copy awards +1 fixed point after hand multipliers when
+you successfully make its matching bid; matching types such as Alone and High/Low
+stack once each. Failed, unrelated and partner-made bids earn no duplicate bonus.
+Panic Button has no successful contract, so its extra copies award no success
+points. Unique unlocks and duplicate counts persist for the run. Partners Best,
+Alone, and the High and Low contracts start locked for you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
 shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
 it is yours to act: in the shop and on the screen before a match it is aimed at
 the shared deck, and during a match it is played on cards in your hand on any of

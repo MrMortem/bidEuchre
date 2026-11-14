@@ -10,6 +10,18 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Duplicate gumballs Astronomer remains usable in a match after all unlocks", () => Run(GumballDuplicateTests.MatchAstronomerAfterAllUnlocks)),
+    ("Duplicate gumballs successful human matching bid earns extra copies", () => Run(GumballDuplicateTests.SuccessfulHumanBonus)),
+    ("Duplicate gumballs bid types stack after multipliers and exclude failed partner unrelated bids", () => Run(GumballDuplicateTests.AllMatchingTypesAndExclusions)),
+    ("Duplicate gumballs reject invalid extra-copy counts", () => Run(GumballDuplicateTests.InvalidExtraCopies)),
+    ("Duplicate gumballs snapshot copies isolate counts and grants preserve RNG replay without overflow", () => Run(GumballDuplicateTests.CopyRandomAndOverflow)),
+    ("Duplicate gumballs reject malformed saved counts", () => Run(GumballDuplicateTests.MalformedSavedCounts)),
+    ("Duplicate gumballs developer lock removes extra copies with the unique unlock", DeveloperConsoleTests.LockGumballRemovesExtraCopies),
+    ("Duplicate gumballs Panic Button has no successful contract reward", () => Run(GumballDuplicateTests.PanicButtonHasNoSuccessReward)),
+    ("Duplicate gumballs persist paid pulls across regular rerolls and legacy saves", () => Run(GumballDuplicateTests.ShopGrantAndPersistence)),
+    ("Duplicate gumballs shop Astronomer grants immediately with full inventory", () => Run(GumballDuplicateTests.ShopAstronomerWithFullInventory)),
+    ("Duplicate gumballs migrate legacy completed shops without replenishing stock or sold pulls", () => Run(GumballDuplicateTests.LegacyCompletedShopKeepsDuplicatePullAvailable)),
+
     ("Engine catalogue and table setup persistence", EnginePersistenceTests.RunAsync),
     ("Settled ante EveryMatchUsesApprovedRules", () => Run(SettledAnteTests.EveryMatchUsesApprovedRules)),
     ("Settled ante SuccessfulOpponentBonusIsOnceAndPointsOnly", () => Run(SettledAnteTests.SuccessfulOpponentBonusIsOnceAndPointsOnly)),

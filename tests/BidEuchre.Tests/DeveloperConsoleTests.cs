@@ -91,6 +91,24 @@ internal static class DeveloperConsoleTests
         Assert.True(HasError(await console.ExecuteAsync("tarot add chameleon wizard")));
     }
 
+    public static async Task LockGumballRemovesExtraCopies()
+    {
+        var (console, host) = Create();
+        await host.UpdateResourcesAsync(resources => resources with { Inventory = resources.Inventory with
+        {
+            Unlocks = Enum.GetValues<GumballId>(),
+            GumballExtraCopies = new() { [GumballId.Chaos] = 2, [GumballId.Poker] = 3 }
+        } });
+        Assert.False(HasError(await console.ExecuteAsync("gumball lock chaos")));
+        Assert.False(host.Run!.Resources.Inventory.Unlocks.Contains(GumballId.Chaos));
+        Assert.False(host.Run.Resources.Inventory.GumballExtraCopies.ContainsKey(GumballId.Chaos));
+        Assert.Equal(3, host.Run.Resources.Inventory.GumballExtraCopies[GumballId.Poker]);
+        Assert.False(HasError(await console.ExecuteAsync("gumball lock all")));
+        Assert.Equal(0, host.Run.Resources.Inventory.Unlocks.Length);
+        Assert.Equal(0, host.Run.Resources.Inventory.GumballExtraCopies.Count);
+        Assert.True(host.Run.Resources.IsValid());
+    }
+
     public static async Task DeckCards()
     {
         var (console, host) = Create();

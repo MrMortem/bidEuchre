@@ -151,12 +151,16 @@ public sealed partial class GameEngine
         if (Contract.Bid <= BidLevel.Six) _matchOvertricks[bidderTeam] += Math.Max(0, _tricksByTeam[bidderTeam] - Contract.RequiredTricks);
         var factor = _variant == GumballId.Chaos ? 2 : 1;
         var opponentBonus = success && bidderTeam == 1 ? _matchOptions.OpponentSuccessfulBidBonus : 0;
+        var gumballBonuses = GumballRewards.SuccessfulBidBonuses(_resources.Inventory, Bidder.Value, success, Contract.Bid, Contract.Mode, _variant);
+        foreach (var reward in gumballBonuses)
+            _events.Add($"{FeatureCatalog.Get(FeatureCategory.Gumball, reward.Id.ToString()).Name} duplicates: +{reward.Points} points for team {reward.Team + 1} after hand multiplier.");
         for (var team = 0; team < 2; team++)
         {
-            var bonus = team == 1 ? opponentBonus : 0;
-            _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}; opponent bid bonus {Signed(bonus)} after hand multiplier.");
-            // Ante bonuses are fixed contract rewards, outside all trick and whole-hand multipliers.
-            normal[team] = (normal[team] + _cardPoints[team] + _jokerPoints[team] + _modifierPoints[team]) * factor + bonus;
+            var bonus = (team == 1 ? opponentBonus : 0) + gumballBonuses.Where(reward => reward.Team == team).Sum(reward => reward.Points);
+            _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}; opponent bid bonus {Signed(team == 1 ? opponentBonus : 0)} after hand multiplier.");
+            // Ante and duplicate-gumball rewards are fixed, outside all trick and whole-hand multipliers.
+            try { normal[team] = checked((normal[team] + _cardPoints[team] + _jokerPoints[team] + _modifierPoints[team]) * factor + bonus); }
+            catch (OverflowException) { throw new GameRuleException("The hand score exceeds the supported point total."); }
         }
         _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Select(j => j.Id == JokerId.DejaVu ? j with { Value = _dejaValue } : j).ToArray() } };
         return normal;

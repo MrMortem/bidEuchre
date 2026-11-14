@@ -69,7 +69,7 @@ public static class FeatureCatalog
         new("tarot:devilish-deal", FeatureCategory.Tarot, "DevilishDeal", "Devilish Deal", "Random enhancement on each of two selected cards; a third selected card becomes Cursed.", 3),
         new("tarot:gambler", FeatureCategory.Tarot, "Gambler", "Gambler", "Two random cards become Lucky.", 3),
         new("tarot:traitor", FeatureCategory.Tarot, "Traitor", "Traitor", "Make one card Silver.", 3),
-        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Unlock a random Gumball bid.", 3),
+        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Immediately grant a random locked Gumball bid; after all nine unlocks, grant a duplicate. Each extra copy earns +1 point on your successful matching bid, after hand multipliers. Panic Button has no successful contract reward.", 3),
         new("tarot:spring-loaded", FeatureCategory.Tarot, "SpringLoaded", "Ectoplasm", "Make one card Bouncy.", 3),
         new("tarot:tax-collector", FeatureCategory.Tarot, "TaxCollector", "Taxes", "Double money, capped at $20 gained.", 3),
     });

@@ -167,8 +167,8 @@ internal static class CampaignShopTests
         Assert.True(redrawn[1] != GumballId.Chaos);
 
         var full = Owning(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop), all);
-        Assert.Equal(0, CampaignShop.Open(full).Shop!.Offers.Count(o => o.Category == FeatureCategory.Gumball));
-        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(Owning(run, all), offer.Id));
+        Assert.Equal(1, CampaignShop.Open(full).Shop!.Offers.Count(o => o.Category == FeatureCategory.Gumball));
+        Assert.Equal(1, CampaignShop.Buy(Owning(run, all), offer.Id).Resources.Inventory.GumballExtraCopies.Values.Sum());
 
         var poor = run with { Money = 2 };
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(poor, offer.Id));
@@ -249,7 +249,7 @@ internal static class CampaignShopTests
         var astronomer = Stocked(TarotId.Astronomer);
         Assert.Equal(1, CampaignShop.BuyAndUse(astronomer, "t", []).Resources.Inventory.Unlocks.Length);
         var all = astronomer with { Resources = astronomer.Resources with { Inventory = astronomer.Resources.Inventory with { Unlocks = Enum.GetValues<GumballId>() } } };
-        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(all, "t", []));
+        Assert.Equal(1, CampaignShop.BuyAndUse(all, "t", []).Resources.Inventory.GumballExtraCopies.Values.Sum());
 
         var joker = start with { Shop = new(0, [new ShopOffer("j", FeatureCategory.Joker, "Alpha", 4)]) };
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(joker, "j", []));

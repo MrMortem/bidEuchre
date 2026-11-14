@@ -17,11 +17,26 @@ public static class CampaignShop
     public static CampaignRun Open(CampaignRun run)
     {
         if (run.Phase is not (CampaignPhase.Shop or CampaignPhase.Victory)) throw new GameRuleException("Shop is only available between matches.");
-        if (run.Shop?.MatchJustFinished == run.Match - 1) return run;
+        if (run.Shop?.MatchJustFinished == run.Match - 1)
+        {
+            // Completed collections in older saves omitted the machine for this visit entirely.
+            // Add that missing pull once without replenishing or rerolling any existing stock.
+            if (run.Resources.Inventory.Unlocks.Length == CampaignInventory.GumballCount
+                && run.Shop.Offers.All(offer => offer.Category != FeatureCategory.Gumball))
+            {
+                var id = $"{run.Match - 1}:gumball";
+                while (run.Shop.Offers.Any(offer => offer.Id == id)) id += ":new";
+                return run with
+                {
+                    Shop = run.Shop with { Offers = [.. run.Shop.Offers, new(id, FeatureCategory.Gumball, "", GumballPrice)] },
+                    Resources = run.Resources with { Revision = run.Resources.Revision + 1 }
+                };
+            }
+            return run;
+        }
         var random = new CampaignRandom(run.Resources.RandomState);
         // A gumball is a blind pull: which bid comes out is only drawn when it is paid for.
-        var gumball = run.Resources.Inventory.Unlocks.Length < CampaignInventory.GumballCount
-            ? new ShopOffer($"{run.Match - 1}:2", FeatureCategory.Gumball, "", GumballPrice) : null;
+        var gumball = new ShopOffer($"{run.Match - 1}:2", FeatureCategory.Gumball, "", GumballPrice);
         var offers = Stock(run, random, run.Match - 1, 0, gumball);
         return run with { Shop = new(run.Match - 1, offers), Resources = run.Resources with { RandomState = random.State, Revision = run.Resources.Revision + 1, Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
     }
@@ -84,13 +99,10 @@ public static class CampaignShop
                 if (inventory.Jokers.Length >= 5 || inventory.Has(joker)) throw new GameRuleException("Five Joker slots; no duplicates.");
                 inventory = inventory with { Jokers = [.. inventory.Jokers, new(joker)] }; break;
             case FeatureCategory.Gumball:
-                // Whatever the offer says, the bid is drawn now from the ones still locked.
-                var locked = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
-                if (locked.Length == 0) throw new GameRuleException("All bidding options are unlocked.");
-                var random = new CampaignRandom(resources.RandomState);
-                var gumball = locked[random.NextInt(locked.Length)];
-                resources = resources with { RandomState = random.State };
-                inventory = inventory with { Unlocks = [.. inventory.Unlocks, gumball] }; pulled = gumball.ToString(); break;
+                // Draw at purchase time: locked bids first, then repeat acquisitions.
+                var grant = GumballGrants.Pull(inventory, resources.RandomState);
+                resources = resources with { RandomState = grant.RandomState };
+                inventory = grant.Inventory; pulled = grant.Id.ToString(); break;
             case FeatureCategory.Tarot:
                 if (!inventory.HasItemRoom) throw new GameRuleException(Full);
                 inventory = inventory with { Tarot = [.. inventory.Tarot, Enum.Parse<TarotId>(offer.FeatureId)] }; break;
@@ -145,7 +157,6 @@ public static class CampaignShop
         var required = TarotTargets(tarot);
         if (targets.Count != required || targets.Distinct().Count() != required || targets.Any(id => deck.All(c => c.Id != id)))
             throw new GameRuleException(required == 1 ? "Choose a card from the shared deck." : $"Choose {required} different cards from the shared deck.");
-        if (tarot == TarotId.Astronomer && inventory.Unlocks.Length == CampaignInventory.GumballCount) throw new GameRuleException("All bidding options are unlocked.");
         // Everything is checked before the random draws and the changes to the deck.
         var random = new CampaignRandom(resources.RandomState);
         var money = resources.Wallets[0];
@@ -155,8 +166,8 @@ public static class CampaignShop
         {
             case TarotId.TaxCollector: money += Math.Min(20, money); break;
             case TarotId.Astronomer:
-                var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
-                inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[random.NextInt(options.Length)]] }; break;
+                var grant = GumballGrants.Pull(inventory, random.State);
+                inventory = grant.Inventory; random = new(grant.RandomState); break;
             case TarotId.Gambler:
                 var choices = deck.Select(c => c.Id).ToList(); random.Shuffle(choices);
                 foreach (var id in choices.Take(2)) Enhance(id, EnhancementId.Lucky); break;

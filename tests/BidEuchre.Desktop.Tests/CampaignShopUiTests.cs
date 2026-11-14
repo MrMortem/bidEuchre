@@ -28,6 +28,12 @@ internal static class CampaignShopUiTests
 
     public static void Run()
     {
+        GumballDuplicateUiTests.Run("Machine");
+        GumballDuplicateUiTests.Run("Astronomer");
+        GumballDuplicateUiTests.Run("Panic");
+        Console.WriteLine("PASS  Panic Button duplicates show their count and explicitly explain no successful contract payout");
+        Console.WriteLine("PASS  Duplicate gumball pulls save their count and identify the reward after all nine unlocks");
+        Console.WriteLine("PASS  Astronomer remains usable with all unlocks, full inventory, and before the next match");
         Availability();
         RerollAndResume();
         Console.WriteLine("PASS  Shop badges explain full slots and funds, preserve Buy & Use, and show Joker sell values");
