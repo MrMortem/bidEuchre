@@ -55,11 +55,15 @@ public sealed partial class MainWindow : Window
     private readonly ContentControl _tableHost = new();
     // The one-line turn status in the top strip; the centre prompt repeats it above its buttons.
     private readonly TextBlock _actionTitle = new() { Foreground = Muted, FontSize = 11, FontFamily = PixelArt.Font, TextTrimming = TextTrimming.CharacterEllipsis };
-    private readonly TextBlock _centerTitle = new() { TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Ink, FontSize = 18, FontFamily = PixelArt.Font };
+    private readonly TextBlock _centerTitle = new() { TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center, Foreground = Ink, FontSize = 15, FontFamily = PixelArt.Font };
     private readonly TextBlock _actionHelp = new() { FontFamily = FontFamily.Default, Foreground = Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
     private readonly WrapPanel _actionButtons = new() { ItemWidth = double.NaN, ItemHeight = double.NaN, HorizontalAlignment = HorizontalAlignment.Center };
-    // Choices occupy their own scrollable column beside the board.
+    // Choices float in the middle of the board, kept small enough to clear every hand.
     private readonly Border _centerPanel;
+    // Bidding is staged: a number, then (if that number has any) a gumball. Trump follows as its own phase.
+    private BidLevel? _bidLevel;
+    private string? _bidStepKey;
+    private GameView? _actionView;
     private readonly StackPanel _jokerRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly StackPanel _tarotRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private string? _inventoryKey;
@@ -132,13 +136,13 @@ public sealed partial class MainWindow : Window
         ApplyGraphics();
         _centerPanel = new Border
         {
-            Name = "TableChoices", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
-            Width = 270, Padding = new Thickness(10, 12, 10, 8), CornerRadius = new CornerRadius(2),
+            Name = "TableChoices", IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            MaxWidth = 340, MaxHeight = 230, Padding = new Thickness(10, 10, 10, 2), CornerRadius = new CornerRadius(2),
             Background = Brush.Parse("#EE100B28"), BorderBrush = Gold, BorderThickness = new Thickness(2),
             Child = new ScrollViewer
             {
                 HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                Content = new StackPanel { Spacing = 9, Children = { _centerTitle, _actionHelp, _actionButtons } }
+                Content = new StackPanel { Spacing = 7, Children = { _centerTitle, _actionHelp, _actionButtons } }
             }
         };
         _campaign = new CampaignFlow(_campaignPath, screen => _screenHost.Content = screen,
@@ -402,8 +406,7 @@ public sealed partial class MainWindow : Window
                 strip,
                 Place(new Grid
                 {
-                    ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8,
-                    Children = { _tableHost, Place(_centerPanel, column: 1), _sessionError }
+                    Children = { _tableHost, _centerPanel, _sessionError }
                 }, row: 1)
             }
         };
@@ -1168,6 +1171,7 @@ public sealed partial class MainWindow : Window
     {
         _actionButtons.Children.Clear();
         _actionHelp.Text = string.Empty;
+        _actionView = view;
         RenderChoices(view);
         ShowCenter(view.Phase is GamePhase.GameComplete);
     }
@@ -1205,12 +1209,12 @@ public sealed partial class MainWindow : Window
         {
             if (_targeting is { } targeting) { RenderTargeting(campaign, targeting); return; }
             _actionTitle.Text = CampaignTableControls.Title(campaign);
-            foreach (var command in CampaignTableControls.CenterCommands(campaign))
+            var commands = CampaignTableControls.CenterCommands(campaign).ToArray();
+            if (commands.Any(c => c is CampaignCommand.Bid)) { RenderCampaignBid(campaign, commands, view); return; }
+            foreach (var command in commands)
             {
                 var captured = command;
                 AddAction(CampaignTableControls.Describe(command, campaign, view.Players), () => SendCampaignActionAsync(campaign, captured));
-                if (command is CampaignCommand.Bid { Variant: { } variant })
-                    ToolTip.SetTip(_actionButtons.Children[^1], FeatureCatalog.Get(FeatureCategory.Gumball, variant.ToString()).Description);
             }
             return;
         }
@@ -1228,14 +1232,14 @@ public sealed partial class MainWindow : Window
         {
             case GamePhase.Bidding:
                 _actionTitle.Text = "Make your bid";
+                if (view.LegalActions.CanPass)
+                {
+                    AddAction("Pass", () => SendActionAsync(new GameActionRequest(_viewer!.Value, "pass", null, null, null, null)));
+                }
                 foreach (var bid in view.LegalActions.Bids)
                 {
                     var capturedBid = bid;
                     AddAction(BidName(bid), () => SendActionAsync(new GameActionRequest(_viewer!.Value, "bid", capturedBid, null, null, null)));
-                }
-                if (view.LegalActions.CanPass)
-                {
-                    AddAction("Pass", () => SendActionAsync(new GameActionRequest(_viewer!.Value, "pass", null, null, null, null)));
                 }
                 break;
             case GamePhase.ChoosingContract:
@@ -1266,6 +1270,51 @@ public sealed partial class MainWindow : Window
             case GamePhase.Playing:
                 _actionTitle.Text = "Play a gold-outlined card";
                 break;
+        }
+    }
+
+    // Step 1 picks a number; a number with gumballs opens step 2. Trump is chosen later, after the auction is won.
+    private void RenderCampaignBid(CampaignGameView campaign, IReadOnlyList<CampaignCommand> commands, GameView view)
+    {
+        var stepKey = $"{_session?.Id}:{campaign.DealSerial}:{campaign.Revision}";
+        if (_bidStepKey != stepKey) { _bidStepKey = stepKey; _bidLevel = null; }
+        var bids = commands.OfType<CampaignCommand.Bid>().ToArray();
+        if (_bidLevel is { } level && bids.Any(b => b.Level == level))
+        {
+            _actionTitle.Text = $"Bid {BidName(level)} · add a gumball?";
+            var options = bids.Where(b => b.Level == level).OrderBy(b => b.Variant is null ? -1 : 0).ToArray();
+            foreach (var option in options)
+            {
+                var captured = option;
+                AddAction(option.Variant is { } variant ? FeatureCatalog.Get(FeatureCategory.Gumball, variant.ToString()).Name : "No gumball",
+                    () => SendCampaignActionAsync(campaign, captured));
+                if (option.Variant is { } tip)
+                    ToolTip.SetTip(_actionButtons.Children[^1], FeatureCatalog.Get(FeatureCategory.Gumball, tip.ToString()).Description);
+            }
+            AddAction("← Back", () => { _bidLevel = null; RenderActions(_actionView ?? view); return Task.CompletedTask; });
+            return;
+        }
+        _bidLevel = null;
+        foreach (var command in commands)
+        {
+            if (command is CampaignCommand.Bid bid)
+            {
+                if (_actionButtons.Children.OfType<Button>().Any(b => Equals(b.Tag, bid.Level))) continue;
+                var choices = bids.Where(b => b.Level == bid.Level).ToArray();
+                // One way to make this bid: send it. Several: ask which gumball.
+                var only = choices.Length == 1 ? choices[0].Variant : null;
+                AddAction(only is { } forced ? $"{BidName(bid.Level)} · {FeatureCatalog.Get(FeatureCategory.Gumball, forced.ToString()).Name}" : BidName(bid.Level), choices.Length == 1
+                    ? () => SendCampaignActionAsync(campaign, choices[0])
+                    : () => { _bidLevel = bid.Level; RenderActions(_actionView ?? view); return Task.CompletedTask; });
+                _actionButtons.Children[^1].Tag = bid.Level;
+                if (only is { } described)
+                    ToolTip.SetTip(_actionButtons.Children[^1], FeatureCatalog.Get(FeatureCategory.Gumball, described.ToString()).Description);
+            }
+            else
+            {
+                var captured = command;
+                AddAction(CampaignTableControls.Describe(command, campaign, view.Players), () => SendCampaignActionAsync(campaign, captured));
+            }
         }
     }
 
@@ -1886,16 +1935,17 @@ public sealed partial class MainWindow : Window
     {
         Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
         HorizontalContentAlignment = HorizontalAlignment.Center,
-        MaxWidth = 230,
-        Margin = new Thickness(4, 0, 4, 8),
-        Padding = new Thickness(16, 10),
+        MaxWidth = 300,
+        MinWidth = 44,
+        Margin = new Thickness(3, 0, 3, 6),
+        Padding = new Thickness(10, 7),
         Background = Brush.Parse("#143480"),
         Foreground = Brush.Parse("#FFF5DC"),
         BorderBrush = Brush.Parse("#65BFFF"),
         BorderThickness = new Thickness(1),
         CornerRadius = new CornerRadius(2),
         FontWeight = FontWeight.Bold,
-        FontSize = 14
+        FontSize = 13
     };
 
     internal static T Place<T>(T control, int row = 0, int column = 0) where T : Control

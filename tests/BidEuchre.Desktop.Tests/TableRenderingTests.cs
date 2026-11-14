@@ -25,6 +25,13 @@ internal static class TableRenderingTests
         var bottom = control.TranslatePoint(new Point(control.Bounds.Width, control.Bounds.Height), window)!.Value;
         return new Rect(top, bottom);
     }
+    // Hand cards are rotated, so take the box around all four corners.
+    private static Rect CornerBounds(Control control, Window window)
+    {
+        var w = control.Bounds.Width; var h = control.Bounds.Height;
+        var points = new[] { new Point(0, 0), new Point(w, 0), new Point(0, h), new Point(w, h) }.Select(p => control.TranslatePoint(p, window)!.Value).ToArray();
+        return new Rect(new Point(points.Min(p => p.X), points.Min(p => p.Y)), new Point(points.Max(p => p.X), points.Max(p => p.Y)));
+    }
     private static void Await(Task task)
     {
         var until = DateTime.UtcNow.AddSeconds(10);
@@ -113,7 +120,11 @@ internal static class TableRenderingTests
                 }
                 var panel = Bounds(Field<Border>(window, "_centerPanel"), window);
                 var table = Bounds(Field<ContentControl>(window, "_tableHost"), window);
-                Require(!panel.Intersects(table), "Choices must not cover hands or the trick.");
+                Require(table.Contains(panel.Center), "Choices sit in the middle of the table.");
+                var hands = Field<ContentControl>(window, "_tableHost").GetVisualDescendants().OfType<Border>()
+                    .Where(b => b.Width == 124 && b.Height == 176).Select(b => CornerBounds(b, window)).ToArray();
+                Require(hands.Length == 24, "Every hand must be on the table.");
+                Require(hands.All(card => !panel.Intersects(card)), $"Choices must not cover any hand ({panel} vs {hands.FirstOrDefault(c => panel.Intersects(c))}).");
                 Require(panel.Bottom <= window.Bounds.Height + 1 && panel.Right <= window.Bounds.Width + 1, "Choices must fit in the viewport.");
                 var visible = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).ToArray();
                 Require(visible.Any(t => t.Text is "JOKERS" or "CARDS") == inCampaign, "Only campaigns must show inventory shelves.");
@@ -131,16 +142,43 @@ internal static class TableRenderingTests
                 var scroll = Field<Border>(window, "_centerPanel").GetVisualDescendants().OfType<ScrollViewer>().Single();
                 scroll.Offset = new Vector(0, scroll.Extent.Height); Flush();
                 var actions = Field<WrapPanel>(window, "_actionButtons").Children;
-                Require(actions.Count == 18, "Every unlocked auction choice must be available.");
-                foreach (var button in actions.OfType<Button>())
+                string[] Labels() => actions.OfType<Button>().Select(b => ((TextBlock)b.Content!).Text!).ToArray();
+                void CheckLabels()
                 {
-                    var label = (TextBlock)button.Content!;
-                    Require(label.TextLayout.Width <= label.Bounds.Width + 1, "Choice labels must wrap without truncation.");
-                    if (label.Text!.Contains("Chaos"))
-                        Require(Equals(ToolTip.GetTip(button), FeatureCatalog.Get(FeatureCategory.Gumball, "Chaos").Description), "Bid variants must explain their effect on hover.");
+                    foreach (var label in actions.OfType<Button>().Select(b => (TextBlock)b.Content!))
+                        Require(label.TextLayout.Width <= label.Bounds.Width + 1, "Choice labels must wrap without truncation.");
+                    var last = actions.Last();
+                    Require(Bounds(last, window).Bottom <= Bounds(Field<Border>(window, "_centerPanel"), window).Bottom + 1, "The last choice must be reachable by scrolling.");
                 }
-                var last = actions.Last();
-                Require(Bounds(last, window).Bottom <= panel.Bottom + 1, "The last choice must be reachable by scrolling.");
+                void Press(string text)
+                {
+                    actions.OfType<Button>().Single(b => ((TextBlock)b.Content!).Text == text).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+                    Flush();
+                }
+                // Step 1: a number. Gumballs wait for step 2.
+                Require(Labels().SequenceEqual(["Pass", "2", "3", "4", "5", "6", "Partners Best", "Alone", "Panic Button · −8 points · consumes this hand"]),
+                    "Step 1 offers Pass and each bid level once: " + string.Join(", ", Labels()));
+                CheckLabels();
+                Press("4");
+                if (Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is { } stepOutput)
+                {
+                    using var bitmap = window.CaptureRenderedFrame();
+                    if (bitmap is not null) { using var stream = File.Create(Path.Combine(stepOutput, $"table-gumball-{inCampaign}-{size.Width}-{size.Height}-{scale}.png")); bitmap.Save(stream, new Avalonia.Media.Imaging.PngBitmapEncoderOptions()); }
+                }
+                var gumballPanel = Bounds(Field<Border>(window, "_centerPanel"), window);
+                Require(hands.All(card => !gumballPanel.Intersects(card)), "Gumball choices must not cover any hand.");
+                Require(Labels().SequenceEqual(["No gumball", "Chaos", "Poker", "Duelist", "← Back"]), "Step 2 offers this level's gumballs: " + string.Join(", ", Labels()));
+                Require(Field<TextBlock>(window, "_centerTitle").Text == "Bid 4 · add a gumball?", "Step 2 names the chosen number.");
+                Require(Equals(ToolTip.GetTip(actions.OfType<Button>().Single(b => ((TextBlock)b.Content!).Text == "Chaos")),
+                    FeatureCatalog.Get(FeatureCategory.Gumball, "Chaos").Description), "Gumballs must explain their effect on hover.");
+                CheckLabels();
+                Press("← Back");
+                Require(Labels().Length == 9, "Back returns to the numbers.");
+                // Choices coming and going must not slide the table sideways.
+                Field<WrapPanel>(window, "_actionButtons").Children.Clear();
+                Call(window, "ShowCenter", false); Flush();
+                Require(Bounds(Field<ContentControl>(window, "_tableHost"), window) == table, "Hiding choices must not move or resize the table.");
+                Require(!Field<Border>(window, "_centerPanel").IsVisible, "Hidden choices must not take clicks.");
             }
             finally { window.Close(); }
         });
