@@ -13,6 +13,8 @@ internal sealed class CampaignFlow(
     PixelMotion motion)
 {
     private string? _note;
+    // The ante or shop screen last shown, so a developer change can redraw it.
+    private Control? _home;
     private bool _starting;
     private (MatchOutcome Outcome, int[] Scores)? _pendingResult;
 
@@ -86,7 +88,7 @@ internal sealed class CampaignFlow(
     private void ShowIntro()
     {
         var revision = Run!.Resources.Revision;
-        show(CampaignAnteScreen.Build(Run, BeginMatch, showMenu, TakeNote(), motion,
+        show(_home = CampaignAnteScreen.Build(Run, BeginMatch, showMenu, TakeNote(), motion,
             (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision)));
     }
 
@@ -175,7 +177,7 @@ internal sealed class CampaignFlow(
         if (Run is null) return;
         Persist(CampaignShop.Open(Run));
         var revision = Run!.Resources.Revision;
-        show(CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
+        show(_home = CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
             (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
             () => { Persist(Run!.LeaveShop()); ShowIntro(); }) { Pull = Pull, Refresh = ShowShop }, motion, TakeNote()));
     }
@@ -272,6 +274,19 @@ internal sealed class CampaignFlow(
     {
         Run = run;
         if (!CampaignStore.Save(run, savePath)) _note = "Could not save progress.";
+    }
+
+    /// <summary>Applies a developer-console change between matches, saves it, and redraws the
+    /// ante or shop screen when that is what is showing.</summary>
+    public void DeveloperApply(Func<CampaignRun, CampaignRun> update, Control? showing)
+    {
+        if (Run is not { } run) throw new GameRuleException("No campaign run is loaded.");
+        if (run.Phase is CampaignPhase.InMatch) throw new GameRuleException("A match is in progress.");
+        var next = update(run with { Resources = run.Resources with { Wallets = [run.Money, .. run.Resources.Wallets[1..]] } });
+        next = next with { Money = next.Resources.Wallets[0], Resources = next.Resources with { Revision = next.Resources.Revision + 1 } };
+        if (!next.Resources.IsValid()) throw new GameRuleException("Those campaign resources are not valid.");
+        Persist(next);
+        if (showing is not null && ReferenceEquals(showing, _home)) ShowHome();
     }
 
     private string? TakeNote()
