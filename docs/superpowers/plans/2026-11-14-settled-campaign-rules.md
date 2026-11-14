@@ -47,8 +47,8 @@ Tests first for team scope, round resets, deterministic chance, first-card trigg
 
 ## Task 5: Campaign bidding eligibility and Duelist
 Issues #69,#71,#72,#73,#91. Depends Task4. Read issue snapshot.
-Own Core bidding, App CampaignBotPolicy, core tests/catalog.
-All seats share campaign unlock restrictions incl High/Low; freeplay unaffected. Preserve forceddealer/VowOfSilence and current bot evaluation. #70 passivity policy is deferred: its issue explicitly identifies threshold/pass policy as a design choice still unanswered.
+Own Core bidding and core tests/catalog. Inspect but do not modify App CampaignBotPolicy.
+All seats share campaign unlock restrictions incl High/Low; freeplay unaffected. Make unlocked plain Safety Net bid2 available to all four seats using the same inventory gate; this also makes the approved Alpha bid2 match occur in a real auction. Preserve existing allowed-seat scope for human-only special variants and their targeting; do not expand opponent policy or add unrelated bot abilities. Preserve forceddealer/VowOfSilence and current bot evaluation. #70 passivity policy is deferred: its issue explicitly identifies threshold/pass policy as a design choice still unanswered.
 Duelist4-5, failureextra2, oncepermatch (not round), rejectedcommands don't consume. Consume use when Duelist wins the auction and activates, not when an overcalled bid loses; document this activation rule. Alpha any eligible unlocked partnerbid inclSafetyNet2,PartnersBest,Alone, neveropponent/locked.
 Tests across seats/unlocks/direct rejection; forceddealer; Alpha special; Duelist round/match reset. Commit/report.
 
@@ -56,7 +56,7 @@ Tests across seats/unlocks/direct rejection; forceddealer; Alpha special; Duelis
 Issues #67,#93. Depends Task5. Read issue snapshot.
 Core options/settlement/context, App CampaignRun, tests/current rules.
 Targets +/-12,16,24,32,42 Antes1-5; 8 fullrounds plus fullround overtime until tiebroken. Bothteamsstart0 normal/boss.
-Only successful opponentcontract adds +0,1,2,3,4 points once. No failed/playerteam/pertrick/cash bonus. Fixed bonus after contract multipliers so exact amount preserved, document/test ordering. BeyondAnte5 preserve prior progression unless invalid.
+Only successful opponentcontract adds +0,1,2,3,4 points once. No failed/playerteam/pertrick/cash bonus. Fixed bonus after contract multipliers so exact amount preserved, document/test ordering. BeyondAnte5 preserve the previous threshold formula and the previous zero opponent bonus; do not extrapolate the approved table into new endless scaling.
 Tests allspecifiedantes/boundaries/success/failure/team/boss/overtime. Commit/report.
 
 ## Task 7: Duplicate gumballs and immediate Astronomer
@@ -83,7 +83,8 @@ Ruling: bots pause while settings is open, explicitly communicated, engineering 
 
 ## Task 10: Trump and caller announcement
 Issue #61. Depends Task9 (pause gate), Task2. Own TableMotionTracker, new announcement helper, Desktop MainWindow/BidAnnouncement and tests.
-On contract selection announce caller name and suit (or High/Low mode) visibly. Hold ~1.5 seconds and gate trick play while presentation pending; hold static text when Motion off. Trigger once per deal/selected contract, not each refresh; human and bot callers, Partner's Best exchange, Duelist/Telepath/Chaos supported. Chaos initial random trump announced, subsequent changes compact refreshed indicator at trick boundary, not full start hold every refresh. Preserve chosen pace and lifecycle/disposal/hidden page recovery; never deadlock non-desktop clients.
+Carry Task9 P3 from /private/tmp/bideuchre-task9-review.md: automatic arrangement must only mark a contract stage complete after successful arrange/already-correct order; paused settings return must retry after resume if a bot chose contract during navigation. Add regression while touching this presentation seam.
+On contract selection announce caller name and suit (or High/Low mode) visibly. Hold ~1.5 seconds and gate trick play while presentation pending; hold static text when Motion off. Use a distinct optional desktop presentation acknowledgment gate; do not overload the settings pause boolean, which could resume another pause reason. Arm it under the session action gate before the next bot/human action, and handle cancellation/navigation/restore explicitly. Trigger once per deal/selected contract, not each refresh; human and bot callers, Partner's Best exchange, Duelist/Telepath/Chaos supported. Chaos initial random trump announced, subsequent changes compact refreshed indicator at trick boundary, not full start hold every refresh. Preserve chosen pace and lifecycle/disposal/hidden page recovery; never deadlock non-desktop clients.
 Tests human/bot contract cues and duplicate suppression, static motion-off text, no play before gate release, safe session change while cue pending. Visual inspect at supported small size. Commit/report.
 
 ## Task 11: Explain scoring and show match history
@@ -99,8 +100,8 @@ Checkpoint engine+resources atomically after successful actions including hand r
 Tests save/load at bidding, selected contract/exchange, incomplete trick, pending joker/telepath/duel choice, special variants/effects and next-deal determinism. Compare all views/legal actions and identical subsequent decisions/outcomes to uninterrupted engine. Corrupt snapshot tests and old-save migration. Desktop Continue smoke preserving lives and current hand. Commit/report.
 
 ## Task 13: Deterministic shop reroll and offer availability
-Issue #27. Depends Tasks1,7,12 persistence. Own CampaignSave/Store/Shop, Desktop ShopScreen/CampaignFlow, tests.
-Reroll unsold regular stock costs $2 then +$1 each reroll this shop; reset per visit, persisted counter validated; use campaign RNG and increment revision atomically. Preserve one gumball pull per visit, sold state and retained ability to pull duplicates. Do not invent lock/rare/discount feature (explicitly optional). Visible badges/reasons for full Joker/item slots and insufficient funds, retain Buy&Use where valid, sell value visible before selection.
+Issue #27. Depends Task1; may run before Tasks7/12 because its new ShopState counter and preservation of any existing gumball offer are independent. Later duplicate/resume tasks preserve these fields and verify integration. Own CampaignSave/Store/Shop, Desktop ShopScreen/CampaignFlow, tests.
+Reroll unsold regular stock costs $2 then +$1 each reroll this shop; reset per visit, persisted counter validated; use campaign RNG and increment revision atomically. Preserve one gumball pull per visit and its sold state. Retain the existing gumball offer unchanged when rerolling regular stock; future Task7 duplicate offers must work through that same preservation path, with integration verification there. Do not invent lock/rare/discount feature (explicitly optional). Visible badges/reasons for full Joker/item slots and insufficient funds; keep offer details reachable so Buy&Use remains available when only storage is full. Sell value visible before selecting an owned Joker.
 Tests deterministic reroll/reload, price escalation/reset, insufficient-funds rejection no mutation/RNG advance, gumball sold state retained, stale commands guarded; UI blocked/full/inadequate money and Buy&Use affordance. Commit/report.
 
 ## Task 14: Persist engine catalogue and last table setup
