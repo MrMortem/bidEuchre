@@ -36,68 +36,64 @@ internal static class CampaignTableControls
     /// <summary>Stored cards are played on any turn of the human's own.</summary>
     public static bool ItemsUsable(CampaignGameView view) => view.ViewerSeat == 0 && view.LegalActions.Count > 0;
 
-    /// <summary>A stored Tarot or Sigil. While usable, pressing it opens its targets and a button to play it.</summary>
-    public static Control Item(CampaignGameView view, FeatureCategory category, int slot, bool usable, Func<CampaignCommand, Task> send)
+    /// <summary>A stored Tarot or Sigil. While usable, pressing it starts (or, while <paramref name="active"/>, cancels)
+    /// choosing its targets by pressing cards in hand.</summary>
+    public static Control Item(CampaignGameView view, FeatureCategory category, int slot, bool usable, bool active, Action toggle)
     {
-        var sigil = category == FeatureCategory.Sigil;
-        var definition = FeatureCatalog.Get(category, sigil ? view.Inventory.Sigils[slot].ToString() : view.Inventory.Tarot[slot].ToString());
+        var definition = Definition(view.Inventory, category, slot);
         var face = CardFace(definition);
         if (!usable) return Named(face, definition.Name, definition.Description);
 
-        face.BorderBrush = MainWindow.Gold;
-        face.BorderThickness = new Thickness(2);
-        var selected = new List<CardId>();
-        var required = sigil ? 1 : Tarot.TargetCount(view.Inventory.Tarot[slot]);
-        var flyout = new Flyout { Placement = PlacementMode.BottomEdgeAlignedLeft };
-        var use = new Button { Content = "Use " + definition.Name, IsEnabled = required == 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-        var body = new StackPanel { Spacing = 4, MaxWidth = 260 };
-        body.Children.Add(Label(definition.Name, MainWindow.Gold));
-        body.Children.Add(Label(definition.Description, MainWindow.Ink));
-        if (required > 0)
-        {
-            body.Children.Add(Label(required == 1 ? "Choose a card from your hand:" : $"Choose {required} cards from your hand:", MainWindow.Muted));
-            foreach (var card in view.Players[0].VisibleCards)
-            {
-                var choice = new CheckBox { Content = $"{card.Face.Code} · #{card.Id.Value + 1}", Foreground = MainWindow.Ink };
-                choice.IsCheckedChanged += (_, _) =>
-                {
-                    if (choice.IsChecked == true) selected.Add(card.Id); else selected.Remove(card.Id);
-                    use.IsEnabled = selected.Count == required;
-                };
-                body.Children.Add(choice);
-            }
-        }
-        use.Click += async (_, _) =>
-        {
-            flyout.Hide();
-            await send(sigil ? new CampaignCommand.UseSigil(slot, selected[0]) : new CampaignCommand.UseTarot(slot, selected.ToArray()));
-        };
-        body.Children.Add(use);
-        flyout.Content = body;
+        face.BorderBrush = active ? MainWindow.Green : MainWindow.Gold;
+        face.BorderThickness = new Thickness(active ? 3 : 2);
         var button = new Button
         {
-            Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), Flyout = flyout,
+            Name = $"Item{category}{slot}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand),
             Template = new FuncControlTemplate<Button>((_, _) => face)
         };
-        Avalonia.Automation.AutomationProperties.SetName(button, $"{category}: {definition.Name}");
+        button.Click += (_, _) => toggle();
+        Avalonia.Automation.AutomationProperties.SetName(button, $"{(active ? "Cancel " : "Use ")}{category}: {definition.Name}");
         return Named(button, definition.Name, definition.Description);
+    }
+
+    /// <summary>The catalog entry for the Tarot or Sigil held in <paramref name="slot"/>.</summary>
+    public static FeatureDefinition Definition(CampaignInventory inventory, FeatureCategory category, int slot) =>
+        FeatureCatalog.Get(category, category == FeatureCategory.Sigil ? inventory.Sigils[slot].ToString() : inventory.Tarot[slot].ToString());
+
+    /// <summary>A card's hover text: its face, then each enhancement and Sigil by catalog name and description.</summary>
+    public static Control CardTip(CampaignCardView card, Suit? playedAs = null)
+    {
+        var tip = new StackPanel { Spacing = 4, MaxWidth = 260 };
+        tip.Children.Add(Label($"{BidEuchre.Core.Card.DisplayRank(card.Face.Rank)} of {card.Face.Suit}", MainWindow.Gold));
+        if (playedAs is { } suit && suit != card.Face.Suit) tip.Children.Add(Label($"Played as {suit}", MainWindow.Green));
+        void Add(FeatureCategory category, string key)
+        { var feature = FeatureCatalog.Get(category, key); tip.Children.Add(Label($"{feature.Name}: {feature.Description}", MainWindow.Ink)); }
+        if (card.Enhancement is { } enhancement) Add(FeatureCategory.Enhancement, enhancement.ToString());
+        if (card.Sigil is { } sigil) Add(FeatureCategory.Sigil, sigil.ToString());
+        if (card.Enhancement is null && card.Sigil is null) tip.Children.Add(Label("No enhancement or Sigil", MainWindow.Muted));
+        tip.Children.Add(Label($"Card #{card.Id.Value + 1} of the shared deck", MainWindow.Muted));
+        return tip;
     }
 
     public static string Title(CampaignGameView view) => view.PendingChoice
         ?? (view.LegalActions.Count == 0 ? "Waiting for the next player"
             : view.LegalActions.Any(c => c is CampaignCommand.Bid or CampaignCommand.Pass) ? "Make your bid"
             : view.LegalActions.Any(c => c is CampaignCommand.ChooseContract) ? "Choose the contract"
-            : view.LegalActions.All(c => CardOf(c) is not null) ? "Play a gold-outlined card"
+            : view.LegalActions.All(c => c is CampaignCommand.Play) ? "Play a gold-outlined card"
+            : view.LegalActions.All(c => CardOf(c) is not null) ? "Press a gold-outlined card"
             : "Your move");
 
     /// <summary>The legal actions that need a button. A card with exactly one play or exchange is pressed in hand instead.</summary>
     public static IEnumerable<CampaignCommand> CenterCommands(CampaignGameView view) => view.LegalActions
         .Where(command => CardOf(command) is not { } card || view.LegalActions.Count(other => CardOf(other) == card) != 1);
 
-    private static CardId? CardOf(CampaignCommand command) => command switch
+    /// <summary>The hand card a command is made by pressing: plays, exchanges, One Up's swap and Telepath's reveal.</summary>
+    public static CardId? CardOf(CampaignCommand command) => command switch
     {
         CampaignCommand.Play play => play.Id,
         CampaignCommand.Exchange exchange => exchange.Id,
+        CampaignCommand.SwapPartnerCard swap => swap.Id,
+        CampaignCommand.RevealPartnerCard reveal => reveal.Id,
         _ => null
     };
 

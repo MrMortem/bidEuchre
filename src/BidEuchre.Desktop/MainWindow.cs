@@ -63,6 +63,9 @@ public sealed class MainWindow : Window
     private readonly StackPanel _jokerRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly StackPanel _tarotRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private string? _inventoryKey;
+    // A stored Tarot or Sigil whose targets are being chosen by pressing cards in hand.
+    private sealed record ItemTargeting(long DealSerial, FeatureCategory Category, int Slot, FeatureDefinition Definition, int Required, List<CardId> Chosen);
+    private ItemTargeting? _targeting;
     // Errors lie over the top edge of the board, so showing one never resizes it.
     private readonly TextBlock _sessionError = new()
     {
@@ -402,15 +405,94 @@ public sealed class MainWindow : Window
     private void RenderInventory(CampaignGameView? campaign)
     {
         var usable = campaign is not null && CampaignTableControls.ItemsUsable(campaign);
+        if (!usable || _targeting is { } targeting && !TargetingValid(campaign!, targeting)) _targeting = null;
         // A usable card sends the view's revision, so it is rebuilt whenever that moves.
-        var key = campaign is null ? "" : JsonSerializer.Serialize(campaign.Inventory) + (usable ? $":{campaign.Revision}" : "");
+        var key = campaign is null ? "" : JsonSerializer.Serialize(campaign.Inventory) + (usable ? $":{campaign.Revision}" : "")
+            + $":{_targeting?.Category}{_targeting?.Slot}";
         if (key == _inventoryKey) return;
         _inventoryKey = key;
         CampaignTableControls.Fill(_jokerRow, CampaignTableControls.JokerSlots,
             campaign?.Inventory.Jokers.Select((joker, slot) => _motion.Float(CampaignTableControls.Joker(joker), 40 + slot)) ?? []);
         CampaignTableControls.Fill(_tarotRow, CampaignTableControls.ItemSlots,
             campaign is null ? [] : CampaignTableControls.Items(campaign.Inventory).Select((item, index) => _motion.Float(
-                CampaignTableControls.Item(campaign, item.Category, item.Slot, usable, command => SendCampaignActionAsync(campaign, command)), 50 + index)));
+                CampaignTableControls.Item(campaign, item.Category, item.Slot, usable,
+                    _targeting is { } active && active.Category == item.Category && active.Slot == item.Slot,
+                    () => ToggleTargeting(campaign, item.Category, item.Slot)), 50 + index)));
+    }
+
+    private static bool TargetingValid(CampaignGameView campaign, ItemTargeting targeting)
+    {
+        var held = targeting.Category == FeatureCategory.Sigil ? campaign.Inventory.Sigils.Length : campaign.Inventory.Tarot.Length;
+        if (targeting.DealSerial != campaign.DealSerial || targeting.Slot >= held ||
+            CampaignTableControls.Definition(campaign.Inventory, targeting.Category, targeting.Slot).Id != targeting.Definition.Id) return false;
+        // Cards that left the hand (played, swapped) can no longer be targets.
+        targeting.Chosen.RemoveAll(id => campaign.Players[0].VisibleCards.All(card => card.Id != id));
+        return true;
+    }
+
+    // Pressing a stored item starts choosing its targets; pressing it again (or Cancel) stops.
+    private void ToggleTargeting(CampaignGameView campaign, FeatureCategory category, int slot)
+    {
+        var definition = CampaignTableControls.Definition(campaign.Inventory, category, slot);
+        _targeting = _targeting is { } active && active.Category == category && active.Slot == slot ? null
+            : new(campaign.DealSerial, category, slot, definition,
+                category == FeatureCategory.Sigil ? 1 : Tarot.TargetCount(campaign.Inventory.Tarot[slot]), []);
+        _inventoryKey = null; _renderKey = null;
+        _ = RefreshGameAsync();
+    }
+
+    private void ToggleTarget(CardId id)
+    {
+        if (_targeting is not { } targeting) return;
+        if (!targeting.Chosen.Remove(id))
+        {
+            // With one target, pressing another card moves the choice.
+            if (targeting.Required == 1) targeting.Chosen.Clear();
+            if (targeting.Chosen.Count < targeting.Required) targeting.Chosen.Add(id);
+        }
+        _renderKey = null;
+        _ = RefreshGameAsync();
+    }
+
+    // What a chosen card will look like once the item is used, when that is certain.
+    private static CampaignCardView Preview(ItemTargeting targeting, CampaignCardView card, int position)
+    {
+        var state = new CardState(card.Id, card.Face, card.Enhancement, card.Sigil);
+        var after = targeting.Category == FeatureCategory.Sigil
+            ? state with { Sigil = Enum.Parse<SigilId>(targeting.Definition.Key) }
+            : Tarot.Preview(Enum.Parse<TarotId>(targeting.Definition.Key), state, position);
+        return after is null ? card : new(after.Id, after.Face, after.Enhancement, after.Sigil);
+    }
+
+    private void RenderTargeting(CampaignGameView campaign, ItemTargeting targeting)
+    {
+        var name = targeting.Definition.Name;
+        _actionTitle.Text = $"Use {name}";
+        var count = targeting.Chosen.Count;
+        var step = targeting.Required switch
+        {
+            0 => "It needs no target.",
+            1 => count == 0 ? "Press a card in your hand." : "Press another card to change it.",
+            var n => $"Press {n} cards in your hand · {count} of {n} chosen."
+        };
+        if (targeting.Definition.Key == nameof(TarotId.DevilishDeal)) step += " The third card you press becomes Cursed.";
+        _actionHelp.Text = $"{targeting.Definition.Description}\n{step}";
+        var use = ActionButton($"Use {name}");
+        use.Name = "UseItem";
+        use.IsEnabled = count == targeting.Required;
+        use.Click += async (_, _) =>
+        {
+            CampaignCommand command = targeting.Category == FeatureCategory.Sigil
+                ? new CampaignCommand.UseSigil(targeting.Slot, targeting.Chosen[0])
+                : new CampaignCommand.UseTarot(targeting.Slot, targeting.Chosen.ToArray());
+            _targeting = null; _inventoryKey = null;
+            await SendCampaignActionAsync(campaign, command);
+        };
+        _actionButtons.Children.Add(use);
+        var cancel = ActionButton("Cancel");
+        cancel.Name = "CancelItem";
+        cancel.Click += (_, _) => ToggleTargeting(campaign, targeting.Category, targeting.Slot);
+        _actionButtons.Children.Add(cancel);
     }
 
     private Control BuildEnginePage()
@@ -954,9 +1036,23 @@ public sealed class MainWindow : Window
                 if (i < visible.Count)
                 {
                     var card = visible[i];
-                    var choices = campaign.LegalActions.Where(c => c is CampaignCommand.Play p && p.Id == card.Id || c is CampaignCommand.Exchange e && e.Id == card.Id).ToArray();
-                    var button = CardButton(card.Face, choices.Length == 1, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : null, card.Enhancement, card.Sigil);
-                    ToolTip.SetTip(button, $"#{card.Id.Value + 1} · {card.Enhancement?.ToString() ?? "No enhancement"} · {card.Sigil?.ToString() ?? "No Sigil"}");
+                    Button button;
+                    if (own && _targeting is { } targeting)
+                    {
+                        // Choosing item targets: every card in hand can be pressed, and a chosen card shows its result.
+                        var position = targeting.Chosen.IndexOf(card.Id);
+                        var result = position < 0 ? card : Preview(targeting, card, position);
+                        var id = card.Id;
+                        button = CardButton(result.Face, true, view, () => { ToggleTarget(id); return Task.CompletedTask; }, result.Enhancement, result.Sigil,
+                            chosen: position < 0 ? null : targeting.Required > 1 ? position + 1 : 0);
+                    }
+                    else
+                    {
+                        var choices = campaign.LegalActions.Where(c => CampaignTableControls.CardOf(c) == card.Id).ToArray();
+                        button = CardButton(card.Face, choices.Length == 1, view, choices.Length == 1 ? () => SendCampaignActionAsync(campaign, choices[0]) : null, card.Enhancement, card.Sigil);
+                    }
+                    ToolTip.SetTip(button, CampaignTableControls.CardTip(card));
+                    ToolTip.SetShowDelay(button, 120);
                     var key = $"id{card.Id.Value}";
                     _cardFlights?.HandCard($"{player.Seat}:{key}", button, HandFan.Angle(player.Seat, i, player.CardCount));
                     _deckDeal?.Card(player.Seat, i, button, HandFan.Angle(player.Seat, i, player.CardCount)); cards.Add(Slot(key, button));
@@ -1024,7 +1120,11 @@ public sealed class MainWindow : Window
             var physical = view.Campaign is { } cv ? (cv.Trick.Count > 0 ? cv.Trick : cv.LastTrick).FirstOrDefault(p => p.Seat == play.Seat) : null;
             var enhancement = physical?.Card.Enhancement;
             var sigil = physical?.Card.Sigil;
-            var card = CardFace(play.Card, enhancement, sigil);
+            // A Wild card shows the suit it was played as.
+            var playedAs = enhancement == EnhancementId.Wild && physical is not null && physical.EffectiveSuit != play.Card.Suit ? physical.EffectiveSuit : (Suit?)null;
+            Border Face() => playedAs is { } suit ? WithPlayedAs(CardFace(play.Card, enhancement, sigil), suit) : CardFace(play.Card, enhancement, sigil);
+            var card = Face();
+            if (physical is not null) { ToolTip.SetTip(card, CampaignTableControls.CardTip(physical.Card, playedAs)); ToolTip.SetShowDelay(card, 120); }
             card.ZIndex = play.Seat switch { 2 => 0, 1 => 1, 3 => 2, _ => 3 };
             card.HorizontalAlignment = play.Seat switch { 1 => HorizontalAlignment.Left, 3 => HorizontalAlignment.Right, _ => HorizontalAlignment.Center };
             card.VerticalAlignment = play.Seat switch { 2 => VerticalAlignment.Top, 0 => VerticalAlignment.Bottom, _ => VerticalAlignment.Center };
@@ -1035,7 +1135,7 @@ public sealed class MainWindow : Window
                 if (_motionCue.WinnerSeat is not null) _motion.Pulse(card, 1.065);
             }
             var key = physical is null ? $"{play.Seat}:{play.Card.Code}" : $"{play.Seat}:id{physical.Card.Id.Value}";
-            _cardFlights?.PlayedCard(key, card, _motionCue.AddedPlays.Contains(key), () => CardFace(play.Card, enhancement, sigil));
+            _cardFlights?.PlayedCard(key, card, _motionCue.AddedPlays.Contains(key), Face);
             cards.Children.Add(card);
         }
 
@@ -1109,6 +1209,7 @@ public sealed class MainWindow : Window
         }
         if (view.Campaign is { } campaign)
         {
+            if (_targeting is { } targeting) { RenderTargeting(campaign, targeting); return; }
             _actionTitle.Text = CampaignTableControls.Title(campaign);
             foreach (var command in CampaignTableControls.CenterCommands(campaign))
             {
@@ -1360,7 +1461,8 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction = null, EnhancementId? enhancement = null, SigilId? sigil = null)
+    /// <param name="chosen">Marks a card picked as an item target: 0 for a single target, otherwise its order (1, 2, 3).</param>
+    private Button CardButton(Card card, bool legal, GameView view, Func<Task>? campaignAction = null, EnhancementId? enhancement = null, SigilId? sigil = null, int? chosen = null)
     {
         var red = card.Suit is Suit.Hearts or Suit.Diamonds;
         var button = new Button
@@ -1371,15 +1473,16 @@ public sealed class MainWindow : Window
             Padding = new Thickness(0),
             Background = CardPaper,
             Foreground = red ? CardRed : CardInk,
-            BorderBrush = legal ? Gold : Brush.Parse("#D8CDB9"),
-            BorderThickness = new Thickness(legal ? 3 : 1),
+            BorderBrush = chosen is not null ? Green : legal ? Gold : Brush.Parse("#D8CDB9"),
+            BorderThickness = new Thickness(chosen is not null ? 5 : legal ? 3 : 1),
             CornerRadius = new CornerRadius(10),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Stretch,
             // Unplayable cards still take the pointer so their tooltip can open; they just have no click.
             Focusable = legal,
             Opacity = 1,
-            Content = PixelArt.CardContent(card, enhancement, sigil)
+            Content = chosen is > 0 ? WithBadge(PixelArt.CardContent(card, enhancement, sigil), chosen.Value.ToString(), Green, HorizontalAlignment.Right, VerticalAlignment.Top)
+                : PixelArt.CardContent(card, enhancement, sigil)
         };
         // Card art has its own paper/ink palette. Fluent's dark button hover and
         // pressed template must not replace the paper behind transparent artwork.
@@ -1410,12 +1513,13 @@ public sealed class MainWindow : Window
                     Duration = TimeSpan.FromMilliseconds(120), Easing = new CubicEaseOut() }
             };
             button.RenderTransform = lift;
+            if (chosen is not null) lift.Y = -16;
             void UpdateHighlight()
             {
                 var highlighted = button.IsPointerOver || button.IsKeyboardFocusWithin;
-                lift.Y = highlighted ? -8 : 0;
+                lift.Y = chosen is not null ? -16 : highlighted ? -8 : 0;
                 // Highlight the wrapper; keep the selected background sprite intact.
-                surface.BorderBrush = highlighted ? Gold : button.BorderBrush;
+                surface.BorderBrush = highlighted && chosen is null ? Gold : button.BorderBrush;
             }
             button.PointerEntered += (_, _) => UpdateHighlight();
             button.PointerExited += (_, _) => UpdateHighlight();
@@ -1447,6 +1551,42 @@ public sealed class MainWindow : Window
             Background = CardPaper,
             Child = PixelArt.CardContent(card, enhancement, sigil)
         };
+    }
+
+    // A small label on a card's art, such as the order a target was chosen in.
+    private static Control WithBadge(Control content, string text, IBrush background, HorizontalAlignment horizontal, VerticalAlignment vertical) => new Grid
+    {
+        Children =
+        {
+            content,
+            new Border
+            {
+                Background = background, CornerRadius = new CornerRadius(4), Padding = new Thickness(8, 3), Margin = new Thickness(6),
+                HorizontalAlignment = horizontal, VerticalAlignment = vertical, IsHitTestVisible = false,
+                Child = new TextBlock { Text = text, Foreground = Paper, FontSize = 18, FontWeight = FontWeight.Bold, FontFamily = PixelArt.Font }
+            }
+        }
+    };
+
+    private static Border WithPlayedAs(Border card, Suit suit)
+    {
+        var content = card.Child!;
+        card.Child = null;
+        var symbol = suit switch { Suit.Clubs => "♣", Suit.Diamonds => "♦", Suit.Hearts => "♥", _ => "♠" };
+        var badge = new Border
+        {
+            Background = Paper, BorderBrush = Gold, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8, 2), Margin = new Thickness(0, 0, 0, 8),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = $"AS {symbol}", FontSize = 20, FontWeight = FontWeight.Bold,
+                Foreground = suit is Suit.Hearts or Suit.Diamonds ? Red : Ink
+            }
+        };
+        Avalonia.Automation.AutomationProperties.SetName(badge, $"Played as {suit}");
+        card.Child = new Grid { Children = { content, badge } };
+        return card;
     }
 
     private static Border CardBack() => new()
