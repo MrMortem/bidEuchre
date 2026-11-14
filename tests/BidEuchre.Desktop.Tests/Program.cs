@@ -10,13 +10,15 @@ using BidEuchre.Core;
 using BidEuchre.Desktop;
 
 AppBuilder.Configure<Application>()
-    .UseHeadless(new AvaloniaHeadlessPlatformOptions())
+    .UseSkia()
+    .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is null })
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
 EnhancementBackgroundTests.Run();
 CuratedArtTests.Run();
 CollectionTests.Run();
+TableRenderingTests.Run();
 
 var motion = new PixelMotion();
 motion.SetEnabled(false);
