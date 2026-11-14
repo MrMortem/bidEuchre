@@ -162,7 +162,7 @@ public sealed partial class GameEngine
             throw new GameRuleException("Only the auction winner may choose the contract.");
         }
 
-        if (mode != ContractMode.Trump && !GetContractModes().Contains(mode) && IsCampaign && seat == 0)
+        if (mode != ContractMode.Trump && !GetContractModes().Contains(mode) && IsCampaign)
             throw new GameRuleException("High and Low are locked until you pull the High/Low gumball.");
         Contract = IsCampaign && (int)HighBid! == 2
             ? mode == ContractMode.Trump && trump is not null ? new Contract(HighBid.Value, mode, trump) : throw new GameRuleException("Bid 2 requires trump.")
@@ -386,8 +386,8 @@ public sealed partial class GameEngine
         {
             return [ContractMode.Trump];
         }
-        // In a campaign the human names only trump suits until the High/Low gumball is pulled.
-        if (IsCampaign && Bidder == 0 && !_resources.Inventory.Unlocks.Contains(GumballId.HighLow)) return [ContractMode.Trump];
+        // Every campaign seat shares the inventory's High/Low unlock gate.
+        if (IsCampaign && !_resources.Inventory.Unlocks.Contains(GumballId.HighLow)) return [ContractMode.Trump];
 
         return [ContractMode.High, ContractMode.Low, ContractMode.Trump];
     }

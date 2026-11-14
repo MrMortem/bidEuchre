@@ -290,3 +290,18 @@ your partner; a round is one six-trick hand.
   multiplies card-effect points, including those from the extra activation.
 - **Last Laugh:** Double all points and effects from the final trick of each
   round. This timing applies every round of the match.
+
+## 12. Campaign Bidding
+
+- Every seat shares the campaign inventory's unlock gates for Safety Net (bid 2),
+  Partner's Best, Alone, and High/Low. Other special variants retain their human-only
+  targeting. Free-play bids and contracts use the normal rules above.
+- **Alpha:** You may outbid your partner by matching any eligible unlocked bid,
+  including Safety Net, numeric bids, Partner's Best, and Alone. Alpha never
+  permits matching an opponent or bypassing a bid's restrictions.
+- **Duelist:** Bid 4 or 5 and play alone against one chosen opponent. A failed
+  contract loses 2 additional points: −6 for Duelist-4 or −7 for Duelist-5 before
+  independent effects. Protective Bubble still cancels the failed contract's
+  penalty. Duelist activates once per match, consuming its use when it wins the
+  auction. Rejected bids and bids overcalled by another player consume no use.
+  Starting another round or redealing does not restore it; a new match does.

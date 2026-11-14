@@ -97,7 +97,7 @@ internal static class CampaignCatalogueTests
         Assert.Equal(2, g.CampaignActor);
         Assert.Equal(2, g.CreateView(0).CurrentSeat);
     }
-    // High and Low are the human's to choose only once the High/Low gumball has been pulled.
+    // High and Low are available only once the shared High/Low gumball has been pulled.
     public static void HighLowGumball()
     {
         foreach (var unlocked in new[] { false, true })
@@ -112,12 +112,12 @@ internal static class CampaignCatalogueTests
             if (unlocked) g.ChooseContract(0, ContractMode.Low);
             else Assert.Throws<GameRuleException>(() => g.ChooseContract(0, ContractMode.High));
         }
-        // The other seats are never locked.
+        // Bot seats share the same locked inventory.
         var bots = Game(CampaignSnapshot.Create(17));
         bots.ExecuteCampaignAction(0, new CampaignCommand.Pass());
         bots.ExecuteCampaignAction(1, new CampaignCommand.Bid(BidLevel.Four));
         bots.ExecuteCampaignAction(2, new CampaignCommand.Pass()); bots.ExecuteCampaignAction(3, new CampaignCommand.Pass());
-        Assert.Equal(3, bots.CreateCampaignView(1).LegalActions.OfType<CampaignCommand.ChooseContract>().Select(c => c.Mode).Distinct().Count());
+        Assert.Equal(1, bots.CreateCampaignView(1).LegalActions.OfType<CampaignCommand.ChooseContract>().Select(c => c.Mode).Distinct().Count());
     }
     public static void EnhancedDealsPreservePhysicalCards()
     {

@@ -139,7 +139,7 @@ public sealed partial class GameEngine
         var bidderTeam = Bidder!.Value % 2; var success = _tricksByTeam[bidderTeam] >= Contract!.RequiredTricks;
         if (!success && Has(JokerId.ProtectiveBubble) && bidderTeam == 0)
         { normal[0] = 0; _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Where(j => j.Id != JokerId.ProtectiveBubble).ToArray() } }; }
-        else if (!success && _variant == GumballId.Duelist) normal[bidderTeam]--;
+        else if (!success && _variant == GumballId.Duelist) normal[bidderTeam] -= 2;
         if (success && bidderTeam == 0)
         {
             if (Has(JokerId.ThreesCompany) && Contract.Bid == BidLevel.Three) _jokerPoints[0] += 2;

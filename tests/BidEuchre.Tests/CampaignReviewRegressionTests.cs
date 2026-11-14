@@ -45,7 +45,8 @@ internal static class CampaignReviewRegressionTests
     }
     public static void ChameleonFallback()
     {
-        var r = Resources(); r.Deck[0] = r.Deck[0] with { Enhancement = EnhancementId.Wild };
+        var r = Resources() with { Inventory = new([], [], [GumballId.HighLow]) };
+        r.Deck[0] = r.Deck[0] with { Enhancement = EnhancementId.Wild };
         for (var i = 6; i < 12; i++) r.Deck[i] = r.Deck[i] with { Face = r.Deck[i].Face with { Suit = Suit.Clubs } };
         r.Deck[6] = r.Deck[6] with { Sigil = SigilId.Chameleon };
         var g = Fixture(r, dealer: 0); Auction(g, 1, ContractMode.High, null); Play(g, new(6)); Play(g); Play(g);

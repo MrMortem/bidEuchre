@@ -10,6 +10,16 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Settled bidding AllSeatsRespectBidUnlocks", () => Run(SettledBiddingTests.AllSeatsRespectBidUnlocks)),
+    ("Settled bidding AllSeatsRespectContractUnlocks", () => Run(SettledBiddingTests.AllSeatsRespectContractUnlocks)),
+    ("Settled bidding SafetyNetAndHumanVariantSeats", () => Run(SettledBiddingTests.SafetyNetAndHumanVariantSeats)),
+    ("Settled bidding AlphaMatchesPartnerSpecialBids", () => Run(SettledBiddingTests.AlphaMatchesPartnerSpecialBids)),
+    ("Settled bidding AlphaDoesNotBypassEligibility", () => Run(SettledBiddingTests.AlphaDoesNotBypassEligibility)),
+    ("Settled bidding DuelistAllowsOnlyFourAndFive", () => Run(SettledBiddingTests.DuelistAllowsOnlyFourAndFive)),
+    ("Settled bidding DuelistPenaltyAndProtectiveBubble", () => Run(SettledBiddingTests.DuelistPenaltyAndProtectiveBubble)),
+    ("Settled bidding DuelistUseLastsForTheMatch", () => Run(SettledBiddingTests.DuelistUseLastsForTheMatch)),
+    ("Settled bidding OvercalledDuelistDoesNotConsumeUse", () => Run(SettledBiddingTests.OvercalledDuelistDoesNotConsumeUse)),
+    ("Settled bidding ForcedDealerVowAndFreePlayRemainLegal", () => Run(SettledBiddingTests.ForcedDealerVowAndFreePlayRemainLegal)),
     ("Settled effects Duck trials and replay", () => Run(SettledEffectTests.DuckTrialsAndReplay)),
     ("Settled effects team scope", () => Run(SettledEffectTests.TeamScopeAndQualifyingCards)),
     ("Settled effects Snake Eyes threshold", () => Run(SettledEffectTests.SnakeEyesThreshold)),
