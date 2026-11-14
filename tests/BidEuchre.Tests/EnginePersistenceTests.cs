@@ -12,6 +12,7 @@ internal static class EnginePersistenceTests
         Directory.CreateDirectory(root);
         try
         {
+            await RepairThenReloadKeepsSavedEngine(root);
             var registry = Path.Combine(root, "engines.json");
             var marker = Path.Combine(root, "executed");
             var script = Path.Combine(root, "bot.sh");
@@ -77,6 +78,14 @@ internal static class EnginePersistenceTests
             Require(new EngineCatalog(registry, directory).List().Count == 2, "Persisted/discovered engine commands must deduplicate.");
             catalog.Remove(bundledId);
             Require(new EngineCatalog(registry, directory).List().Count == 1, "Removed discovered engines must not reappear at restart.");
+            var collisionRegistry = Path.Combine(root, "discovery-collision.json");
+            File.WriteAllText(collisionRegistry, JsonSerializer.Serialize(new { Engines = new[] { loaded with { Id = bundledId } } }));
+            var collisionCatalog = new EngineCatalog(collisionRegistry, directory);
+            Require(collisionCatalog.List().Count == 3 && collisionCatalog.Get(bundledId).Executable == "/bin/sh",
+                "Discovery must preserve a persisted engine that already owns the launcher's derived ID.");
+            var discovered = collisionCatalog.List().Single(engine => engine.Executable == launcher);
+            Require(discovered.Id != bundledId && new EngineCatalog(collisionRegistry, directory).Get(discovered.Id).Executable == launcher,
+                "A discovered engine must receive a distinct persisted ID when its derived ID is occupied.");
             Require(new EngineCatalog(root, directory).PersistenceError is not null, "Catalogue write failure must be visible without breaking discovery.");
             Require(new EngineCatalog().List().Count == 1, "An unconfigured server catalogue must stay transient.");
             Console.WriteLine("PASS  Bounded non-executing engine discovery, deduplication and persistent removal");
@@ -95,4 +104,36 @@ internal static class EnginePersistenceTests
         }
         finally { Directory.Delete(root, true); }
     }
+
+    private static async Task RepairThenReloadKeepsSavedEngine(string root)
+    {
+        var registry = Path.Combine(root, "repair-collision.json");
+        var setupPath = Path.Combine(root, "repair-collision-table.json");
+        var scriptA = Path.Combine(root, "original.sh");
+        var scriptB = Path.Combine(root, "replacement.sh");
+        const string protocol = "while read command; do case \"$command\" in beuci) printf 'id name Collision Bot\\nid author Test Author\\nbeuciok\\n';; isready) echo readyok;; quit) exit;; esac; done\n";
+        await File.WriteAllTextAsync(scriptA, protocol);
+        await File.WriteAllTextAsync(scriptB, protocol);
+        var argsA = $"\"{scriptA}\"";
+        var argsB = $"\"{scriptB}\"";
+        var catalog = new EngineCatalog(registry);
+        var original = await catalog.LoadAsync("/bin/sh", argsA);
+        var setup = LastTableSetup.Default;
+        setup.Seats[1] = setup.Seats[1] with { EngineId = original.Id };
+        Require(setup.Save(setupPath), "The collision fixture must persist the original seat reference.");
+        var replacement = await catalog.RepairAsync(original.Id, "/bin/sh", argsB);
+        var readded = await catalog.LoadAsync("/bin/sh", argsA);
+        Require(replacement.Id == original.Id && readded.Id != original.Id && catalog.List().Count == 3
+            && catalog.Get(original.Id).Arguments == argsB,
+            "Reloading the original command after a repair must allocate another ID without replacing the repaired engine.");
+        catalog = new EngineCatalog(registry);
+        var savedEngineId = LastTableSetup.Load(setupPath).Seats[1].EngineId!;
+        Require(savedEngineId == original.Id && catalog.Get(savedEngineId).Arguments == argsB
+            && catalog.Get(readded.Id).Arguments == argsA,
+            "Registry restart and saved table restoration must keep the repaired command attached to the original seat identity.");
+        Require((await catalog.LoadAsync("/bin/sh", argsA)).Id == readded.Id && catalog.List().Count == 3,
+            "A re-added command must retain its collision-safe ID and deduplicate after restart.");
+        Console.WriteLine("PASS  Repair then reload preserves both persisted engine identities and saved seat references");
+    }
+
 }

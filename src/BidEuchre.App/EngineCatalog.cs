@@ -76,7 +76,7 @@ public sealed class EngineCatalog
             var existing = FindCommand(executable, arguments);
             if (repairId is not null && existing is not null && existing.Id != repairId)
                 throw new ArgumentException("That command already belongs to another engine. Remove the duplicate first.");
-            var id = repairId ?? existing?.Id ?? StableId(executable, arguments);
+            var id = repairId ?? existing?.Id ?? AllocateEngineId(executable, arguments);
             if (repairId is not null) _ignoredDiscoveries.Add(CommandKey(Get(repairId).Executable!, Get(repairId).Arguments));
             var descriptor = new EngineDescriptor(id, identity.Name, identity.Author, false, executable, arguments);
             _engines[id] = descriptor;
@@ -134,7 +134,7 @@ public sealed class EngineCatalog
                     !File.Exists(executable) || HasLinkBetween(bundle, executable)) continue;
                 var arguments = NormalizeArguments(manifest?.Arguments);
                 if (_ignoredDiscoveries.Contains(CommandKey(executable, arguments)) || FindCommand(executable, arguments) is not null) continue;
-                var id = StableId(executable, arguments);
+                var id = AllocateEngineId(executable, arguments);
                 _engines[id] = new(id, manifest?.Name ?? Path.GetFileName(bundle), manifest?.Author ?? "Unknown", false, executable, arguments);
                 _availability[id] = new(true, false);
             }
@@ -165,6 +165,15 @@ public sealed class EngineCatalog
         if (Path.IsPathRooted(path)) path = Path.GetFullPath(path);
         if (OperatingSystem.IsWindows()) path = path.ToUpperInvariant();
         return path + "\n" + NormalizeArguments(arguments);
+    }
+    private string AllocateEngineId(string executable, string? arguments)
+    {
+        // Repair preserves a descriptor's ID even when its command changes. Its former
+        // command must not reclaim that ID and silently replace the repaired engine.
+        var preferred = StableId(executable, arguments);
+        var candidate = preferred;
+        for (var suffix = 1; _engines.ContainsKey(candidate); suffix++) candidate = $"{preferred}-{suffix}";
+        return candidate;
     }
     private static string StableId(string executable, string? arguments) => "external-" + Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(CommandKey(executable, arguments))));
     private static bool ExecutableExists(string executable) => !Path.IsPathRooted(executable) && !executable.Contains(Path.DirectorySeparatorChar)
