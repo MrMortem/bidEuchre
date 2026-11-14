@@ -50,9 +50,10 @@ internal static class HandDrag
             {
                 var moved = dragging;
                 start = null; dragging = false; Active = false;
+                // A plain click must leave the pointer with the card's button, or the button cancels its click.
+                if (!moved) return;
                 foreach (var other in cards) other.Transitions = null;
                 pointer?.Capture(null);
-                if (!moved) return;
                 if (drop && target != from) { reorder(from, target); return; }
                 // Dropped where it started or cancelled: everything goes back to its own slot.
                 Layout(from, from); Place(card, from); card.ZIndex = from;
