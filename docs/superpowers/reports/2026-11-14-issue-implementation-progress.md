@@ -16,16 +16,16 @@ Baseline full solution build passed; test apphost 171/171 passed. Use test execu
 | 4 Effect corrections | 75,83,84,86,87,88,89,90 | Implemented634509a; Core182/182 and Desktop45PASS; independent PASS/APPROVE. |
 | 5 Bid restrictions | 69,71,72,73,91 | Implementeda7a424d; Core192/192; independent PASS/APPROVE. #70 excluded as unresolved. |
 | 6 Ante/bonus | 67,93 | Implementedf05272a; Core/App215/215; independent PASS/APPROVE, no findings. Desktop compatibility validation belongs to Task10. |
-| 7 Gumball duplicates | 68,82 | Implemented6c9af79; Core226/226 then finalfocused11/11, priorDesktop62PASS and finalSkia5PASS. Independent review pending. |
+| 7 Gumball duplicates | 68,82 | Implemented6c9af79 plus96632f9 cumulative-overflow fix; Core226/226 then finalfocused11/11, priorDesktop62PASS and finalSkia5PASS. Independent review/re-review clean. |
 | 8 Freeplay bot | 24 | Implemented59a0d92; Core205/205; independent PASS/APPROVE. |
 | 9 In-match settings | 46 | Implemented4bc6b89; Desktop52PASS normal/Skia; review PASS/APPROVE. Sorting P3 fixed/reviewed in Task10. |
 | 10 Trump announcement | 61 | Implemented948e403; Desktop55/55 plus focusedSkia; independent PASS/APPROVE no findings, includes Task9 sorting retry regression. |
-| 11 Score explanations | 17 | Core structured result/history implementation in progress; Desktop follows Task15 release. |
-| 12 Exact campaign resume | 22 | Read-only architecture complete; implementation awaits remaining shared rule/result APIs. |
+| 11 Score explanations | 17 | Implementedf994fde+2704b21; exact clean Core233/233, Desktop74PASS, Skia5PASS. Independent PASS/APPROVE, no findings. |
+| 12 Exact campaign resume | 22 | Core/Appfoundationa82a05a: Core240/240; Desktop Continue/Forfeit integration in progress. |
 | 13 Shop reroll/badges | 27 | Implemented6a2d219 plus22a3d47 stale-navigation fix; Core215/215, Desktop57PASS, focusedSkia2PASS, focusedfix2PASS. Independent review/re-review clean. |
 | 14 Engine/setup persistence | 25 | Implemented2538903 plus6eebeaa identity-collision fix; Desktop59PASS, Core215/216 with missing snapshot fixture corrected separately, final focused engine/session/collision groups green. Independent review/re-review clean. |
-| 15 Rematch/hotseat | 29 | Implementation in progress after Task14 Desktop release. |
-| 16 Web campaign | 30 | Read-only architecture prepared; implementation pending other shared APIs. |
+| 15 Rematch/hotseat | 29 | Implemented576d7a9; fullDesktop69PASS, focused7/Skia7; independent PASS/APPROVE. |
+| 16 Web campaign | 30 | Server and browser implementations in progress against finalized wire contract and Task12 APIs. |
 
 No newly implemented issue is closed yet. Delivery, integrated verification and final review remain required. #85,#92,#95 had already been closed as resolved design/existing behavior before implementation.
 
@@ -33,6 +33,6 @@ Excluded pending design: #23,#26,#56-60,#65-66,#70. #94 explicitly deferred. See
 
 Integration13f7ae2 used a clean archive at /private/tmp/bideuchre-wave1-13f7ae2 to isolate current work. Full build0errors with8knownbaselinewarnings; Server.Tests exit0 and published smoke1/1 passed. Logs /private/tmp/bideuchre-wave1-build.log and /private/tmp/bideuchre-wave1-published.log.
 
-Draft PR96: https://github.com/MrMortem/bidEuchre/pull/96, published through 6eebeaa (31 issue closures queued for future merge). No merge or actual issue closure yet.
+Draft PR96: https://github.com/MrMortem/bidEuchre/pull/96, published through 2704b21 (35 issue closures queued for future merge). No merge or actual issue closure yet.
 
 Integration948e403 used a clean archive at /private/tmp/bideuchre-wave2-948e403: full solution build0errors/8knownwarnings; Server lifecycle/access tests exit0 and published smoke1/1 passed. Task10 independent review passed; later task work is not covered by this archive.
