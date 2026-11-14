@@ -49,6 +49,10 @@ internal static class CampaignScreens
             buttons, null);
     }
 
+    public static Control Recovery(string message, Action action, Action back, PixelMotion motion, string actionLabel = "New Run") =>
+        Frame(motion, "CAMPAIGN", [Line(message, Danger)],
+            Buttons(motion, 1, ScreenButton(motion, actionLabel, action, primary: true), ScreenButton(motion, "Back", back)), null);
+
     public static Control Result(CampaignRun run, MatchOutcome outcome, int[]? scores, Action next, string? note, PixelMotion motion, GameView? summary = null)
     {
         var lines = new List<Control>();

@@ -16,6 +16,8 @@ internal sealed class CampaignFlow(
     // The ante or shop screen last shown, so a developer change can redraw it.
     private Control? _home;
     private bool _starting;
+    private bool _saveFailed;
+    public string? ResumeNotice { get; private set; }
     private (MatchOutcome Outcome, int[] Scores, GameView? Summary)? _pendingResult;
 
     public CampaignRun? Run { get; private set; }
@@ -29,8 +31,14 @@ internal sealed class CampaignFlow(
     public void Open()
     {
         _pendingResult = null;
-        var saved = CampaignStore.Load(savePath);
-        if (saved is null)
+        var loaded = CampaignStore.LoadSave(savePath);
+        if (!_saveFailed && loaded.Status == CampaignLoadStatus.Corrupt)
+        {
+            show(CampaignScreens.Recovery(loaded.Error!, StartNewRun, showMenu, motion));
+            return;
+        }
+        var saved = _saveFailed ? Run : loaded.Save?.Run;
+        if (saved is null || saved.IsOver)
         {
             StartNewRun();
             return;
@@ -59,6 +67,7 @@ internal sealed class CampaignFlow(
 
     private void StartNewRun()
     {
+        ResumeNotice = null;
         Persist(new CampaignRun());
         ShowIntro();
     }
@@ -69,9 +78,7 @@ internal sealed class CampaignFlow(
         switch (saved.Phase)
         {
             case CampaignPhase.InMatch:
-                // The match was abandoned by leaving or quitting, which counts as a loss.
-                var (next, outcome) = saved.Forfeit();
-                ShowResult(next, outcome, null);
+                ResumeMatch(saved);
                 break;
             case CampaignPhase.Shop:
                 ShowShop();
@@ -83,6 +90,41 @@ internal sealed class CampaignFlow(
                 ShowIntro();
                 break;
         }
+    }
+
+    private async void ResumeMatch(CampaignRun saved)
+    {
+        if (_starting) return;
+        _starting = true;
+        ResumeNotice = saved.LegacyMatchRestart
+            ? "This older save did not contain the hand. The same match has restarted without losing a life."
+            : null;
+        try { await startMatch(saved.NextMatch()); }
+        catch (Exception error)
+        {
+            Run = saved;
+            show(CampaignScreens.Recovery($"The saved match could not open: {error.Message}", () => ResumeMatch(saved), showMenu, motion, "Retry"));
+        }
+        finally { _starting = false; }
+    }
+
+    public void ForfeitMatch()
+    {
+        if (Run is not { Phase: CampaignPhase.InMatch } run) return;
+        var (next, _) = run.Forfeit();
+        _pendingResult = null;
+        Record(next);
+    }
+
+    public bool ShowSaveFailure()
+    {
+        if (!_saveFailed || Run is null) return false;
+        show(CampaignScreens.Recovery("Could not save progress. Changes are retained in this session only.", () =>
+        {
+            Record(Run!);
+            if (!ShowSaveFailure()) showMenu();
+        }, showMenu, motion, "Retry save"));
+        return true;
     }
 
     private void ShowIntro()
@@ -104,13 +146,16 @@ internal sealed class CampaignFlow(
         _starting = true;
         try
         {
-            Persist(run.StartMatch());
+            ResumeNotice = null;
+            // Persisting InMatch before a complete engine checkpoint would make a crash
+            // indistinguishable from corruption. The previous Intro remains durable until start.
+            Run = run.StartMatch();
             await startMatch(run.NextMatch());
         }
         catch (Exception error)
         {
             // A table that never opened is not a forfeit; MainWindow has already reported why.
-            Persist(run);
+            Run = run;
             _note = $"The match could not start: {error.Message}";
             ShowIntro();
         }
@@ -132,7 +177,8 @@ internal sealed class CampaignFlow(
         if (next.IsOver)
         {
             Run = next;
-            CampaignStore.Delete(savePath);
+            _saveFailed = !CampaignStore.Delete(savePath);
+            if (_saveFailed) _note = "Could not save progress. Changes are retained in this session only.";
         }
         else
         {
@@ -165,11 +211,14 @@ internal sealed class CampaignFlow(
         ShowShop();
     }, showMenu, motion));
 
-    public bool Checkpoint(CampaignSnapshot snapshot)
+    public bool Checkpoint(CampaignCheckpoint checkpoint)
     {
-        if (Run is not { Phase: CampaignPhase.InMatch } run || snapshot.Revision < run.LastAppliedRevision) return false;
-        Run = run with { Resources = snapshot.Copy(), Money = snapshot.Wallets[0], LastAppliedRevision = snapshot.Revision };
-        var saved = CampaignStore.Save(Run, savePath); if (!saved) _note = "Could not save progress."; return saved;
+        if (Run is not { Phase: CampaignPhase.InMatch } run || checkpoint.Match.Resources.Revision < run.LastAppliedRevision) return false;
+        Run = run.WithCheckpoint(checkpoint);
+        _saveFailed = !CampaignStore.Save(Run, savePath);
+        if (_saveFailed) _note = "Could not save progress. Changes are retained in this session only.";
+        else if (_note?.StartsWith("Could not save progress") is true) _note = null;
+        return !_saveFailed;
     }
 
     private void ShowShop()
@@ -286,7 +335,8 @@ internal sealed class CampaignFlow(
     private void Persist(CampaignRun run)
     {
         Run = run;
-        if (!CampaignStore.Save(run, savePath)) _note = "Could not save progress.";
+        _saveFailed = !CampaignStore.Save(run, savePath);
+        if (_saveFailed) _note = "Could not save progress. Changes are retained in this session only.";
     }
 
     /// <summary>Applies a developer-console change between matches, saves it, and redraws the

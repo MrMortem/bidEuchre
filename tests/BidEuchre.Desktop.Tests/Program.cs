@@ -17,6 +17,8 @@ AppBuilder.Configure<Application>()
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
+if (args.Contains("--resume-only")) { CampaignResumeUiTests.Run(); return; }
+
 if (args.Contains("--table-rendering-only")) { TableRenderingTests.Run(); return; }
 
 if (args.Contains("--score-history-only")) { ScoreHistoryUiTests.Run(); return; }
@@ -48,6 +50,7 @@ CollectionTests.Run();
 TableRenderingTests.Run();
 DesktopBugTests.Run();
 CampaignRecoveryUiTests.Run();
+CampaignResumeUiTests.Run();
 
 var motion = new PixelMotion();
 motion.SetEnabled(false);

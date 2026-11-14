@@ -49,6 +49,9 @@ internal static class CampaignResumePersistenceTests
             ((JsonObject)node["Run"]!["LiveMatch"]!["Options"]!).Remove("TargetScore");
             File.WriteAllText(path, node.ToJsonString()); Assert.True(CampaignStore.Load(path) is null, "Missing live options must reject instead of defaulting.");
             node = JsonNode.Parse(original)!;
+            ((JsonObject)node["Run"]!["LiveMatch"]!["Resources"]!["Deck"]![0]!).Remove("Enhancement");
+            File.WriteAllText(path, node.ToJsonString()); Assert.True(CampaignStore.Load(path) is null, "Missing live card feature must reject instead of defaulting.");
+            node = JsonNode.Parse(original)!;
             node["Run"]!["Resources"]!["Wallets"]![0] = 999;
             File.WriteAllText(path, node.ToJsonString()); Assert.True(CampaignStore.Load(path) is null); Assert.Equal(node.ToJsonString(), File.ReadAllText(path));
             File.WriteAllText(path, original); node = JsonNode.Parse(original)!; node["Run"]!["LiveMatch"] = null;
@@ -80,5 +83,30 @@ internal static class CampaignResumePersistenceTests
         await Assert.ThrowsAsync<GameRuleException>(() => restored.ArrangeCampaignHandAsync(0, order, precondition: () => throw new GameRuleException("stale")));
         Assert.Equal(before, JsonSerializer.Serialize(await restored.GetCampaignCheckpointAsync()));
         saveSucceeds = true; await session.ArrangeCampaignHandAsync(0, order); Assert.True(session.LastError is null);
+        await session.ArrangeCampaignHandAsync(0, order, manuallyArranged: false, autoArrangeStage: "Trump:Hearts:Suit");
+        Assert.False(checkpoint!.Arrangement!.ManuallyArranged); Assert.Equal("Trump:Hearts:Suit", checkpoint.Arrangement.AutoStage!);
+    }
+
+    public static async Task FreshBotsContinueWithoutReplay()
+    {
+        var resources = CampaignSnapshot.Create(19) with { Inventory = new([new(JokerId.DoubleDown), new(JokerId.LastLaugh)], [], []) };
+        resources.Deck[0] = resources.Deck[0] with { Enhancement = EnhancementId.Golden };
+        var game = new GameEngine(["P0", "P1", "P2", "P3"], 19, new MatchOptions(1000), new(resources)); game.StartGame(3);
+        game.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.Three));
+        while (game.Phase == GamePhase.Bidding) game.ExecuteCampaignAction(game.CampaignActor!.Value, new CampaignCommand.Pass());
+        game.ExecuteCampaignAction(0, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Clubs));
+        var checkpoint = new CampaignCheckpoint(game.ExportCampaignMatchSnapshot());
+        var seats = Enumerable.Range(0, 4).Select(s => new SeatConfiguration(s, $"P{s}", PlayerKind.Bot, null)).ToArray();
+        var saved = new List<CampaignCheckpoint>();
+        await using var restored = new GameSession("fresh-bots", "Campaign", seats, new EngineCatalog(), 999, TimeSpan.Zero,
+            campaignPolicy: (v,s) => v.Campaign!.LegalActions[0], waitForContractPresentation: true, liveCheckpoint: c => { saved.Add(c); return true; });
+        await restored.RestoreCampaignAsync(checkpoint);
+        await restored.WaitForBotsAsync();
+        Assert.False(restored.WaitingForContractPresentation);
+        Assert.Equal(JsonSerializer.Serialize(checkpoint.Match), JsonSerializer.Serialize(saved[0].Match));
+        while (game.Phase is not (GamePhase.HandComplete or GamePhase.GameComplete))
+        { var seat = game.CampaignActor!.Value; game.ExecuteCampaignAction(seat, game.CreateCampaignView(seat).LegalActions[0]); }
+        Assert.Equal(JsonSerializer.Serialize(game.ExportCampaignMatchSnapshot()), JsonSerializer.Serialize((await restored.GetCampaignCheckpointAsync())!.Match));
+        Assert.Equal(25, saved.Count); // Initial checkpoint plus 24 physical plays, no replayed deal or contract.
     }
 }

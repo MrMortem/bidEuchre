@@ -35,6 +35,8 @@ internal static class CampaignResumeTests
 
     public static void EveryBoundaryAndEffects()
     {
+        var eagleRepeat = false; var pendingPoints = false; var stickyOverlay = false; var poker = false;
+        var pending = new HashSet<string>();
         JokerId[][] groups = [[], [JokerId.OneUp, JokerId.Cheater, JokerId.DoubleDown, JokerId.StickyFingers, JokerId.DejaVu],
             [JokerId.LastLaugh, JokerId.Medusa, JokerId.LuckyDuck, JokerId.DeepDigger, JokerId.RollerCoaster]];
         foreach (var jokers in groups)
@@ -46,6 +48,11 @@ internal static class CampaignResumeTests
             var game = New(resources); game.StartGame(3);
             for (var guard = 0; guard < 180; guard++)
             {
+                var snapshot = game.ExportCampaignMatchSnapshot();
+                var ids = snapshot.CompletedTricks.SelectMany(t => t.Plays).Select(p => p.Id).ToArray();
+                eagleRepeat |= ids.Distinct().Count() < ids.Length;
+                pendingPoints |= snapshot.TrickPoints.Length > 0; stickyOverlay |= snapshot.Overlays.Length > 0; poker |= snapshot.PokerRevealed;
+                if (snapshot.PendingChoice is { } choice) pending.Add(choice);
                 var restored = RoundTrip(game); EqualViews(game, restored);
                 if (game.Phase == GamePhase.GameComplete) break;
                 if (game.Phase == GamePhase.HandComplete) { game.StartNextHand(); restored.StartNextHand(); }
@@ -61,6 +68,9 @@ internal static class CampaignResumeTests
             }
             Assert.Equal(GamePhase.GameComplete, game.Phase);
         }
+        Assert.True(eagleRepeat, "Matrix must actually replay an Eagle identity.");
+        Assert.True(pendingPoints && stickyOverlay && poker, "Matrix must exercise live score ledger, Sticky Fingers overlay and revealed Poker hands.");
+        Assert.Equal(4, pending.Count);
     }
 
     public static void CorruptAndDetached()
@@ -74,16 +84,24 @@ internal static class CampaignResumeTests
         snapshot = game.ExportCampaignMatchSnapshot();
         CampaignMatchSnapshot[] invalid = [snapshot with { Version = 99 }, snapshot with { Hands = null! }, snapshot with { CurrentSeat = 7 },
             snapshot with { CurrentSeat = null }, snapshot with { PendingChoice = "unknown", PendingActor = 0 }, snapshot with { Events = [null!] },
-            snapshot with { Phase = GamePhase.Playing }, snapshot with { Auction = [null!] }, snapshot with { Overlays = [null!] },
+            snapshot with { Variant = GumballId.Duelist, DuelOpponent = 1 }, snapshot with { Phase = GamePhase.Playing }, snapshot with { Auction = [null!] }, snapshot with { Overlays = [null!] },
             snapshot with { TrickHistory = [null!] }, snapshot with { Resources = snapshot.Resources with { Inventory = null! } }];
         foreach (var bad in invalid) Assert.Throws<GameRuleException>(() => GameEngine.RestoreCampaignMatch(bad));
         var node = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(snapshot))!.AsObject(); node.Remove("FirstHumanRoundCard");
         Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<CampaignMatchSnapshot>(node.ToJsonString()));
+        while (game.Phase != GamePhase.Playing) Advance(game);
+        snapshot = game.ExportCampaignMatchSnapshot(); snapshot.Hands[3] = snapshot.Hands[3].Skip(1).ToArray();
+        Assert.Throws<GameRuleException>(() => GameEngine.RestoreCampaignMatch(snapshot));
     }
     public static void DeveloperTerminalPendingAndPanic()
     {
         var game = New(CampaignSnapshot.Create(1) with { Inventory = new([new(JokerId.OneUp)], [], []) });
         game.StartGame(3); game.DeveloperEndMatch(0);
+        EqualViews(game, RoundTrip(game));
+        game = New(); game.StartGame(3);
+        while (game.Phase != GamePhase.HandComplete) Advance(game);
+        game.Redeal();
+        while (game.Phase != GamePhase.HandComplete) Advance(game);
         EqualViews(game, RoundTrip(game));
     }
 }

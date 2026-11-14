@@ -636,7 +636,7 @@ public sealed partial class MainWindow : Window
             botActionDelay: TimeSpan.FromMilliseconds(paceMilliseconds),
             matchOptions: options,
             campaign: options is null ? null : new CampaignContext(_campaign.Run!.Resources),
-            checkpoint: options is null ? null : _campaign.Checkpoint,
+            liveCheckpoint: options is null ? null : _campaign.Checkpoint,
             waitForContractPresentation: true);
         _session = session;
         _campaignSession = options is null ? null : session;
@@ -676,7 +676,24 @@ public sealed partial class MainWindow : Window
                 "Campaign", options);
             _menuButton.Content = MenuLabel;
             ShowTable();
-            await StartSessionAsync();
+            if (_campaign.Run?.LiveMatch is { } live)
+            {
+                var arrangement = _campaign.Run.Arrangement;
+                var deal = $"{session.Id}:{live.DealSerial}";
+                _draggedDeal = arrangement?.ManuallyArranged is true ? deal : null;
+                _autoArranged = arrangement?.AutoStage is { } stage ? $"{deal}:{stage}" : null;
+                try
+                {
+                    await session.RestoreCampaignAsync(new(live, arrangement));
+                    await RefreshGameAsync();
+                }
+                catch
+                {
+                    if (ReferenceEquals(DetachSession(), session)) await session.DisposeAsync();
+                    throw;
+                }
+            }
+            else await StartSessionAsync();
             if (!session.Started)
             {
                 if (ReferenceEquals(DetachSession(), session)) await session.DisposeAsync();
@@ -833,7 +850,7 @@ public sealed partial class MainWindow : Window
             _scoreEyebrow.Text = view.Campaign is null ? $"TEAMS · TO {view.TargetScore}" : $"TEAMS · ±{view.TargetScore} · 8 HANDS";
             _contractText.Text = ContractName(view);
             _dealerText.Text = $"HAND {view.HandNumber} · TRICKS {view.TricksByTeam[0]}–{view.TricksByTeam[1]}";
-            _sessionError.Text = session.LastError ?? string.Empty;
+            _sessionError.Text = session.LastError ?? (InCampaignMatch ? _campaign.ResumeNotice : null) ?? string.Empty;
             _sessionError.IsVisible = _sessionError.Text.Length > 0;
             RenderInventory(view.Campaign);
             if (!motionEnabled || view.Phase != GamePhase.Bidding) _deckDeal?.Cancel();
@@ -1373,18 +1390,18 @@ public sealed partial class MainWindow : Window
         if (campaign.ViewerSeat is not { } seat) return false;
         var hand = campaign.Players[seat].VisibleCards;
         var deal = $"{session.Id}:{campaign.DealSerial}";
-        var stage = $"{deal}:{view.Contract?.Mode}:{view.Contract?.Trump}:{_preferences.HandSort}";
+        var autoStage = $"{view.Contract?.Mode}:{view.Contract?.Trump}:{_preferences.HandSort}";
+        var stage = $"{deal}:{autoStage}";
         if (hand.Count < 2 || _draggedDeal == deal || _autoArranged == stage) return false;
         var sorted = HandOrder.Sort(hand, card => card.Face, _preferences.HandSort, view.Contract).Select(card => card.Id).ToArray();
-        if (sorted.SequenceEqual(hand.Select(card => card.Id))) { _autoArranged = stage; return false; }
-        try { await session.ArrangeCampaignHandAsync(seat, sorted); _autoArranged = stage; return true; }
+        var changed = !sorted.SequenceEqual(hand.Select(card => card.Id));
+        try { await session.ArrangeCampaignHandAsync(seat, sorted, manuallyArranged: false, autoArrangeStage: autoStage); _autoArranged = stage; return changed; }
         catch (GameRuleException) { return false; }
     }
 
     private async Task ArrangeCampaignHandAsync(GameSession session, CampaignGameView campaign, int seat, IReadOnlyList<CardId> order)
     {
-        _draggedDeal = $"{session.Id}:{campaign.DealSerial}";
-        try { await session.ArrangeCampaignHandAsync(seat, order); }
+        try { await session.ArrangeCampaignHandAsync(seat, order); _draggedDeal = $"{session.Id}:{campaign.DealSerial}"; }
         catch (Exception error) { ShowError(error.Message); }
         _renderKey = null;
         await RefreshGameAsync();
@@ -1726,12 +1743,20 @@ public sealed partial class MainWindow : Window
             button.Content = ForfeitLabel;
             return;
         }
+        if (InCampaignMatch && _campaign.InMatch && _session is { } campaignSession)
+        {
+            // Quiesce the action gate before deciding; a just-finished match earns its result.
+            await campaignSession.PauseAsync();
+            var final = await campaignSession.GetViewAsync(0);
+            if (final?.Phase == GamePhase.GameComplete) _campaign.MatchCompleted(final.GameWinner == 0, final.Scores, final);
+            else _campaign.ForfeitMatch();
+        }
         if (_session is not null)
         {
             await LeaveTableAsync(button);
             button.IsEnabled = true;
         }
-        ShowMenu();
+        if (!_campaign.ShowSaveFailure()) ShowMenu();
     }
 
     private void ShowSetup()

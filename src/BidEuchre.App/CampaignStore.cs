@@ -28,7 +28,8 @@ public static class CampaignStore
             {
                 if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number is not (2 or 3)) return Corrupt();
                 if (number == 3 && root.TryGetProperty("Run", out var runJson) && runJson.TryGetProperty("LiveMatch", out var liveJson)
-                    && liveJson.ValueKind != JsonValueKind.Null && !CompleteLiveJson(liveJson)) return Corrupt();
+                    && liveJson.ValueKind != JsonValueKind.Null && (!Members(runJson, "Arrangement", "Resources", "Money", "LastAppliedRevision", "LegacyMatchRestart")
+                        || !CompleteResourcesJson(runJson.GetProperty("Resources")) || !CompleteLiveJson(liveJson))) return Corrupt();
                 var node = JsonNode.Parse(text)!.AsObject();
                 RemoveRetiredFeatures(node);
                 save = node.Deserialize<CampaignSave>(CampaignJson.Options)!;
@@ -62,9 +63,7 @@ public static class CampaignStore
     private static bool CompleteLiveJson(JsonElement live)
     {
         if (!live.TryGetProperty("Options", out var options) || !Members(options, "TargetScore", "StartingScoreTeam0", "StartingScoreTeam1", "NegativeThreshold", "HandLimit", "OpponentSuccessfulBidBonus")) return false;
-        if (!live.TryGetProperty("Resources", out var resources) || !Members(resources, "Revision", "Deck", "Inventory", "Wallets", "RandomState", "PreviousContract", "GeneratedTarot")) return false;
-        var inventory = resources.GetProperty("Inventory");
-        if (!Members(inventory, "Jokers", "Tarot", "Unlocks", "Sigils", "GumballExtraCopies")) return false;
+        if (!live.TryGetProperty("Resources", out var resources) || !CompleteResourcesJson(resources)) return false;
         if (!live.TryGetProperty("HandHistory", out var history) || history.ValueKind != JsonValueKind.Array) return false;
         foreach (var hand in history.EnumerateArray())
         {
@@ -72,6 +71,18 @@ public static class CampaignStore
             var parts = hand.GetProperty("ScoreBreakdowns"); if (parts.ValueKind != JsonValueKind.Array) return false;
             foreach (var part in parts.EnumerateArray()) if (!Members(part, "GumballBonuses")) return false;
         }
+        return true;
+    }
+
+    private static bool CompleteResourcesJson(JsonElement resources)
+    {
+        if (!Members(resources, "Revision", "Deck", "Inventory", "Wallets", "RandomState", "PreviousContract", "GeneratedTarot")) return false;
+        var inventory = resources.GetProperty("Inventory");
+        if (!Members(inventory, "Jokers", "Tarot", "Unlocks", "Sigils", "GumballExtraCopies")) return false;
+        var deck = resources.GetProperty("Deck"); if (deck.ValueKind != JsonValueKind.Array) return false;
+        foreach (var card in deck.EnumerateArray()) if (!Members(card, "Id", "Face", "Enhancement", "Sigil")) return false;
+        var jokers = inventory.GetProperty("Jokers"); if (jokers.ValueKind != JsonValueKind.Array) return false;
+        foreach (var joker in jokers.EnumerateArray()) if (!Members(joker, "Id", "Value")) return false;
         return true;
     }
 

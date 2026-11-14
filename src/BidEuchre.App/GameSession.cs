@@ -305,7 +305,7 @@ public sealed class GameSession : IAsyncDisposable
             GameRules.ValidateSeat(seat);
             if (Seats[seat].Kind != PlayerKind.Human) throw new GameRuleException("Only a human seat arranges its hand.");
             Game.ArrangeCampaignHand(seat, order);
-            if (seat == 0) _arrangement = new(Game.DealSerial, manuallyArranged || (_arrangement?.DealSerial == Game.DealSerial && _arrangement.ManuallyArranged), autoArrangeStage);
+            if (seat == 0) _arrangement = new(Game.DealSerial, manuallyArranged, autoArrangeStage);
             LastError = null; CheckpointCampaign();
         }
         finally { _gate.Release(); }

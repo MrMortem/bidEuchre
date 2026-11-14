@@ -42,6 +42,18 @@ public sealed partial record CampaignMatchSnapshot
             || Variant is { } variant && variant is not (GumballId.Chaos or GumballId.Poker or GumballId.Telepath or GumballId.Duelist)
             || DuelOpponent is { } opponent && (opponent is not (1 or 3) || Variant != GumballId.Duelist)
             || LastMatchCard is { } last && !Id(last) || EffectSequence < 0) return false;
+        if (Variant is not null && (Bidder != 0 || !(Variant switch
+        {
+            GumballId.Chaos => HighBid is >= BidLevel.Four and <= BidLevel.Six,
+            GumballId.Poker => HighBid == BidLevel.Four,
+            GumballId.Telepath => HighBid is BidLevel.Five or BidLevel.Six,
+            GumballId.Duelist => HighBid is BidLevel.Four or BidLevel.Five,
+            _ => false
+        }))) return false;
+        if (DuelOpponent is not null && (BiddingTurns != 4 || !DuelistUsedThisMatch)
+            || PokerRevealed && (Variant != GumballId.Poker || Contract is null)
+            || TelepathDone && Variant != GumballId.Telepath
+            || Variant is GumballId.Chaos or GumballId.Telepath && Contract is { Mode: not ContractMode.Trump }) return false;
         if (Scores is not { Length: 2 } || TricksByTeam is not { Length: 2 } || CardPoints is not { Length: 2 }
             || JokerPoints is not { Length: 2 } || ModifierPoints is not { Length: 2 } || MatchOvertricks is not { Length: 2 }
             || HandWalletStart is not { Length: 4 } || HandWalletStart.Any(x => x < 0) || MatchOvertricks.Any(x => x < 0)
@@ -57,7 +69,16 @@ public sealed partial record CampaignMatchSnapshot
         for (var i = 0; i < CompletedTricks.Length; i++)
         {
             var t = CompletedTricks[i];
-            if (t is null || t.Number != i + 1 || !Plays(t.Plays, true) || t.Leader != t.Plays[0].Seat || !t.Plays.Any(p => p.Seat == t.Winner)) return false;
+            if (t is null || t.Number != i + 1 || !Plays(t.Plays, true) || t.Leader != t.Plays[0].Seat || t.Leader != (i == 0 ? Next(Dealer) : CompletedTricks[i - 1].Winner) || !t.Plays.Any(p => p.Seat == t.Winner)) return false;
+        }
+        if (Phase is not (GamePhase.HandComplete or GamePhase.GameComplete))
+        {
+            var identities = Hands.SelectMany((hand, seat) => hand.Select(id => new SnapshotPlay(seat, id)))
+                .Concat(CurrentTrick).Concat(CompletedTricks.SelectMany(t => t.Plays)).GroupBy(p => p.Id).ToArray();
+            if (identities.Length != 24 || identities.Any(group => group.Select(p => p.Seat).Distinct().Count() != 1)) return false;
+            if (Phase == GamePhase.Playing)
+                for (var seat = 0; seat < 4; seat++)
+                    if (Hands[seat].Length > 6 || Hands[seat].Length < (Active(seat) ? 6 - CompletedTricks.Length - CurrentTrick.Count(p => p.Seat == seat) : 6)) return false;
         }
         if (!TricksByTeam.SequenceEqual(new[] { CompletedTricks.Count(t => t.Winner % 2 == 0), CompletedTricks.Count(t => t.Winner % 2 == 1) })) return false;
         if (TrickHistory is null || TrickHistory.Length != CompletedTricks.Length || TrickHistory.Select(t => t.Number).Distinct().Count() != TrickHistory.Length) return false;
@@ -81,10 +102,11 @@ public sealed partial record CampaignMatchSnapshot
             || StickyTriggered is null || StickyTriggered.Any(s => !Seat(s)) || StickyTriggered.Distinct().Count() != StickyTriggered.Length
             || TrickPoints is null || TrickPoints.Any(p => p is null || p.Team is not (0 or 1) || string.IsNullOrWhiteSpace(p.Source))) return false;
         if (HandHistory is null) return false;
+        // The developer redeal hook can repeat an already scored hand number.
         var previousHand = 0;
         foreach (var h in HandHistory)
         {
-            if (h is null || h.HandNumber <= previousHand || h.HandNumber > HandNumber || !Seat(h.Bidder) || !ValidContract(h.Contract)
+            if (h is null || h.HandNumber < previousHand || h.HandNumber > HandNumber || !Seat(h.Bidder) || !ValidContract(h.Contract)
                 || h.BiddingTeamTricks < 0 || h.DefendingTeamTricks < 0 || h.BiddingTeamTricks + h.DefendingTeamTricks > 6 || h.Reason is null
                 || h.ScoreBreakdowns is not { Count: 2 }) return false;
             previousHand = h.HandNumber;
@@ -123,7 +145,12 @@ public sealed partial record CampaignMatchSnapshot
             for (var seat = 0; seat < 4; seat++) if (Hands[seat].Length != (seat == b ? 5 : seat == CurrentSeat ? 7 : 6)) return false;
         }
         else if (PendingExchangeCard is { } exchanged && (!terminal || Contract?.IsPartnersBest != true || Bidder is not { } exchangeBidder || !Hands[(exchangeBidder + 2) % 4].Contains(exchanged))) return false;
-        if (Phase == GamePhase.Playing && (!Active(CurrentSeat!.Value) || CurrentTrick.Length > 0 && Next(CurrentTrick[^1].Seat) != CurrentSeat)) return false;
+        if (Phase is GamePhase.ExchangingBidderCard or GamePhase.ExchangingPartnerCard && (CurrentTrick.Length != 0 || CompletedTricks.Length != 0)) return false;
+        if (Phase == GamePhase.Playing)
+        {
+            var leader = CompletedTricks.Length == 0 ? Next(Dealer) : CompletedTricks[^1].Winner;
+            if (!Active(CurrentSeat!.Value) || (CurrentTrick.Length == 0 ? CurrentSeat != leader : CurrentTrick[0].Seat != leader || Next(CurrentTrick[^1].Seat) != CurrentSeat)) return false;
+        }
         return true;
     }
 }
