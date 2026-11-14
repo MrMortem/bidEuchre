@@ -1639,11 +1639,11 @@ public sealed partial class MainWindow : Window
 
     private void ShowCollection() => _screenHost.Content = CollectionPage.Build(ShowMenu, _motion);
 
-    private void ChangePreferences(GamePreferences preferences)
+    private bool ChangePreferences(GamePreferences preferences)
     {
         _preferences = preferences;
         ApplyGraphics();
-        if (!_preferences.Save(_preferencesPath)) ShowError("Settings changed for this session, but could not be saved.");
+        return _preferences.Save(_preferencesPath);
     }
 
     private void ApplyGraphics()

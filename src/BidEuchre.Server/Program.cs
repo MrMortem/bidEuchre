@@ -122,9 +122,9 @@ app.MapPost("/api/sessions/{id}/next-hand", async (
 app.MapDelete("/api/sessions/{id}", async (string id, WebSessions sessions) =>
     await sessions.RemoveAsync(id) ? Results.NoContent() : Results.NotFound(new { error = "Session was not found." }));
 
-app.MapGet("/api/rules", async (IWebHostEnvironment environment) =>
+app.MapGet("/api/rules", async () =>
 {
-    var path = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "bid-euchre-final-rules.md"));
+    var path = Path.Combine(AppContext.BaseDirectory, "bid-euchre-final-rules.md");
     return Results.Text(await File.ReadAllTextAsync(path), "text/markdown");
 });
 

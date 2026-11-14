@@ -1,0 +1,6 @@
+{
+  "name": "bid-euchre-browser-regressions",
+  "private": true,
+  "scripts": { "test": "node --test ../server/browser.test.cjs" },
+  "devDependencies": { "playwright": "1.65.1" }
+}

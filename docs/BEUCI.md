@@ -192,10 +192,13 @@ restart the per-line timer but do not extend the whole-turn limit. Handshake and
 readiness have no separate whole-operation deadline or maximum ignored-line
 count, so engines must still produce the required sentinel promptly.
 
-The current client does not send `stop`, restart the engine, or drain late
-output after an action timeout. A late `bestaction` can therefore be consumed as
-the next turn's answer. Engines SHOULD cancel timed-out work internally and
-never emit a delayed response after abandoning a request.
+After a response timeout or cancellation of an in-flight decision, the client
+fails the channel closed and terminates the engine process tree. Subsequent
+`go`, position, reset, and startup requests on that client are rejected; the host
+must replace the client and complete a fresh handshake to resume external play.
+BEUCI has no request identifiers, so late output cannot safely be associated with
+a later turn or hand. The client does not attempt to resynchronize with `stop`
+or by draining buffered output.
 
 ## 4. Command and response index
 

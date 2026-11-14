@@ -127,6 +127,16 @@ public sealed record Contract(BidLevel Bid, ContractMode Mode, Suit? Trump)
             throw new GameRuleException("Unknown bid level.");
         }
 
+        if (!Enum.IsDefined(mode))
+        {
+            throw new GameRuleException("Unknown contract mode.");
+        }
+
+        if (trump is { } suit && !Enum.IsDefined(suit))
+        {
+            throw new GameRuleException("Unknown trump suit.");
+        }
+
         if (bid is BidLevel.Three && mode is not ContractMode.Trump)
         {
             throw new GameRuleException("A 3 bid must become a trump contract.");

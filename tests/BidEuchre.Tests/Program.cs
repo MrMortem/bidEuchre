@@ -10,6 +10,15 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Protocol boundary ContractValues", ProtocolBoundaryTests.ContractValues),
+    ("Protocol boundary MalformedCardNotation", ProtocolBoundaryTests.MalformedCardNotation),
+    ("Protocol boundary MalformedPlayRecovers", ProtocolBoundaryTests.MalformedPlayRecovers),
+    ("Protocol boundary MalformedExchangeRecovers", ProtocolBoundaryTests.MalformedExchangeRecovers),
+    ("Protocol boundary DecisionTimeoutClosesChannel", ProtocolBoundaryTests.DecisionTimeoutClosesChannel),
+    ("Protocol boundary DecisionCancellationClosesChannel", ProtocolBoundaryTests.DecisionCancellationClosesChannel),
+    ("Campaign malformed version kinds recover", () => Run(RemainingCampaignSaveTests.InvalidVersionKinds)),
+    ("Campaign invalid saved shop stock recovers", () => Run(RemainingCampaignSaveTests.InvalidShopRecords)),
+    ("Campaign retired deal constraints cannot strand a hand", () => Run(RemainingCampaignSaveTests.RetiredDealConstraintIsGone)),
     ("Developer console sets money and lives", DeveloperConsoleTests.MoneyAndLives),
     ("Developer console manages Jokers by fuzzy name", DeveloperConsoleTests.JokersByFuzzyName),
     ("Developer console manages Tarot, Sigils and bids", DeveloperConsoleTests.TarotSigilsAndBids),

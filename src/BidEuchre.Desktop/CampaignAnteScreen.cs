@@ -1,7 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -69,9 +68,9 @@ internal static class CampaignAnteScreen
             var face = CampaignShopScreen.Small(definition, ink);
             var card = new Button
             {
-                Name = $"AnteItem{category}{slot}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), FocusAdorner = null, Flyout = flyout,
-                Template = new FuncControlTemplate<Button>((_, _) => face)
+                Name = $"AnteItem{category}{slot}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), Flyout = flyout
             };
+            CampaignCardFocus.Apply(card, face);
             Avalonia.Automation.AutomationProperties.SetName(card, $"Your {category}: {definition.Name}");
             ToolTip.SetTip(card, $"{definition.Name}: {definition.Description}");
             items.Children.Add(card);

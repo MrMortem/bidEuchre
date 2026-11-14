@@ -3,7 +3,6 @@ using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -64,11 +63,11 @@ internal static class CampaignShopScreen
             };
             var button = new Button
             {
-                Name = name, Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), FocusAdorner = null,
-                // The room above the card is what it rises into when selected.
-                Template = new FuncControlTemplate<Button>((_, _) => new Panel { Children = { face } })
+                Name = name, Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand)
             };
             face.Margin = new Thickness(0, Lift, 0, 0);
+            // The room above the card is what it rises into when selected.
+            CampaignCardFocus.Apply(button, new Panel { Children = { face } });
             AutomationProperties.SetName(button, label);
             button.Click += (_, _) => Select(button, describe());
             cards.Add((button, face, rest));
@@ -208,7 +207,7 @@ internal static class CampaignShopScreen
             }
         });
         Select(null, Detail("SHOP", Muted, "Pick a card", "Press a card to see what it does and what it costs.", null));
-        return MenuParts.Scene(motion, panel, new ScrollViewer { Content = panel });
+        return MenuParts.Scene(motion, panel, new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
     }
 
     // A Tarot or Sigil can also be played at once on the shared deck, which
@@ -375,9 +374,9 @@ internal static class CampaignDeckPicker
 
             var button = new Button
             {
-                Name = $"DeckCard{card.Id.Value}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), FocusAdorner = null,
-                Template = new FuncControlTemplate<Button>((_, _) => cell)
+                Name = $"DeckCard{card.Id.Value}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand)
             };
+            CampaignCardFocus.Apply(button, cell);
             AutomationProperties.SetName(button, $"{Card.DisplayRank(card.Face.Rank)} of {card.Face.Suit}, card {card.Id.Value + 1}");
             button.Click += (_, _) =>
             {

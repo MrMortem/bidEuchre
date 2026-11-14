@@ -1,5 +1,5 @@
 .dotnet/
-.dotnet-home/
+.dotnet-home
 **/bin/
 **/obj/
 .vs/
@@ -10,7 +10,7 @@
 dist/
 
 # Python CFR engine
-.venv/
+.venv
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
@@ -28,3 +28,6 @@ engines/hybrid/state/
 engines/hybrid/data/
 engines/hybrid/.venv/
 engines/hybrid/python/*.egg-info/
+
+# Browser regression dependencies
+**/node_modules/
