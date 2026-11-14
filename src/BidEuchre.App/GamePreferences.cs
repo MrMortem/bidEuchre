@@ -8,7 +8,8 @@ public sealed record GamePreferences(
     int WindowWidth = 1320,
     int WindowHeight = 860,
     double UiScale = 1.0,
-    HandSort HandSort = HandSort.Suit)
+    HandSort HandSort = HandSort.Suit,
+    bool AutomaticHotseatPrivacy = false)
 {
     public static IReadOnlyList<(int Width, int Height)> WindowSizes { get; } =
         [(1280, 720), (1320, 860), (1600, 900), (1920, 1080)];

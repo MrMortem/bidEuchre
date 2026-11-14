@@ -161,6 +161,8 @@ public sealed partial class MainWindow : Window
         _pace.SelectedItem = PaceOption.All.First(option => option.Milliseconds == _lastTableSetup.BotDelayMilliseconds);
         _viewerSeat.SelectionChanged += async (_, _) =>
         {
+            if (_settingViewer) return;
+            if (AutomaticHotseat) { SetViewerSelection(_viewer); return; }
             if (_viewerSeat.SelectedItem is ViewerOption option)
             {
                 _input.BeginViewChange();
@@ -617,14 +619,21 @@ public sealed partial class MainWindow : Window
 
     private async Task<GameSession> OpenSessionAsync(IReadOnlyList<SeatConfiguration> seats, string name, MatchOptions? options)
     {
-        var pace = _pace.SelectedItem as PaceOption ?? PaceOption.All[1];
+        return await OpenSessionAtPaceAsync(seats, name, options,
+            (_pace.SelectedItem as PaceOption ?? PaceOption.All[1]).Milliseconds);
+    }
+
+    private async Task<GameSession> OpenSessionAtPaceAsync(IReadOnlyList<SeatConfiguration> seats, string name, MatchOptions? options, int paceMilliseconds)
+    {
+        ResetHotseat();
+        _freePlayRematch = options is null ? new(name, paceMilliseconds, seats.ToArray()) : null;
         var session = new GameSession(
             Guid.NewGuid().ToString("N")[..10],
             name,
             seats,
             _catalog,
             seed: null,
-            botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds),
+            botActionDelay: TimeSpan.FromMilliseconds(paceMilliseconds),
             matchOptions: options,
             campaign: options is null ? null : new CampaignContext(_campaign.Run!.Resources),
             checkpoint: options is null ? null : _campaign.Checkpoint,
@@ -640,9 +649,10 @@ public sealed partial class MainWindow : Window
         {
             viewers.Add(new ViewerOption(null, "Spectator"));
         }
-        _viewerSeat.ItemsSource = viewers;
-        _viewerSeat.SelectedIndex = 0;
         _viewer = viewers[0].Seat;
+        _settingViewer = true;
+        try { _viewerSeat.ItemsSource = viewers; _viewerSeat.SelectedIndex = 0; }
+        finally { _settingViewer = false; }
         _playHost.Content = BuildGamePage();
         _renderKey = null;
         await RefreshGameAsync();
@@ -800,6 +810,8 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
+            if (RenderHotseatHandoff(session, view)) return;
+
             var renderKey = JsonSerializer.Serialize(view) + '\n' + (session.LastError ?? string.Empty);
             if (renderKey == _renderKey)
             {
@@ -899,10 +911,10 @@ public sealed partial class MainWindow : Window
     private void SyncNativeInput()
     {
         _tableHost.IsVisible = !_input.Loading;
-        _tableHost.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
+        _tableHost.IsEnabled = _hotseatPending is null && !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
         _actionButtons.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
         _tarotRow.IsEnabled = _actionButtons.IsEnabled;
-        _viewerSeat.IsEnabled = !_input.Locked;
+        _viewerSeat.IsEnabled = !AutomaticHotseat && !_input.Locked;
     }
 
     private Control BuildTable(GameView view)
@@ -1205,14 +1217,18 @@ public sealed partial class MainWindow : Window
         {
             _actionTitle.Text = "Hand complete";
             var next = ActionButton("Deal next hand");
-            next.Click += async (_, _) => await StartNextHandAsync(next);
+            var revision = _input.Revision; var generation = _sessionGeneration; var viewer = _viewer;
+            next.Click += async (_, _) => { if (AcceptTableInput(revision, generation, viewer, view)) await StartNextHandAsync(next); };
             _actionButtons.Children.Add(next);
             return;
         }
         if (view.Phase is GamePhase.GameComplete)
         {
-            _actionTitle.Text = $"Team {view.GameWinner + 1} wins";
+            _actionTitle.Text = view.Campaign is null
+                ? $"{string.Join(" + ", view.Players.Where(player => player.Team == view.GameWinner).Select(player => player.Name))} win"
+                : $"Team {view.GameWinner + 1} wins";
             _actionHelp.Text = view.Campaign is null ? $"The race to {view.TargetScore} is complete." : string.Empty;
+            if (view.Campaign is null) RenderFreePlayRematch();
             return;
         }
         if (view.Campaign is { } campaign)
@@ -1374,7 +1390,7 @@ public sealed partial class MainWindow : Window
 
     private async Task SendCampaignActionAsync(CampaignGameView view, CampaignCommand command)
     {
-        var session = _session; if (session is null || !_input.TryBeginAction(out var revision)) return;
+        var session = _session; if (session is null || _hotseatPending is not null || _liveSettingsOpen || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         try
         {
@@ -1390,7 +1406,7 @@ public sealed partial class MainWindow : Window
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        if (session is null || _hotseatPending is not null || _liveSettingsOpen || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         ClearStatus();
         try
@@ -1416,7 +1432,7 @@ public sealed partial class MainWindow : Window
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        if (session is null || _hotseatPending is not null || _liveSettingsOpen || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         button.IsEnabled = false;
         ClearStatus();
@@ -1539,8 +1555,10 @@ public sealed partial class MainWindow : Window
             button.PointerExited += (_, _) => UpdateHighlight();
             button.GotFocus += (_, _) => UpdateHighlight();
             button.LostFocus += (_, _) => UpdateHighlight();
+            var revision = _input.Revision; var generation = _sessionGeneration; var viewer = _viewer;
             button.Click += async (_, _) =>
             {
+                if (!AcceptTableInput(revision, generation, viewer, view)) return;
                 if (campaignAction is not null) { await campaignAction(); return; }
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";
                 await SendActionAsync(new GameActionRequest(_viewer!.Value, type, null, null, null, card.Code));
@@ -1728,6 +1746,7 @@ public sealed partial class MainWindow : Window
 
     private GameSession? DetachSession()
     {
+        ResetHotseat();
         CancelContractAnnouncement();
         _bidAnnouncement?.Clear();
         _cardFlights?.Cancel(); _deckDeal?.Cancel();
@@ -1795,7 +1814,8 @@ public sealed partial class MainWindow : Window
     private void AddAction(string label, Func<Task> action)
     {
         var button = ActionButton(label);
-        button.Click += async (_, _) => await action();
+        var revision = _input.Revision; var generation = _sessionGeneration; var viewer = _viewer; var view = _actionView;
+        button.Click += async (_, _) => { if (AcceptTableInput(revision, generation, viewer, view)) await action(); };
         _actionButtons.Children.Add(button);
     }
 

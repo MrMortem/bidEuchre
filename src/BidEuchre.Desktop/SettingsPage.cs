@@ -23,6 +23,7 @@ internal static class SettingsPage
         var scales = GamePreferences.UiScales;
 
         var motion = OnOff("SettingsMotion", preferences.MotionEnabled);
+        var hotseat = OnOff("SettingsHotseatPrivacy", preferences.AutomaticHotseatPrivacy);
         var fullscreen = OnOff("SettingsFullscreen", preferences.Fullscreen);
         var size = new ComboBox
         {
@@ -44,6 +45,7 @@ internal static class SettingsPage
             saveError.IsVisible = !changed(next);
         }
 
+        hotseat.SelectionChanged += (_, _) => Publish(preferences with { AutomaticHotseatPrivacy = hotseat.SelectedIndex == 0 });
         motion.SelectionChanged += (_, _) => Publish(preferences with { MotionEnabled = motion.SelectedIndex == 0 });
         fullscreen.SelectionChanged += (_, _) =>
         {
@@ -67,6 +69,7 @@ internal static class SettingsPage
         var rows = new StackPanel { Spacing = 14 };
         foreach (var (label, help, input) in new (string, string, ComboBox)[]
         {
+            ("Automatic hotseat privacy", "With multiple human players, hide hands between turns until the next player presses Reveal.", hotseat),
             ("Motion", "Card flights, bid announcements and trick collection.", motion),
             ("Fullscreen", "Fill the whole display instead of a window.", fullscreen),
             ("Window size", "Used when fullscreen is off.", size),
@@ -106,9 +109,9 @@ internal static class SettingsPage
                 effects.Enter(title, 80, 0, -22, easing: new BackEaseOut(), duration: 360),
                 effects.Enter(new TextBlock
                 {
-                    Text = "Graphics options apply immediately and are remembered.", Foreground = Muted, FontSize = 14
+                    Text = "Your preferences apply immediately and are remembered.", Foreground = Muted, FontSize = 14
                 }, 220, 0, 0),
-                effects.Enter(CardPanel(new StackPanel { Spacing = 14, Children = { Eyebrow("GRAPHICS"), rows, saveError } }), 300, 0, 16)
+                effects.Enter(CardPanel(new StackPanel { Spacing = 14, Children = { Eyebrow("PREFERENCES"), rows, saveError } }), 300, 0, 16)
             }
         };
         return MenuParts.Scene(effects, content, new ScrollViewer { Padding = new Thickness(30), Content = content });

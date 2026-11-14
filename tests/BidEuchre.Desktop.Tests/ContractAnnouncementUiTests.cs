@@ -124,6 +124,8 @@ internal static class ContractAnnouncementUiTests
         try
         {
             w.Show(); w.Width = 980; w.Height = 680; Dispatcher.UIThread.RunJobs(); Click(w, "MenuTable");
+            // Inject a session only after the animated menu has actually shown its table.
+            Until(() => ReferenceEquals(Field<ContentControl>(w, "_screenHost").Content, Field<Grid>(w, "_tableScreen")));
             var seats = Enumerable.Range(0, 4).Select(s => new SeatConfiguration(s, $"Caller {s}", PlayerKind.Human, null)).ToArray();
             var opening = (Task<GameSession>)Call(w, "OpenSessionAsync", seats, "Cue table", null)!; Await(opening); session = opening.Result;
             Await(session.StartAsync()); Await((Task)Call(w, "RefreshGameAsync")!);

@@ -144,6 +144,7 @@ internal static class LiveSettingsTests
             else
             {
                 Click(Find(window, "MenuTable"));
+                Until(() => ReferenceEquals(Field<ContentControl>(window, "_screenHost").Content, Field<Grid>(window, "_tableScreen")));
                 var seats = Enumerable.Range(0, 4).Select(seat => new SeatConfiguration(seat, $"Bot {seat}", PlayerKind.Bot, EngineCatalog.BuiltInEngineId)).ToArray();
                 var open = (Task<GameSession>)Call(window, "OpenSessionAsync", seats, "Settings test", null!)!;
                 Await(open); session = open.Result;

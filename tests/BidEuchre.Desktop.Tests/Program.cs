@@ -23,12 +23,15 @@ if (args.Contains("--contract-ui-only")) { ContractAnnouncementUiTests.Run(); re
 if (args.Contains("--sort-retry-only")) { ContractAnnouncementUiTests.SortRetry(); return; }
 if (args.Contains("--contract-only")) { ContractPresentationTests.Run(); ContractAnnouncementUiTests.Run(); return; }
 
+if (args.Contains("--rematch-hotseat-only")) { RematchHotseatTests.Run(); return; }
+
 if (args.Contains("--engine-setup-only")) { EngineSetupUiTests.Run(); return; }
 
 if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
 
 CampaignShopUiTests.Run();
 EngineSetupUiTests.Run();
+RematchHotseatTests.Run();
 ContractPresentationTests.Run();
 ContractAnnouncementUiTests.Run();
 SessionPauseTests.Run();

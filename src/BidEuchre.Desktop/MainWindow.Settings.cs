@@ -89,6 +89,9 @@ public sealed partial class MainWindow
             _inventoryKey = null;
             _renderKey = null;
             _liveSettingsOpen = false;
+            // Hide the previous private view before the first asynchronous return refresh.
+            _tableHost.IsVisible = false;
+            _centerPanel.IsVisible = false;
             ShowTable();
             await RefreshGameAsync();
             await session.ResumeAsync();
