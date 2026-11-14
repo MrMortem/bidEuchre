@@ -14,7 +14,12 @@ for entry in "$output_dir"/*; do
     cp "$entry" "$bundle/Contents/MacOS/.BidEuchre.new"
     mv -f "$bundle/Contents/MacOS/.BidEuchre.new" "$bundle/Contents/MacOS/BidEuchre"
   else
-    cp -R "$entry" "$bundle/Contents/MacOS/"
+    name="$(basename "$entry")"
+    # macOS reserves MacOS/ for code. Keep data in Resources/ and preserve
+    # the app's executable-relative lookup paths with in-bundle symlinks.
+    rm -rf -- "$bundle/Contents/MacOS/$name"
+    cp -R "$entry" "$bundle/Contents/Resources/"
+    ln -s "../Resources/$name" "$bundle/Contents/MacOS/$name"
   fi
 done
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
@@ -30,4 +35,9 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+# The SDK signs the standalone apphost. Sign the assembled bundle as well so
+# its Info.plist and shipped resources are sealed before it is distributed.
+# This is a local ad-hoc signature, not Developer ID signing/notarization.
+codesign --force --sign - --timestamp=none "$bundle"
+codesign --verify --deep --strict "$bundle"
 echo "Mac app created at $bundle"

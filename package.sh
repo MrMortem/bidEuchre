@@ -34,6 +34,12 @@ mkdir -p "$DOTNET_CLI_HOME" "$project_dir/dist/$runtime_id"
   -p:DebugSymbols=false \
   -m:1
 
+# Keep executable-relative documents available even when publish bundles content
+# into the single-file executable or removes loose files from a previous build.
+mkdir -p "$project_dir/dist/$runtime_id/Pixel"
+cp "$project_dir/bid-euchre-final-rules.md" "$project_dir/dist/$runtime_id/"
+cp "$project_dir/assets/pixel/FONT-LICENSE.txt" "$project_dir/dist/$runtime_id/Pixel/"
+
 echo "Native package created at $project_dir/dist/$runtime_id"
 
 if [[ "$runtime_id" == osx-* ]]; then
