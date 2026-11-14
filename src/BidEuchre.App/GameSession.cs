@@ -8,6 +8,7 @@ public sealed class GameSession : IAsyncDisposable
     private readonly EngineCatalog _catalog;
     private readonly CampaignContext? _campaign;
     private readonly Func<CampaignSnapshot, bool>? _checkpoint;
+    private readonly Func<GameView, int, CampaignCommand> _campaignPolicy;
     private readonly int? _seed;
     private readonly MatchOptions? _matchOptions;
     private readonly TimeSpan _botActionDelay;
@@ -32,8 +33,10 @@ public sealed class GameSession : IAsyncDisposable
         TimeSpan? botActionDelay = null,
         TimeSpan? completedTrickDelay = null,
         Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null,
-        MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot, bool>? checkpoint = null)
+        MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot, bool>? checkpoint = null,
+        Func<GameView, int, CampaignCommand>? campaignPolicy = null)
     {
+        _campaignPolicy = campaignPolicy ?? CampaignBotPolicy.Choose;
         _matchOptions = matchOptions;
         _campaign = campaign; _checkpoint = checkpoint;
         Id = id;
@@ -56,6 +59,8 @@ public sealed class GameSession : IAsyncDisposable
     public GameEngine? Game { get; private set; }
     public string? LastError { get; private set; }
     public bool Started => Game is not null;
+    // Set when the background bot loop stopped on an error nothing else handled.
+    public Exception? BotLoopFault => _botLoopTask is { IsFaulted: true } loop ? loop.Exception!.GetBaseException() : null;
 
     public async Task StartAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
     {
@@ -124,6 +129,7 @@ public sealed class GameSession : IAsyncDisposable
         {
             ThrowIfClosing();
             if (WaitingForDeal) throw new GameRuleException("Wait for dealing to finish before bidding.");
+            if (Game?.IsCampaign is true) throw new GameRuleException("Campaign tables only accept campaign actions.");
             EnsureHumanTurn(request.Seat);
             var completedTricksBefore = Game!.CompletedTricks.Count;
             try
@@ -373,7 +379,7 @@ public sealed class GameSession : IAsyncDisposable
                     timeout.CancelAfter(TimeSpan.FromSeconds(8));
                     if (Game.IsCampaign)
                     {
-                        Game.ExecuteCampaignAction(expectedSeat, CampaignBotPolicy.Choose(Game.CreateView(expectedSeat), expectedSeat));
+                        Game.ExecuteCampaignAction(expectedSeat, _campaignPolicy(Game.CreateView(expectedSeat), expectedSeat));
                     }
                     else
                     {
@@ -389,14 +395,30 @@ public sealed class GameSession : IAsyncDisposable
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     LastError = $"Bot in seat {expectedSeat + 1} failed: {exception.Message}";
-                    if (Game.Phase is GamePhase.Playing)
+                    if (Game.IsCampaign)
+                    {
+                        // Free-play fallbacks and penalties bypass campaign rules, so a campaign bot
+                        // takes its first legal campaign action instead.
+                        if (!TryCampaignFallback(Game, expectedSeat, out var reason))
+                        {
+                            LastError = $"Bot in seat {expectedSeat + 1} cannot act: {reason}";
+                            return;
+                        }
+
+                        CheckpointCampaign();
+                        await ObserveTerminalStateLockedAsync(cancellationToken);
+                    }
+                    else if (Game.Phase is GamePhase.Playing)
                     {
                         Game.ApplyIllegalPlayPenalty(expectedSeat);
                         await ObserveTerminalStateLockedAsync(cancellationToken);
                         return;
                     }
 
-                    ApplySafeFallback(Game, expectedSeat);
+                    else
+                    {
+                        ApplySafeFallback(Game, expectedSeat);
+                    }
                 }
 
                 nextDelay = Game.CompletedTricks.Count > completedTricksBefore
@@ -514,6 +536,25 @@ public sealed class GameSession : IAsyncDisposable
             default:
                 throw new ProtocolException("The bot returned an unknown action.");
         }
+    }
+
+    private static bool TryCampaignFallback(GameEngine game, int seat, out string reason)
+    {
+        reason = "no legal campaign action is available.";
+        foreach (var command in game.CreateCampaignView(seat).LegalActions)
+        {
+            try
+            {
+                game.ExecuteCampaignAction(seat, command);
+                return true;
+            }
+            catch (GameRuleException exception)
+            {
+                reason = exception.Message;
+            }
+        }
+
+        return false;
     }
 
     private static void ApplySafeFallback(GameEngine game, int seat)

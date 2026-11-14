@@ -245,6 +245,10 @@ Each card supports one enhancement and one Sigil; replacing either preserves
 the other. The campaign includes 10 enhancements, 31 Jokers, 9 Gumball bidding
 unlocks, 12 Sigils, and 16 Tarot consumables.
 
+Losing or forfeiting a match costs one life (two for the boss) in Antes 1 to 3,
+and two lives (three for the boss) from Ante 4 onward. The run moves on to the
+next match while any lives remain.
+
 Both teams start each match at zero. Matches end after a fully scored hand
 reaches either ±24 points in Ante 1, increasing by four per Ante, or after eight
 hands. Ties continue. Contract success counts tricks only; effect bonuses remain

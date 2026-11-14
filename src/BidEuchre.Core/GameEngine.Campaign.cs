@@ -192,6 +192,15 @@ public sealed partial class GameEngine
     private void CampaignAfterBid()
     {
         if (Phase != GamePhase.ChoosingContract) return;
+        if (_variant == GumballId.Chaos)
+        {
+            // Chaos rolls its own trump every trick, so there is nothing for the bidder to choose.
+            Contract = Contract.Create(HighBid!.Value, ContractMode.Trump, (Suit)_campaignRandom.NextInt(4));
+            _events.Add($"Chaos trump: {Contract.Trump}.");
+            RecordContract();
+            BeginTrickPlay();
+            return;
+        }
         if (_variant == GumballId.Duelist && _duelOpponent is null) { _pendingChoice = "Choose an opponent for Duelist"; _pendingActor = Bidder; }
         if (_variant == GumballId.Telepath && !_telepathDone) { _pendingChoice = "Reveal a partner card"; _pendingActor = GameRules.PartnerOf(Bidder!.Value); }
     }
@@ -247,11 +256,14 @@ public sealed partial class GameEngine
     }
     private void CampaignContractSelected()
     {
+        RecordContract();
+        if (_variant == GumballId.Poker) ResolvePoker();
+    }
+    private void RecordContract()
+    {
         var key = new ContractKey(Contract!.Mode, Contract.Trump);
         if (_resources.PreviousContract == key) _dejaValue++;
         _resources = _resources with { PreviousContract = key };
-        if (_variant == GumballId.Poker) ResolvePoker();
-        if (_variant == GumballId.Chaos) RollChaos();
     }
     private void RollChaos() { Contract = Contract! with { Mode = ContractMode.Trump, Trump = (Suit)_campaignRandom.NextInt(4) }; _events.Add($"Chaos trump: {Contract.Trump}."); }
     private void CampaignOnPlay(int seat, Card token) => ResolvePlayedCard(seat, token);

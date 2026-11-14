@@ -95,7 +95,8 @@ public sealed partial class GameEngine
                 if (c.Sigil == SigilId.Peacock) Point(winner, plays.Count(x => StateFor(x.Card).Sigil is not null), "Peacock");
                 if (c.Sigil == SigilId.Vulture) GenerateTarot(winner);
             }
-            if (c.Sigil == SigilId.Eagle && p.Seat != winner) _hands[p.Seat].Add(p.Card);
+            // Eagle comes back to the team that lost the trick; after the last trick there is no hand to return to.
+            if (c.Sigil == SigilId.Eagle && p.Seat % 2 != team && !final) _hands[p.Seat].Add(p.Card);
         }
         var glass = 1 << plays.Count(p => StateFor(p.Card).Enhancement == EnhancementId.Glass);
         var trickCard = new int[2]; foreach (var point in _trickPoints) trickCard[point.Team] += point.Amount * glass;

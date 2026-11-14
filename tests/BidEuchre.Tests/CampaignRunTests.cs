@@ -29,9 +29,9 @@ internal static class CampaignRunTests
         Assert.Equal(5, CampaignRun.BaseReward(1));
         Assert.Equal(6, CampaignRun.BaseReward(2));
         Assert.Equal(8, CampaignRun.BaseReward(3));
-        Assert.Equal(1, CampaignRun.LivesAtStake(1));
-        Assert.Equal(1, CampaignRun.LivesAtStake(2));
-        Assert.Equal(2, CampaignRun.LivesAtStake(3));
+        Assert.Equal(1, CampaignRun.LivesAtStake(1, 1));
+        Assert.Equal(1, CampaignRun.LivesAtStake(2, 1));
+        Assert.Equal(2, CampaignRun.LivesAtStake(3, 1));
     }
 
     public static void Lives()
@@ -96,10 +96,44 @@ internal static class CampaignRunTests
         Assert.Equal(CampaignPhase.Shop, victory.AcknowledgeVictory().Phase);
 
         var (lostBoss, _) = AtMatch(15).ApplyResult(false, 0);
-        Assert.Equal(CampaignPhase.Shop, lostBoss.Phase);
+        Assert.True(lostBoss.IsOver);
+        Assert.Equal(15, lostBoss.Match);
         Assert.False(lostBoss.VictoryShown);
 
         var later = new CampaignRun(3, 30, 0, 0, CampaignPhase.InMatch, VictoryShown: true);
         Assert.Equal(CampaignPhase.Shop, later.ApplyResult(true, 12).Run.Phase);
+    }
+
+    public static void HigherStakesAfterAnteThree()
+    {
+        // Antes 1 to 3 cost 1 life (boss 2); from Ante 4 on a loss costs 2 (boss 3).
+        Assert.Equal(1, CampaignRun.LivesAtStake(1, 3));
+        Assert.Equal(2, CampaignRun.LivesAtStake(3, 3));
+        Assert.Equal(2, CampaignRun.LivesAtStake(1, 4));
+        Assert.Equal(2, CampaignRun.LivesAtStake(2, 5));
+        Assert.Equal(3, CampaignRun.LivesAtStake(3, 4));
+        Assert.Equal(3, CampaignRun.LivesAtStake(3, 6));
+
+        var (lastEasy, easyOutcome) = AtMatch(9).ApplyResult(false, 0);
+        Assert.Equal(2, easyOutcome.LivesLost);
+        Assert.Equal(10, lastEasy.Match);
+
+        var (regular, regularOutcome) = AtMatch(10).ApplyResult(false, 0);
+        Assert.Equal(2, regularOutcome.LivesLost);
+        Assert.Equal(1, regular.Lives);
+        Assert.False(regular.IsOver);
+        Assert.Equal(11, regular.Match);
+        Assert.True(regular.LeaveShop().StartMatch().ApplyResult(false, 0).Run.IsOver);
+
+        var (boss, bossOutcome) = AtMatch(12).ApplyResult(false, 0);
+        Assert.Equal(3, bossOutcome.LivesLost);
+        Assert.True(boss.IsOver);
+        Assert.Equal(12, boss.Match);
+
+        Assert.Equal(2, AtMatch(11).Forfeit().Outcome.LivesLost);
+
+        var (won, _) = AtMatch(10).ApplyResult(true, 12);
+        Assert.Equal(3, won.Lives);
+        Assert.Equal(11, won.Match);
     }
 }

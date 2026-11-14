@@ -239,7 +239,8 @@ foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±28 POINTS"), 
         var texts = ante.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToArray();
         string Status(int slot) => ante.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == $"AnteStatus{slot}").Text!;
         var current = (match - 1) % 3 + 1;
-        foreach (var expected in new[] { title, threshold, "8 HANDS", "REWARD $5+", "REWARD $6+", "REWARD $8+", "LOSE ♥1", "LOSE ♥2", "$14", "YOUR JOKERS 0/5" })
+        foreach (var expected in new[] { title, threshold, "8 HANDS", "REWARD $5+", "REWARD $6+", "REWARD $8+", "$14", "YOUR JOKERS 0/5" }
+            .Concat(match > 9 ? ["LOSE ♥2", "LOSE ♥3"] : ["LOSE ♥1", "LOSE ♥2"]))
             if (!texts.Contains(expected)) throw new Exception($"The Ante screen must show \"{expected}\".");
         if (texts.Count(t => t == threshold) != 3) throw new Exception("Every match panel must show the threshold.");
         if (current == 2 && (Status(1) != "PLAYED" || Status(3) != "UPCOMING")) throw new Exception("Panels around the current match must read PLAYED and UPCOMING.");

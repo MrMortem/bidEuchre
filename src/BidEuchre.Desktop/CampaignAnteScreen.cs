@@ -116,7 +116,7 @@ internal static class CampaignAnteScreen
                         Centered($"±{run.Threshold} POINTS", Ink, 16),
                         Centered($"{options.HandLimit} HANDS", Muted, 12),
                         Centered($"REWARD ${CampaignRun.BaseReward(slot)}+", Gold, 14),
-                        Centered($"LOSE ♥{CampaignRun.LivesAtStake(slot)}", Danger, 14)
+                        Centered($"LOSE ♥{CampaignRun.LivesAtStake(slot, run.Ante)}", Danger, 14)
                     }
                 }
             };
