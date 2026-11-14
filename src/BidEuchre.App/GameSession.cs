@@ -184,6 +184,22 @@ public sealed class GameSession : IAsyncDisposable
         finally { _gate.Release(); }
     }
 
+    /// <summary>Rearranges a human's campaign hand. It is not a game action: it is allowed at any time,
+    /// even during the deal or another seat's turn, and does not change the table revision or wake the bots.</summary>
+    public async Task ArrangeCampaignHandAsync(int seat, IReadOnlyList<CardId> order, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (Game?.IsCampaign is not true) throw new GameRuleException("Only campaign hands are arranged on the table.");
+            GameRules.ValidateSeat(seat);
+            if (Seats[seat].Kind != PlayerKind.Human) throw new GameRuleException("Only a human seat arranges its hand.");
+            Game.ArrangeCampaignHand(seat, order);
+        }
+        finally { _gate.Release(); }
+    }
+
     public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
     {
         ThrowIfClosing();
