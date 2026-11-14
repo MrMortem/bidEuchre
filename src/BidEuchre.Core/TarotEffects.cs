@@ -36,10 +36,7 @@ public sealed partial class GameEngine
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
         {
-            case TarotId.LovePotion: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Hearts)); break;
-            case TarotId.Nightshade: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Spades)); break;
-            case TarotId.CloverTonic: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Clubs)); break;
-            case TarotId.CrystalElixir: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, Suit.Diamonds)); break;
+            case var _ when Tarot.SuitOf(tarot) is { } suit: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, suit)); break;
             case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), "Tax Collector"); break;
             case TarotId.Astronomer:
                 var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
@@ -54,9 +51,7 @@ public sealed partial class GameEngine
                 { var pool = Enum.GetValues<EnhancementId>().Where(e => CanEnhance(id, e)).ToArray(); Enhance(id, pool[_campaignRandom.NextInt(pool.Length)]); }
                 Enhance(targets[2], EnhancementId.Cursed); break;
             default:
-                var enhancement = tarot switch
-                { TarotId.Chameleon => EnhancementId.Wild, TarotId.Grindstone => EnhancementId.Stone, TarotId.Prospector => EnhancementId.Golden, TarotId.Merchant => EnhancementId.Emerald, TarotId.Glassblower => EnhancementId.Glass, TarotId.Traitor => EnhancementId.Silver, TarotId.Beggar => EnhancementId.Stinky, TarotId.SpringLoaded => EnhancementId.Bouncy, _ => throw new GameRuleException("Unknown Tarot.") };
-                Enhance(targets[0], enhancement); break;
+                Enhance(targets[0], Tarot.EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot.")); break;
         }
         _resources = _resources with { Inventory = inventory with { Tarot = inventory.Tarot.Where((_, i) => i != request.Slot).ToArray() } };
         _events.Add($"Used {FeatureCatalog.Get(FeatureCategory.Tarot, tarot.ToString()).Name}.");
