@@ -41,7 +41,7 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
-  $('#close-table').addEventListener('click', () => closeSession(model.sessionId));
+  $('#close-table').addEventListener('click', event => closeSession(event.currentTarget.dataset.id));
   $('#retry-rules').addEventListener('click', loadRules);
   $('#retry-connection').addEventListener('click', () => refreshGame({notify:false}));
   $('#viewer-seat').addEventListener('change', event =>
@@ -147,7 +147,11 @@ async function loadSessions() {
   try {
     model.sessions = await api('/api/sessions');
     renderSessions();
-  } catch (error) { toast(error.message, true); }
+    return true;
+  } catch (error) {
+    toast(error.message, true);
+    return false;
+  }
 }
 
 function renderSessions() {
@@ -184,7 +188,8 @@ function syncCloseButtons() {
 
 async function closeSession(id) {
   if (!id || model.closingSessions.has(id)) return;
-  const session = model.session?.id === id ? model.session : model.sessions.find(session => session.id === id);
+  const atTable = $('#game-view').classList.contains('active');
+  const session = atTable && model.session?.id === id ? model.session : model.sessions.find(session => session.id === id);
   if (!session) return;
   const phase = session.game?.phase ?? session.phase;
   if (session.started && phase !== 'GameComplete' &&
@@ -193,15 +198,19 @@ async function closeSession(id) {
   syncCloseButtons();
   try {
     await api(`/api/sessions/${id}`, { method: 'DELETE' });
+    model.sessions = model.sessions.filter(session => session.id !== id);
+    renderSessions();
+    let refreshed;
     if (model.sessionId === id) {
       model.sessionId = null;
       model.session = null;
       model.viewerSeat = null;
       model.renderMode = null;
       model.viewLoading = false;
-      await showView('lobby');
-    } else await loadSessions();
-    toast(`Table "${session.name}" closed.`);
+      refreshed = await showView('lobby');
+    } else refreshed = await loadSessions();
+    toast(refreshed ? `Table "${session.name}" closed.`
+      : `Table "${session.name}" closed, but the table list could not refresh. Return to Tables to retry.`, !refreshed);
     if ($('#lobby-view').classList.contains('active')) $('#new-table-button').focus();
   } catch (error) {
     toast(`Could not close table "${session.name}". ${error.message}`, true);
@@ -641,6 +650,10 @@ function syncInputState() {
 function setActionBusy(busy) { model.actionPending = busy; syncInputState(); }
 
 function beginViewChange() {
+  const close = $('#close-table');
+  delete close.dataset.id;
+  close.removeAttribute('aria-label');
+  close.disabled = true;
   cancelTableMotion();
   model.viewGeneration += 1;
   model.viewLoading = true;

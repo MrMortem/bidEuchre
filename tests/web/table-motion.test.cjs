@@ -7,7 +7,7 @@ const scope = vm.createContext({});
 const source = path.join(__dirname, '../../src/BidEuchre.Server/wwwroot/table-motion.js');
 if (fs.existsSync(source)) vm.runInContext(fs.readFileSync(source, 'utf8'), scope);
 const factory = () => { assert.equal(typeof scope.TableMotion, 'function', 'Motion tracker must exist'); return new scope.TableMotion(); };
-const domElement = () => ({getAnimations:()=>[],querySelectorAll:()=>[],setAttribute(){},classList:{toggle(){},add(){},remove(){}},value:'',textContent:''});
+const domElement = () => ({dataset:{},getAnimations:()=>[],querySelectorAll:()=>[],setAttribute(){},removeAttribute(){},classList:{toggle(){},add(){},remove(){}},value:'',textContent:''});
 const game = () => ({handNumber:1,currentSeat:0,scores:[0,0],currentTrick:[],completedTricks:[]});
 const play = {seat:0,card:{code:'AH'}};
 

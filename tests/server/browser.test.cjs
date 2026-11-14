@@ -182,3 +182,81 @@ test('closing the viewed table returns to the lobby, clears the session and stop
     assert.equal((await page.request.get(`${base}/api/sessions/${table.id}`)).status(), 404);
   } finally { await removeTable(page, table.id); await page.close(); }
 });
+
+test('lobby Close confirms freshly started state instead of a previously viewed snapshot', { skip }, async () => {
+  const page = await browser.newPage(); page.setDefaultTimeout(5000);
+  const table = await createTable(page, 'Started elsewhere');
+  try {
+    await page.goto(base);
+    await page.getByRole('button', { name: 'Open table: Started elsewhere', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('#game-name').textContent === 'Started elsewhere');
+    await page.locator('#back-to-tables').click();
+    assert.equal((await page.request.post(`${base}/api/sessions/${table.id}/start`, { data: {} })).status(), 200);
+    await page.evaluate(() => loadSessions());
+    assert.match(await page.locator('.session-card').filter({ hasText: 'Started elsewhere' }).innerText(), /Bidding/i);
+    const confirmations = [];
+    page.on('dialog', async dialog => { confirmations.push(dialog.message()); await dialog.dismiss(); });
+    await page.getByRole('button', { name: 'Close table: Started elsewhere', exact: true }).click();
+    assert.equal(confirmations.length, 1, 'Refreshed active lobby state must require confirmation');
+    assert.match(confirmations[0], /Started elsewhere/); assert.match(confirmations[0], /Bidding/i);
+    assert.equal((await page.request.get(`${base}/api/sessions/${table.id}`)).status(), 200);
+  } finally { await removeTable(page, table.id); await page.close(); }
+});
+
+for (const outcome of ['delayed', 'failed']) {
+  test(`header Close cannot target another table during a ${outcome} switch`, { skip }, async () => {
+    const page = await browser.newPage(); page.setDefaultTimeout(5000);
+    const previous = await createTable(page, 'Previous table');
+    const next = await createTable(page, 'Next table');
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    try {
+      await page.goto(base);
+      await page.getByRole('button', { name: 'Open table: Previous table', exact: true }).click();
+      await page.waitForFunction(() => document.querySelector('#game-name').textContent === 'Previous table');
+      await page.locator('#back-to-tables').click();
+      await page.route(`**/api/sessions/${next.id}?*`, async route => {
+        await held;
+        if (outcome === 'failed') await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Temporary read failure"}' });
+        else await route.continue();
+      });
+      const requested = page.waitForRequest(request => request.url().includes(`/api/sessions/${next.id}?`));
+      await page.getByRole('button', { name: 'Open table: Next table', exact: true }).click();
+      await requested;
+      const close = page.locator('#close-table');
+      assert.equal(await close.isDisabled(), true, 'Close must be unavailable before the new table has loaded');
+      await close.evaluate(element => element.click());
+      assert.equal((await page.request.get(`${base}/api/sessions/${next.id}`)).status(), 200);
+      release();
+      if (outcome === 'failed') {
+        await page.waitForFunction(() => model.connectionLost);
+        assert.equal(await close.isDisabled(), true, 'A failed initial load must not enable a stale Close target');
+        await page.unroute(`**/api/sessions/${next.id}?*`);
+        await page.locator('#retry-connection').click();
+      }
+      await page.waitForFunction(() => document.querySelector('#game-name').textContent === 'Next table');
+      assert.equal(await close.getAttribute('aria-label'), 'Close table: Next table');
+      assert.equal(await close.isEnabled(), true);
+      await close.click();
+      await page.waitForSelector('#lobby-view.active');
+      assert.equal((await page.request.get(`${base}/api/sessions/${next.id}`)).status(), 404);
+      assert.equal((await page.request.get(`${base}/api/sessions/${previous.id}`)).status(), 200);
+    } finally { release(); await removeTable(page, previous.id); await removeTable(page, next.id); await page.close(); }
+  });
+}
+
+test('post-delete refresh failure removes the known closed card and reports the partial result', { skip }, async () => {
+  const page = await browser.newPage(); page.setDefaultTimeout(5000);
+  const table = await createTable(page, 'Closed despite refresh failure');
+  try {
+    await page.goto(base);
+    const close = page.getByRole('button', { name: 'Close table: Closed despite refresh failure', exact: true });
+    await close.waitFor();
+    await page.route(`${base}/api/sessions`, route => route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Lobby temporarily unavailable"}' }));
+    await close.click();
+    await page.waitForFunction(() => document.querySelector('#toast').textContent.includes('closed'));
+    assert.equal(await close.count(), 0, 'A known deleted table must not remain actionable when the list refresh fails');
+    assert.match(await page.locator('#toast').innerText(), /closed.*refresh|closed.*reload/i);
+    assert.equal((await page.request.get(`${base}/api/sessions/${table.id}`)).status(), 404);
+  } finally { await removeTable(page, table.id); await page.close(); }
+});
