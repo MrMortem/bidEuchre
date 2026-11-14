@@ -54,8 +54,7 @@ internal static class CampaignIntegrationTests
             var game = new GameEngine(["You", "W", "P", "E"], 8, campaign: new CampaignContext(s)); game.StartGame(3);
             var view = game.CreateCampaignView(0);
             var count = tarot == TarotId.DevilishDeal ? 3 : tarot is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
-            var targetSuit = tarot switch { TarotId.LovePotion => Suit.Hearts, TarotId.Nightshade => Suit.Spades, TarotId.CloverTonic => Suit.Clubs, TarotId.CrystalElixir => Suit.Diamonds, _ => (Suit?)null };
-            var candidates = targetSuit is { } suit ? view.Players[0].VisibleCards.Where(c => c.Face.Suit != suit) : view.Players[0].VisibleCards;
+            var candidates = view.Players[0].VisibleCards;
             game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, candidates.Take(count).Select(c => c.Id).ToArray()));
             var result = game.ExportCampaignSnapshot(); Assert.Equal(0, result.Inventory.Tarot.Length);
             if (tarot == TarotId.TaxCollector) Assert.Equal(45, result.Wallets[0]);

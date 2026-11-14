@@ -36,12 +36,12 @@ internal static class CampaignReviewRegressionTests
     public static void FinalTrickTiming()
     {
         var r = Resources(17, JokerId.LastLaugh, JokerId.DeepDigger);
-        r = r with { Deck = r.Deck.Select((c, i) => i < 6 ? c with { Face = c.Face with { Suit = Suit.Spades }, Sigil = SigilId.Coin } : i >= 18 ? c with { Face = c.Face with { Suit = Suit.Clubs } } : c).ToArray() };
+        r = r with { Deck = r.Deck.Select((c, i) => i < 6 ? c with { Face = c.Face with { Suit = Suit.Spades }, Enhancement = EnhancementId.Golden } : i >= 18 ? c with { Face = c.Face with { Suit = Suit.Clubs } } : c).ToArray() };
         var g = Fixture(r); Auction(g); var order = new[] { 2, 5, 4, 3, 1, 0 };
         while (g.CompletedTricks.Count < 5) Play(g, g.CurrentSeat == 0 ? new CardId(order[g.CompletedTricks.Count]) : null);
-        Assert.Equal(30, g.ExportCampaignSnapshot().Wallets[0], "Fifth-trick Deep Digger must not receive Last Laugh.");
+        Assert.Equal(10, g.ExportCampaignSnapshot().Wallets[0], "Fifth-trick Deep Digger must not receive Last Laugh.");
         while (g.Phase == GamePhase.Playing) Play(g, g.CurrentSeat == 0 ? new CardId(order[g.CompletedTricks.Count]) : null);
-        Assert.Equal(42, g.ExportCampaignSnapshot().Wallets[0], "Last Laugh doubles both ordinary and Deep Digger sixth-trick rewards once.");
+        Assert.Equal(14, g.ExportCampaignSnapshot().Wallets[0], "Last Laugh doubles both ordinary and Deep Digger sixth-trick rewards once.");
     }
     public static void ChameleonFallback()
     {
@@ -55,12 +55,12 @@ internal static class CampaignReviewRegressionTests
     public static void StickyCopiesPreserveUnderlyingCards()
     {
         var r = Resources(17, JokerId.StickyFingers);
-        r.Deck[2] = r.Deck[2] with { Enhancement = EnhancementId.Golden, Sigil = SigilId.Coin };
+        r.Deck[2] = r.Deck[2] with { Enhancement = EnhancementId.Golden, Sigil = SigilId.Fish };
         var g = Fixture(r); Auction(g, trump: Suit.Clubs); Play(g, new(2)); for (var i = 0; i < 3; i++) Play(g);
         var copied = g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == new CardId(0));
         Assert.Equal(r.Deck[2].Face, copied.Face);
         Assert.Equal(EnhancementId.Golden, copied.Enhancement!.Value);
-        Assert.Equal(SigilId.Coin, copied.Sigil!.Value);
+        Assert.Equal(SigilId.Fish, copied.Sigil!.Value);
         Assert.Equal(r.Deck[0], g.ExportCampaignSnapshot().Deck[0], "A copied face must preserve the underlying physical card.");
         while (g.Phase == GamePhase.Playing) Play(g);
         g.StartNextHand();
@@ -77,7 +77,7 @@ internal static class CampaignReviewRegressionTests
             r.Deck[0] = r.Deck[0] with { Enhancement = EnhancementId.Golden, Sigil = SigilId.Fish };
             var overlays = new[]
             {
-                new CardOverlay(new(0), new(Suit.Diamonds, Rank.Ace), EnhancementId.Silver, SigilId.Coin),
+                new CardOverlay(new(0), new(Suit.Diamonds, Rank.Ace), EnhancementId.Silver, SigilId.Bear),
                 new CardOverlay(new(2), new(Suit.Hearts, Rank.Ten), EnhancementId.Wild, SigilId.Frog)
             };
             var g = Fixture(r, overlays: overlays);

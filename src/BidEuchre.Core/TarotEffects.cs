@@ -30,8 +30,7 @@ public sealed partial class GameEngine
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
         {
-            case var _ when Tarot.SuitOf(tarot) is { } suit: ChangeCard(targets[0], c => CampaignCards.ChangeSuit(c, suit)); break;
-            case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), "Tax Collector"); break;
+            case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), "Taxes"); break;
             case TarotId.Astronomer:
                 var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();
                 inventory = inventory with { Unlocks = [.. inventory.Unlocks, options[_campaignRandom.NextInt(options.Length)]] }; break;

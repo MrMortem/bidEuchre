@@ -28,8 +28,8 @@ internal static class CampaignItemPreviewTests
                 previewed++;
             }
         }
-        var expectedCount = Enum.GetValues<TarotId>().Count(t => Tarot.SuitOf(t) is not null || Tarot.EnhancementOf(t) is not null) + 1;
-        Assert.Equal(expectedCount, previewed, "Every suit and enhancement Tarot, and Devilish Deal's Cursed card, has a preview.");
+        var expectedCount = Enum.GetValues<TarotId>().Count(t => Tarot.EnhancementOf(t) is not null) + 1;
+        Assert.Equal(expectedCount, previewed, "Every enhancement Tarot, and Devilish Deal's Cursed card, has a preview.");
     }
 
     public static void SigilsAreHandCardTargets()

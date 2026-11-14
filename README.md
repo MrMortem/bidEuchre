@@ -262,9 +262,16 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
 the other. The campaign includes 8 enhancements, 31 Jokers, 9 Gumball bidding
-unlocks, 12 Sigils, and 14 Tarot consumables. Emerald and Stinky have been retired,
-along with their Merchant and Beggar Tarot cards. Older runs load with those
-enhancements cleared and those Tarots removed, preserving the rest of the run.
+unlocks, 8 Sigils, and 9 Tarot consumables. The active Sigils are Bear, Eagle,
+Fish, Spider, Frog, Duck, Vulture, and Chameleon. The nine Tarot Cards are
+Festival (Wild), Stone mason (Stone), Prospector (Golden), Devilish Deal,
+Gambler, Traitor (Silver), Astronomer, Taxes, and Ectoplasm (Bouncy).
+Safety Net unlocks bidding 2. The Chameleon Sigil keeps its separate identity.
+Emerald and Stinky enhancements; Coin, Snake, Owl, and Peacock Sigils; and
+Merchant, Beggar, Love Potion, Nightshade, Clover Tonic, Crystal Elixir, and
+Glassblower Tarots are retired. Older runs load with retired card modifiers
+cleared and retired held items, generated Tarots, and shop offers removed,
+preserving the rest of the run and surviving item identities.
 
 Losing or forfeiting a match costs one life (two for the boss) in Antes 1 to 3,
 and two lives (three for the boss) from Ante 4 onward. The run moves on to the

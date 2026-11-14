@@ -40,7 +40,6 @@ internal static class CampaignJokerScoringTests
         Assert.Equal(12, Sweep([JokerId.ProtectiveBubble], BidLevel.Six, EnhancementId.Stone, trump: Suit.Diamonds).Scores[0]);
         Assert.Equal(30, Sweep([], enhancement: EnhancementId.Stone, sigil: SigilId.Frog).Scores[0]);
         Assert.Equal(390, Sweep([], enhancement: EnhancementId.Glass, sigil: SigilId.Fish).Scores[0]);
-        Assert.Equal(102, Sweep([], sigil: SigilId.Peacock).Scores[0]);
         Assert.Equal(28, Sweep([JokerId.LastLaugh], enhancement: EnhancementId.Golden).ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(24, Sweep([], enhancement: EnhancementId.Golden).ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(120, Sweep([], enhancement: EnhancementId.Silver).ExportCampaignSnapshot().Wallets[1]);

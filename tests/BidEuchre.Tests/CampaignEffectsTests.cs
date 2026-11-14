@@ -26,8 +26,8 @@ internal static class CampaignEffectsTests
         Assert.Equal(12, stone.Scores[1] - plain.Scores[1]);
         var fish = Start(sigil: SigilId.Fish); Hand(fish);
         Assert.Equal(24, fish.Scores[0] - plain.Scores[0]);
-        var coin = Start(sigil: SigilId.Coin); Hand(coin);
-        Assert.Equal(18, coin.ExportCampaignSnapshot().Wallets[0]);
+        var golden = Start(EnhancementId.Golden); Hand(golden);
+        Assert.Equal(24, golden.ExportCampaignSnapshot().Wallets.Sum());
         var frog = Start(EnhancementId.Stone, SigilId.Frog); Hand(frog);
         Assert.Equal(24, frog.Scores[0] - plain.Scores[0]);
     }
@@ -40,7 +40,7 @@ internal static class CampaignEffectsTests
     }
     public static void ItemsOnAnyOwnTurn()
     {
-        var s = CampaignSnapshot.Create(3) with { Inventory = new([], [TarotId.Glassblower, TarotId.LovePotion], []) { Sigils = [SigilId.Fish, SigilId.Coin] }, Wallets = [15, 0, 0, 0] };
+        var s = CampaignSnapshot.Create(3) with { Inventory = new([], [TarotId.Prospector, TarotId.Chameleon], []) { Sigils = [SigilId.Fish, SigilId.Bear] }, Wallets = [15, 0, 0, 0] };
         var g = new GameEngine(["You", "W", "P", "E"], 3, null, new CampaignContext(s)); g.StartGame(3);
         void Advance(Func<bool> until)
         {
@@ -59,7 +59,7 @@ internal static class CampaignEffectsTests
         g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, hand[0].Id));
         Assert.Equal(SigilId.Fish, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == hand[0].Id).Sigil!.Value);
         Assert.Equal(SigilId.Fish, g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == hand[0].Id).Sigil!.Value);
-        Assert.Equal(SigilId.Coin, g.ExportCampaignSnapshot().Inventory.Sigils.Single());
+        Assert.Equal(SigilId.Bear, g.ExportCampaignSnapshot().Inventory.Sigils.Single());
         Assert.True(g.ExportCampaignSnapshot().Revision > revision);
         // Only a card in the human's hand, and only a slot that holds something.
         var away = s.Deck.Select(c => c.Id).First(id => hand.All(c => c.Id != id));
@@ -76,9 +76,9 @@ internal static class CampaignEffectsTests
         Advance(() => Mine() && g.Phase == GamePhase.Playing);
         var playing = g.CreateCampaignView(0).Players[0].VisibleCards;
         g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [playing[0].Id]));
-        Assert.Equal(EnhancementId.Glass, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == playing[0].Id).Enhancement!.Value);
+        Assert.Equal(EnhancementId.Golden, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == playing[0].Id).Enhancement!.Value);
         g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [playing[^1].Id]));
-        Assert.Equal(Suit.Hearts, g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == playing[^1].Id).Face.Suit);
+        Assert.Equal(EnhancementId.Wild, g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == playing[^1].Id).Enhancement!.Value);
         g.ExecuteCampaignAction(0, new CampaignCommand.UseSigil(0, playing[0].Id));
         Assert.Equal(0, g.ExportCampaignSnapshot().Inventory.ItemCount);
         Assert.True(Mine() && g.Phase == GamePhase.Playing);
@@ -87,11 +87,11 @@ internal static class CampaignEffectsTests
     }
     public static void TarotMutation()
     {
-        var s = CampaignSnapshot.Create(3) with { Inventory = new([], [TarotId.Glassblower, TarotId.TaxCollector], []), Wallets = [15, 0, 0, 0] };
+        var s = CampaignSnapshot.Create(3) with { Inventory = new([], [TarotId.Prospector, TarotId.TaxCollector], []), Wallets = [15, 0, 0, 0] };
         var g = new GameEngine(["You", "W", "P", "E"], 3, null, new CampaignContext(s)); g.StartGame(3);
         var id = g.CreateCampaignView(0).Players[0].VisibleCards[0].Id;
         g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [id]));
-        Assert.Equal(EnhancementId.Glass, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == id).Enhancement!.Value);
+        Assert.Equal(EnhancementId.Golden, g.ExportCampaignSnapshot().Deck.Single(c => c.Id == id).Enhancement!.Value);
         g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, []));
         Assert.Equal(30, g.ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(0, g.ExportCampaignSnapshot().Inventory.Tarot.Length);

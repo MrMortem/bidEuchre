@@ -137,7 +137,7 @@ public sealed partial class GameEngine
         if (!IsCampaign) throw new GameRuleException("This is not a campaign table.");
         if (viewerSeat is { } v) GameRules.ValidateSeat(v);
         var players = Enumerable.Range(0, 4).Select(seat => new CampaignPlayerView(seat, _hands[seat].Count,
-            _hands[seat].Where(c => viewerSeat == seat || _pokerRevealed || StateFor(c).Sigil == SigilId.Owl || viewerSeat is { } who && _reveals.Contains((who, IdFor(c))))
+            _hands[seat].Where(c => viewerSeat == seat || _pokerRevealed || viewerSeat is { } who && _reveals.Contains((who, IdFor(c))))
                 .Select(CardView).ToArray(), !CampaignActive(seat))).ToArray();
         return new(_resources.Revision, DealSerial, viewerSeat, players, viewerSeat is { } actor ? CampaignLegal(actor) : [],
             _currentTrick.Select(p => new CampaignTrickPlay(p.Seat, CardView(p.Card), EffectiveCampaignSuit(p.Card))).ToArray(), _events.ToArray(),

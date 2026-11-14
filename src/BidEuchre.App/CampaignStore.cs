@@ -69,14 +69,21 @@ public static class CampaignStore
         {
             if (resources["Deck"] is JsonArray deck)
                 foreach (var node in deck)
-                    if (node is JsonObject card && card["Enhancement"] is JsonValue enhancement
-                        && enhancement.TryGetValue<string>(out var id) && id is "enhancement:emerald" or "enhancement:stinky")
-                        card["Enhancement"] = null;
+                    if (node is JsonObject card)
+                    {
+                        if (card["Enhancement"] is JsonValue enhancement && enhancement.TryGetValue<string>(out var id)
+                            && id is "enhancement:emerald" or "enhancement:stinky") card["Enhancement"] = null;
+                        if (card["Sigil"] is JsonValue sigil && sigil.TryGetValue<string>(out var sigilId)
+                            && IsRetiredSigil(sigilId)) card["Sigil"] = null;
+                    }
 
             if (resources["Inventory"] is JsonObject inventory)
-                RemoveRetiredTarot(inventory["Tarot"]);
+            {
+                RemoveRetiredItems(inventory["Tarot"], IsRetiredTarot);
+                RemoveRetiredItems(inventory["Sigils"], IsRetiredSigil);
+            }
             if (resources["GeneratedTarot"] is JsonArray generated)
-                foreach (var seat in generated) RemoveRetiredTarot(seat);
+                foreach (var seat in generated) RemoveRetiredItems(seat, IsRetiredTarot);
         }
 
         if (run["Shop"] is not JsonObject shop || shop["Offers"] is not JsonArray offers) return;
@@ -85,17 +92,21 @@ public static class CampaignStore
             if (offers[index] is not JsonObject offer
                 || offer["Category"] is not JsonValue categoryValue || !categoryValue.TryGetValue<int>(out var category)
                 || offer["FeatureId"] is not JsonValue featureValue || !featureValue.TryGetValue<string>(out var feature)) continue;
-            if ((category == (int)FeatureCategory.Tarot && feature is "Merchant" or "Beggar")
+            if ((category == (int)FeatureCategory.Tarot && feature is "Merchant" or "Beggar" or "LovePotion" or "Nightshade" or "CloverTonic" or "CrystalElixir" or "Glassblower")
+                || (category == (int)FeatureCategory.Sigil && feature is "Coin" or "Snake" or "Owl" or "Peacock")
                 || (category == (int)FeatureCategory.Enhancement && feature is "Emerald" or "Stinky"))
                 offers.RemoveAt(index);
         }
     }
 
-    private static void RemoveRetiredTarot(JsonNode? node)
+    private static bool IsRetiredTarot(string id) => id is "tarot:merchant" or "tarot:beggar" or "tarot:love-potion"
+        or "tarot:nightshade" or "tarot:clover-tonic" or "tarot:crystal-elixir" or "tarot:glassblower";
+    private static bool IsRetiredSigil(string id) => id is "sigil:coin" or "sigil:snake" or "sigil:owl" or "sigil:peacock";
+    private static void RemoveRetiredItems(JsonNode? node, Func<string, bool> retired)
     {
         if (node is not JsonArray cards) return;
         for (var index = cards.Count - 1; index >= 0; index--)
-            if (cards[index] is JsonValue value && value.TryGetValue<string>(out var id) && id is "tarot:merchant" or "tarot:beggar")
+            if (cards[index] is JsonValue value && value.TryGetValue<string>(out var id) && retired(id))
                 cards.RemoveAt(index);
     }
 

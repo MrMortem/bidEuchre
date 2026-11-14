@@ -155,8 +155,8 @@ public sealed class DeveloperConsole(IDeveloperHost host)
     private static IEnumerable<ConsoleLine> Catalog(FeatureCategory category)
     {
         var entries = FeatureCatalog.All.Where(f => f.Category == category).ToArray();
-        var width = entries.Max(f => f.Key.Length) + 2;
-        return entries.Select(f => new ConsoleLine($"{f.Key.PadRight(width)}{f.Description}", ConsoleTone.Muted));
+        var width = entries.Max(f => f.Name.Length) + 2;
+        return entries.Select(f => new ConsoleLine($"{f.Name.PadRight(width)}{f.Description}", ConsoleTone.Muted));
     }
 
     // ---- money and lives ----

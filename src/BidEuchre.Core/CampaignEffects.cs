@@ -53,9 +53,7 @@ public sealed partial class GameEngine
             }
             switch (state.Sigil)
             {
-                case SigilId.Coin: Money(seat, 3, "Coin"); break;
                 case SigilId.Fish: Point(seat, 2, "Fish"); break;
-                case SigilId.Snake: Point(seat, 1, "Snake"); Point(1 - seat % 2, -1, "Snake"); break;
                 case SigilId.Duck: if (_campaignRandom.NextInt(2) == 0) Point(seat, 4, "Duck"); break;
                 case SigilId.Spider:
                     var previous = _currentTrick.Where(p => p.Card != token).ToArray();
@@ -92,7 +90,6 @@ public sealed partial class GameEngine
                 if (c.Enhancement == EnhancementId.Golden || p.Seat == 0 && Has(JokerId.Millionaire) && MatchesSuit(c, Suit.Diamonds)) Money(winner, 1, "Golden");
                 if (c.Enhancement == EnhancementId.Cursed) Point(winner, winner == 0 && Has(JokerId.CureAll) ? 2 : -1, "Cursed");
                 if (c.Enhancement == EnhancementId.Silver) Money(team == 0 ? 1 : 0, 5, "Silver");
-                if (c.Sigil == SigilId.Peacock) Point(winner, plays.Count(x => StateFor(x.Card).Sigil is not null), "Peacock");
                 if (c.Sigil == SigilId.Vulture) GenerateTarot(winner);
             }
             // Eagle comes back to the team that lost the trick; after the last trick there is no hand to return to.

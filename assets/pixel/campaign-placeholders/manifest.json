@@ -349,17 +349,6 @@
       "sourcePath": "source/joker-slick-willy.png"
     },
     {
-      "id": "sigil:coin",
-      "key": "Coin",
-      "name": "Coin",
-      "category": "sigil",
-      "path": "sigil/coin.png",
-      "width": 64,
-      "height": 64,
-      "description": "When played, earn $3.",
-      "sourcePath": "source/sigil-coin.png"
-    },
-    {
       "id": "sigil:bear",
       "key": "Bear",
       "name": "Bear",
@@ -404,17 +393,6 @@
       "sourcePath": "source/sigil-spider.png"
     },
     {
-      "id": "sigil:snake",
-      "key": "Snake",
-      "name": "Snake",
-      "category": "sigil",
-      "path": "sigil/snake.png",
-      "width": 64,
-      "height": 64,
-      "description": "When played, steal 1 point from the opposing team.",
-      "sourcePath": "source/sigil-snake.png"
-    },
-    {
       "id": "sigil:frog",
       "key": "Frog",
       "name": "Frog",
@@ -424,17 +402,6 @@
       "height": 64,
       "description": "When played, retrigger this card's effects.",
       "sourcePath": "source/sigil-frog.png"
-    },
-    {
-      "id": "sigil:owl",
-      "key": "Owl",
-      "name": "Owl",
-      "category": "sigil",
-      "path": "sigil/owl.png",
-      "width": 64,
-      "height": 64,
-      "description": "This card is visible to all players.",
-      "sourcePath": "source/sigil-owl.png"
     },
     {
       "id": "sigil:duck",
@@ -470,64 +437,9 @@
       "sourcePath": "source/sigil-chameleon.png"
     },
     {
-      "id": "sigil:peacock",
-      "key": "Peacock",
-      "name": "Peacock",
-      "category": "sigil",
-      "path": "sigil/peacock.png",
-      "width": 64,
-      "height": 64,
-      "description": "Award the trick taker +1 point per Sigil in the trick.",
-      "sourcePath": "source/sigil-peacock.png"
-    },
-    {
-      "id": "tarot:love-potion",
-      "key": "LovePotion",
-      "name": "Love Potion",
-      "category": "tarot",
-      "path": "tarot/love-potion.png",
-      "width": 64,
-      "height": 64,
-      "description": "Change one card to Hearts.",
-      "sourcePath": "source/tarot-love-potion.png"
-    },
-    {
-      "id": "tarot:nightshade",
-      "key": "Nightshade",
-      "name": "Nightshade",
-      "category": "tarot",
-      "path": "tarot/nightshade.png",
-      "width": 64,
-      "height": 64,
-      "description": "Change one card to Spades.",
-      "sourcePath": "source/tarot-nightshade.png"
-    },
-    {
-      "id": "tarot:clover-tonic",
-      "key": "CloverTonic",
-      "name": "Clover Tonic",
-      "category": "tarot",
-      "path": "tarot/clover-tonic.png",
-      "width": 64,
-      "height": 64,
-      "description": "Change one card to Clubs.",
-      "sourcePath": "source/tarot-clover-tonic.png"
-    },
-    {
-      "id": "tarot:crystal-elixir",
-      "key": "CrystalElixir",
-      "name": "Crystal Elixir",
-      "category": "tarot",
-      "path": "tarot/crystal-elixir.png",
-      "width": 64,
-      "height": 64,
-      "description": "Change one card to Diamonds.",
-      "sourcePath": "source/tarot-crystal-elixir.png"
-    },
-    {
       "id": "tarot:chameleon",
       "key": "Chameleon",
-      "name": "Chameleon",
+      "name": "Festival",
       "category": "tarot",
       "path": "tarot/chameleon.png",
       "width": 64,
@@ -538,7 +450,7 @@
     {
       "id": "tarot:grindstone",
       "key": "Grindstone",
-      "name": "Grindstone",
+      "name": "Stone mason",
       "category": "tarot",
       "path": "tarot/grindstone.png",
       "width": 64,
@@ -580,17 +492,6 @@
       "sourcePath": "source/tarot-gambler.png"
     },
     {
-      "id": "tarot:glassblower",
-      "key": "Glassblower",
-      "name": "Glassblower",
-      "category": "tarot",
-      "path": "tarot/glassblower.png",
-      "width": 64,
-      "height": 64,
-      "description": "Make one card Glass.",
-      "sourcePath": "source/tarot-glassblower.png"
-    },
-    {
       "id": "tarot:traitor",
       "key": "Traitor",
       "name": "Traitor",
@@ -615,7 +516,7 @@
     {
       "id": "tarot:spring-loaded",
       "key": "SpringLoaded",
-      "name": "Spring Loaded",
+      "name": "Ectoplasm",
       "category": "tarot",
       "path": "tarot/spring-loaded.png",
       "width": 64,
@@ -626,7 +527,7 @@
     {
       "id": "tarot:tax-collector",
       "key": "TaxCollector",
-      "name": "Tax Collector",
+      "name": "Taxes",
       "category": "tarot",
       "path": "tarot/tax-collector.png",
       "width": 64,
@@ -637,7 +538,7 @@
     {
       "id": "planet:lowballer",
       "key": "Lowballer",
-      "name": "Low-baller",
+      "name": "Safety Net",
       "category": "planet",
       "path": "planet/lowballer.png",
       "width": 64,

@@ -45,10 +45,10 @@ internal static class CampaignShopTests
         // Tarots and Sigils share four slots: two of each leave no room for either kind.
         var tarotOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Tarot).Id;
         var sigilOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Sigil).Id;
-        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector], Sigils = [SigilId.Coin] } } };
+        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector], Sigils = [SigilId.Bear] } } };
         Assert.Equal(4, CampaignShop.Buy(three, tarotOffer).Resources.Inventory.ItemCount);
         Assert.Equal(4, CampaignShop.Buy(three, sigilOffer).Resources.Inventory.ItemCount);
-        var full = three with { Resources = three.Resources with { Inventory = three.Resources.Inventory with { Sigils = [SigilId.Coin, SigilId.Bear] } } };
+        var full = three with { Resources = three.Resources with { Inventory = three.Resources.Inventory with { Sigils = [SigilId.Bear, SigilId.Bear] } } };
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, tarotOffer));
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, sigilOffer));
         // A full inventory still lets a Sigil be bought and used on the spot.
@@ -97,7 +97,7 @@ internal static class CampaignShopTests
     public static void StoredCardsOutsideMatch()
     {
         var run = new CampaignRun(Money: 10, Phase: CampaignPhase.Shop) { Shop = new(0, []) };
-        run = run with { Resources = run.Resources with { Wallets = [10, 0, 0, 0], Inventory = run.Resources.Inventory with { Tarot = [TarotId.Prospector, TarotId.TaxCollector], Sigils = [SigilId.Fish, SigilId.Coin] } } };
+        run = run with { Resources = run.Resources with { Wallets = [10, 0, 0, 0], Inventory = run.Resources.Inventory with { Tarot = [TarotId.Prospector, TarotId.TaxCollector], Sigils = [SigilId.Fish, SigilId.Bear] } } };
         var target = run.Resources.Deck[5].Id;
         // A stored Tarot is played on the shared deck from the shop, at no charge.
         var used = CampaignShop.UseTarot(run, 0, [target], run.Resources.Revision);
@@ -118,7 +118,7 @@ internal static class CampaignShopTests
         Assert.Equal(0, taxed.Resources.Inventory.Tarot.Length);
         var marked = CampaignShop.UseSigil(taxed, 0, target);
         Assert.Equal(SigilId.Fish, marked.Resources.Deck[5].Sigil!.Value);
-        Assert.Equal(SigilId.Coin, marked.Resources.Inventory.Sigils.Single());
+        Assert.Equal(SigilId.Bear, marked.Resources.Inventory.Sigils.Single());
         var emptied = CampaignShop.DiscardSigil(marked, 0, marked.Resources.Revision);
         Assert.Equal(0, emptied.Resources.Inventory.ItemCount);
         Assert.Throws<GameRuleException>(() => CampaignShop.DiscardSigil(emptied, 0));
@@ -149,8 +149,8 @@ internal static class CampaignShopTests
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(start, "t", [new CardId(99)]));
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(Stocked(TarotId.Prospector, 2), "t", [target]));
 
-        var hearts = CampaignShop.BuyAndUse(Stocked(TarotId.LovePotion), "t", [start.Resources.Deck.First(c => c.Face.Suit == Suit.Clubs).Id]);
-        Assert.Equal(7, hearts.Resources.Deck.Count(c => c.Face.Suit == Suit.Hearts));
+        var festival = CampaignShop.BuyAndUse(Stocked(TarotId.Chameleon), "t", [target]);
+        Assert.True(festival.Resources.Deck[5].Enhancement == EnhancementId.Wild);
 
         var deal = Stocked(TarotId.DevilishDeal);
         var ids = deal.Resources.Deck.Take(3).Select(c => c.Id).ToArray();
@@ -179,7 +179,7 @@ internal static class CampaignShopTests
     {
         var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
         { Shop = new(0, [new("s", FeatureCategory.Sigil, "Fish", 3)]) };
-        run.Resources.Deck[5] = run.Resources.Deck[5] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Coin };
+        run.Resources.Deck[5] = run.Resources.Deck[5] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Bear };
         var target = run.Resources.Deck[5].Id;
         var used = CampaignShop.BuyAndUse(run, "s", [target]);
         Assert.Equal(27, used.Money);
@@ -187,7 +187,7 @@ internal static class CampaignShopTests
         Assert.Equal(SigilId.Fish, used.Resources.Deck[5].Sigil!.Value);
         Assert.Equal(EnhancementId.Glass, used.Resources.Deck[5].Enhancement!.Value);
         Assert.Equal(1, used.Resources.Deck.Count(c => c.Sigil == SigilId.Fish));
-        Assert.Equal(SigilId.Coin, run.Resources.Deck[5].Sigil!.Value);
+        Assert.Equal(SigilId.Bear, run.Resources.Deck[5].Sigil!.Value);
         Assert.True(used.Shop!.Offers[0].Sold);
         Assert.Equal(run.Resources.Revision + 1, used.Resources.Revision);
         Assert.Equal(run.Resources.RandomState, used.Resources.RandomState);
@@ -207,7 +207,7 @@ internal static class CampaignShopTests
         Assert.True(bought.Resources.Deck.SequenceEqual(run.Resources.Deck));
         Assert.Equal(0, run.Resources.Inventory.Sigils.Length);
         var copy = bought.Resources.Copy();
-        copy.Inventory.Sigils[0] = SigilId.Coin;
+        copy.Inventory.Sigils[0] = SigilId.Bear;
         Assert.Equal(SigilId.Fish, bought.Resources.Inventory.Sigils[0]);
         var path = Path.Combine(Path.GetTempPath(), $"sigil-{Guid.NewGuid():N}.json");
         try
@@ -216,7 +216,7 @@ internal static class CampaignShopTests
             var loaded = CampaignStore.Load(path)!;
             Assert.Equal(SigilId.Fish, loaded.Resources.Inventory.Sigils.Single());
             var target = loaded.Resources.Deck[7].Id;
-            loaded.Resources.Deck[7] = loaded.Resources.Deck[7] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Coin };
+            loaded.Resources.Deck[7] = loaded.Resources.Deck[7] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Bear };
             var used = CampaignShop.UseSigil(loaded, 0, target, loaded.Resources.Revision);
             Assert.Equal(27, used.Money);
             Assert.Equal(SigilId.Fish, used.Resources.Deck[7].Sigil!.Value);

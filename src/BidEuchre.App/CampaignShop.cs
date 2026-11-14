@@ -35,6 +35,7 @@ public static class CampaignShop
         if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
         var offer = run.Shop.Offers.SingleOrDefault(o => o.Id == offerId);
         if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
+        RequireActiveOffer(offer);
         if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
         var resources = run.Resources.Copy(); var inventory = resources.Inventory;
         string? pulled = null;
@@ -66,6 +67,12 @@ public static class CampaignShop
         resources.Wallets[0] = run.Money - offer.Price;
         return run with { Money = resources.Wallets[0], Resources = resources with { Inventory = inventory, Revision = resources.Revision + 1 }, Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with { Sold = true, FeatureId = pulled ?? o.FeatureId } : o).ToArray() } };
     }
+    private static void RequireActiveOffer(ShopOffer offer)
+    {
+        if (offer.Category is not (FeatureCategory.Tarot or FeatureCategory.Sigil)) return;
+        if (!FeatureCatalog.All.Any(f => f.Category == offer.Category && f.Key == offer.FeatureId))
+            throw new GameRuleException("Unknown shop item.");
+    }
     /// <summary>How many shared-deck cards a Tarot must be aimed at.</summary>
     public static int TarotTargets(TarotId tarot) => Tarot.TargetCount(tarot);
 
@@ -82,6 +89,7 @@ public static class CampaignShop
             return Buy(run, offerId, targets[0]);
         }
         if (offer.Category != FeatureCategory.Tarot) throw new GameRuleException("Only a Tarot or Sigil can be used from the shop.");
+        RequireActiveOffer(offer);
         if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money - offer.Price;
         resources = ApplyTarot(resources, Enum.Parse<TarotId>(offer.FeatureId), targets);
@@ -107,7 +115,6 @@ public static class CampaignShop
         void Enhance(CardId id, EnhancementId enhancement) => Change(id, c => c with { Enhancement = enhancement });
         switch (tarot)
         {
-            case var _ when Tarot.SuitOf(tarot) is { } suit: Change(targets[0], c => CampaignCards.ChangeSuit(c, suit)); break;
             case TarotId.TaxCollector: money += Math.Min(20, money); break;
             case TarotId.Astronomer:
                 var options = Enum.GetValues<GumballId>().Except(inventory.Unlocks).ToArray();

@@ -10,6 +10,10 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Settled campaign exact active rosters and stable identities", () => Run(SettledCatalogueTests.ActiveRosters)),
+    ("Settled campaign retires all saved locations and rejects unknown items", () => Run(SettledCatalogueTests.MigrationAndUnknownIds)),
+    ("Settled campaign renamed items preserve their effects and logs", () => Run(SettledCatalogueTests.RenamedEffectsKeepTheirBehavior)),
+    ("Settled campaign rejects retired and unknown purchases", () => Run(SettledCatalogueTests.InvalidAcquisitionIsRejected)),
     ("Protocol boundary ContractValues", ProtocolBoundaryTests.ContractValues),
     ("Protocol boundary MalformedCardNotation", ProtocolBoundaryTests.MalformedCardNotation),
     ("Protocol boundary MalformedPlayRecovers", ProtocolBoundaryTests.MalformedPlayRecovers),
