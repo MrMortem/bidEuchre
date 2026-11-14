@@ -1,6 +1,7 @@
-# Bid Euchre Rules — Implementation Specification
+# Bid Euchre Rules
 
-This document is the authoritative implementation specification for the game.
+These are the complete rules of a standard game, and the game follows them
+exactly.
 
 ## 1. Game Components
 

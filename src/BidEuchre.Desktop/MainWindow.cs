@@ -164,7 +164,7 @@ public sealed class MainWindow : Window
         _startButton.Click += async (_, _) => await StartSessionAsync();
 
         _enginePage = BuildEnginePage();
-        _rulesPage = BuildRulesPage();
+        _rulesPage = RulesPage.Build();
         _pageHost.Content = _playHost;
 
         var menuButton = _menuButton;
@@ -552,35 +552,6 @@ public sealed class MainWindow : Window
         grid.Children.Add(catalog);
         grid.Children.Add(Place(form, column: 1));
         return new ScrollViewer { Padding = new Thickness(30, 54, 30, 30), Content = grid };
-    }
-
-    private static Control BuildRulesPage()
-    {
-        var path = Path.Combine(AppContext.BaseDirectory, "bid-euchre-final-rules.md");
-        var rules = File.Exists(path) ? File.ReadAllText(path) : "Rules file was not found beside the executable.";
-        return new ScrollViewer
-        {
-            Padding = new Thickness(30, 54, 30, 30),
-            Content = new Border
-            {
-                MaxWidth = 960,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Padding = new Thickness(28),
-                CornerRadius = new CornerRadius(10),
-                Background = Panel,
-                BorderBrush = Line,
-                BorderThickness = new Thickness(1),
-                Child = new TextBlock
-                {
-                    Text = rules,
-                    Foreground = Ink,
-                    FontFamily = FontFamily.Default,
-                    FontSize = 14,
-                    LineHeight = 22,
-                    TextWrapping = TextWrapping.Wrap
-                }
-            }
-        };
     }
 
     private async Task CreateTableAsync(Button button)
