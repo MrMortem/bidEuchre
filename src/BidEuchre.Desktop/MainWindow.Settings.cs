@@ -92,6 +92,9 @@ public sealed partial class MainWindow
             ShowTable();
             await RefreshGameAsync();
             await session.ResumeAsync();
+            // A pre-resume refresh may have rejected the contract-dependent hand sort.
+            _renderKey = null;
+            await RefreshGameAsync();
         }
         catch (ObjectDisposedException) { _liveSettingsOpen = false; }
         catch (Exception error) { ShowError(error.Message); }
@@ -100,6 +103,7 @@ public sealed partial class MainWindow
 
     private void StopTablePresentation()
     {
+        CancelContractAnnouncement();
         _motion.Cancel();
         _bidAnnouncement?.Clear();
         _cardFlights?.Cancel();

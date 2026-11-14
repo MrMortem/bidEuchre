@@ -48,7 +48,8 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel _engineList = new() { Spacing = 8 };
     private readonly TextBlock _teamZeroScore = ScoreText();
     private readonly TextBlock _teamOneScore = ScoreText();
-    private readonly TextBlock _contractText = new() { Foreground = Ink, FontSize = 17, FontFamily = PixelArt.Font };
+    private readonly TextBlock _contractText = new() { Foreground = Ink, FontSize = 17, FontFamily = PixelArt.Font,
+        TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _dealerText = new() { Foreground = Muted, FontSize = 10 };
     private readonly ComboBox _viewerSeat = new() { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _startButton = PrimaryButton("Start session");
@@ -327,10 +328,12 @@ public sealed partial class MainWindow : Window
             ? new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 12, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap }
             : null;
 
+        CancelContractAnnouncement();
         _bidAnnouncement?.Clear();
         var bidDock = new ContentControl { IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
         var bidOverlay = new Canvas { IsHitTestVisible = false };
         _bidAnnouncement = new BidAnnouncement(bidOverlay, _tableHost, bidDock);
+        _contractAnnouncement = new ContractAnnouncement(bidOverlay, _tableHost);
         _cardFlights?.Cancel(); _deckDeal?.Cancel();
         _cardFlights = new CardFlights(bidOverlay);
         _deckDeal = new DeckDeal(bidOverlay, _tableHost, SyncNativeInput);
@@ -623,7 +626,8 @@ public sealed partial class MainWindow : Window
             botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds),
             matchOptions: options,
             campaign: options is null ? null : new CampaignContext(_campaign.Run!.Resources),
-            checkpoint: options is null ? null : _campaign.Checkpoint);
+            checkpoint: options is null ? null : _campaign.Checkpoint,
+            waitForContractPresentation: true);
         _session = session;
         _campaignSession = options is null ? null : session;
         _sessionGeneration++;
@@ -785,6 +789,7 @@ public sealed partial class MainWindow : Window
                 }
                 _renderKey = "waiting";
                 _motionTracker.Update(null, $"{session.Id}:{viewer}");
+                CancelContractAnnouncement();
                 _bidAnnouncement?.Clear();
                 _cardFlights?.Cancel(); _deckDeal?.Cancel();
                 _contractText.IsVisible = true;
@@ -797,6 +802,7 @@ public sealed partial class MainWindow : Window
             var renderKey = JsonSerializer.Serialize(view) + '\n' + (session.LastError ?? string.Empty);
             if (renderKey == _renderKey)
             {
+                UpdateContractAnnouncement(session, view);
                 return;
             }
             _renderKey = renderKey;
@@ -837,6 +843,8 @@ public sealed partial class MainWindow : Window
             foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             UpdateBidAnnouncement(view);
+            UpdateContractAnnouncement(session, view);
+            if (_motionCue.TrumpChanged && motionEnabled) _motion.Pulse(_contractText, 1.1);
             _input.CompleteView(revision);
             SyncNativeInput();
             if (view.Phase is GamePhase.GameComplete && _campaign.InMatch && ReferenceEquals(session, _campaignSession))
@@ -890,8 +898,8 @@ public sealed partial class MainWindow : Window
     private void SyncNativeInput()
     {
         _tableHost.IsVisible = !_input.Loading;
-        _tableHost.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true;
-        _actionButtons.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true;
+        _tableHost.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
+        _actionButtons.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
         _tarotRow.IsEnabled = _actionButtons.IsEnabled;
         _viewerSeat.IsEnabled = !_input.Locked;
     }
@@ -1348,10 +1356,9 @@ public sealed partial class MainWindow : Window
         var deal = $"{session.Id}:{campaign.DealSerial}";
         var stage = $"{deal}:{view.Contract?.Mode}:{view.Contract?.Trump}:{_preferences.HandSort}";
         if (hand.Count < 2 || _draggedDeal == deal || _autoArranged == stage) return false;
-        _autoArranged = stage;
         var sorted = HandOrder.Sort(hand, card => card.Face, _preferences.HandSort, view.Contract).Select(card => card.Id).ToArray();
-        if (sorted.SequenceEqual(hand.Select(card => card.Id))) return false;
-        try { await session.ArrangeCampaignHandAsync(seat, sorted); return true; }
+        if (sorted.SequenceEqual(hand.Select(card => card.Id))) { _autoArranged = stage; return false; }
+        try { await session.ArrangeCampaignHandAsync(seat, sorted); _autoArranged = stage; return true; }
         catch (GameRuleException) { return false; }
     }
 
@@ -1759,6 +1766,7 @@ public sealed partial class MainWindow : Window
 
     private GameSession? DetachSession()
     {
+        CancelContractAnnouncement();
         _bidAnnouncement?.Clear();
         _cardFlights?.Cancel(); _deckDeal?.Cancel();
         _input.BeginViewChange();
@@ -1978,8 +1986,8 @@ public sealed partial class MainWindow : Window
         }
         var prefix = BidName(view.Contract.Bid);
         return view.Contract.Mode is ContractMode.Trump
-            ? $"{prefix} · {SuitSymbol(view.Contract.Trump!.Value)} {view.Contract.Trump}"
-            : $"{prefix} · {view.Contract.Mode}";
+            ? $"{ContractCaller(view)} · {prefix} · {SuitSymbol(view.Contract.Trump!.Value)} {view.Contract.Trump}"
+            : $"{ContractCaller(view)} · {prefix} · {view.Contract.Mode}";
     }
 
     private static string BidName(BidLevel bid) => bid switch

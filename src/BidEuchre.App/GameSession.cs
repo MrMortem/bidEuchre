@@ -23,6 +23,10 @@ public sealed class GameSession : IAsyncDisposable
     private int? _observedTerminalHand;
     private TaskCompletionSource? _dealReady;
     private TaskCompletionSource? _resumeReady;
+    private readonly bool _waitForContractPresentation;
+    private TaskCompletionSource? _contractReady;
+    private long? _contractPresentationDeal;
+    public bool WaitingForContractPresentation => _contractReady is { Task.IsCompleted: false };
     private bool _paused;
     public bool WaitingForDeal => _dealReady is { Task.IsCompleted: false };
 
@@ -36,8 +40,10 @@ public sealed class GameSession : IAsyncDisposable
         TimeSpan? completedTrickDelay = null,
         Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null,
         MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot, bool>? checkpoint = null,
-        Func<GameView, int, CampaignCommand>? campaignPolicy = null)
+        Func<GameView, int, CampaignCommand>? campaignPolicy = null,
+        bool waitForContractPresentation = false)
     {
+        _waitForContractPresentation = waitForContractPresentation;
         _campaignPolicy = campaignPolicy ?? CampaignBotPolicy.Choose;
         _matchOptions = matchOptions;
         _campaign = campaign; _checkpoint = checkpoint;
@@ -127,6 +133,7 @@ public sealed class GameSession : IAsyncDisposable
             _paused = true;
             _resumeReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _dealReady?.TrySetResult();
+            _contractReady?.TrySetResult();
         }
         finally { _gate.Release(); }
     }
@@ -168,6 +175,7 @@ public sealed class GameSession : IAsyncDisposable
         {
             ThrowIfClosing();
             ThrowIfPaused();
+            ThrowIfContractPresentationPending();
             if (WaitingForDeal) throw new GameRuleException("Wait for dealing to finish before bidding.");
             if (Game?.IsCampaign is true) throw new GameRuleException("Campaign tables only accept campaign actions.");
             EnsureHumanTurn(request.Seat);
@@ -211,6 +219,7 @@ public sealed class GameSession : IAsyncDisposable
         {
             ThrowIfClosing();
             ThrowIfPaused();
+            ThrowIfContractPresentationPending();
             if (Game?.IsCampaign is not true || WaitingForDeal) throw new GameRuleException("Wait for the campaign deal to finish.");
             GameRules.ValidateSeat(request.Seat);
             if (Seats[request.Seat].Kind != PlayerKind.Human) throw new GameRuleException("Bot actions come from the campaign policy.");
@@ -293,6 +302,36 @@ public sealed class GameSession : IAsyncDisposable
             if (Game?.HandNumber == handNumber) _dealReady?.TrySetResult();
         }
         finally { _gate.Release(); }
+    }
+
+    /// <summary>Acknowledges only this deal's optional desktop cue. This never resumes a settings pause.</summary>
+    public async Task CompleteContractPresentationAsync(long dealSerial, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (_contractPresentationDeal == dealSerial) _contractReady?.TrySetResult();
+        }
+        finally { _gate.Release(); }
+    }
+
+    // Called while holding the action gate, before a human response or the next bot action.
+    // Later Chaos rolls alter the contract within the same deal and need no new start hold.
+    private void ArmContractPresentationLocked()
+    {
+        if (!_waitForContractPresentation || Game is null) return;
+        if (_contractPresentationDeal != Game.DealSerial) _contractReady?.TrySetResult();
+        if (Game.Contract is null || _contractPresentationDeal == Game.DealSerial) return;
+        _contractPresentationDeal = Game.DealSerial;
+        _contractReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (_paused) _contractReady.TrySetResult();
+    }
+
+    private void ThrowIfContractPresentationPending()
+    {
+        if (WaitingForContractPresentation) throw new GameRuleException("Wait for the contract announcement to finish.");
     }
 
     public SessionSummary Summary() => new(
@@ -423,6 +462,10 @@ public sealed class GameSession : IAsyncDisposable
                 {
                     resume = _resumeReady!.Task;
                 }
+                else if (WaitingForContractPresentation)
+                {
+                    resume = _contractReady!.Task;
+                }
                 else if (Game is null ||
                     Game.Phase is GamePhase.HandComplete or GamePhase.GameComplete ||
                     (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) is null ||
@@ -453,7 +496,7 @@ public sealed class GameSession : IAsyncDisposable
             await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (_paused) { actions--; continue; }
+                if (_paused || WaitingForContractPresentation) { actions--; continue; }
                 if (WaitingForDeal) continue;
                 if (Game is null || (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) != expectedSeat || !_bots.TryGetValue(expectedSeat, out var bot))
                 {
@@ -509,6 +552,7 @@ public sealed class GameSession : IAsyncDisposable
                     }
                 }
 
+                ArmContractPresentationLocked();
                 nextDelay = Game.CompletedTricks.Count > completedTricksBefore
                     ? _completedTrickDelay
                     : _botActionDelay;
@@ -524,6 +568,7 @@ public sealed class GameSession : IAsyncDisposable
 
     private async Task ObserveTerminalStateLockedAsync(CancellationToken cancellationToken)
     {
+        ArmContractPresentationLocked();
         var game = Game;
         if (game is null ||
             game.Phase is not (GamePhase.HandComplete or GamePhase.GameComplete) ||
