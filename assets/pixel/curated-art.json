@@ -1,0 +1,175 @@
+{
+  "entries": [
+    {
+      "id": "sigil:fish",
+      "resource": "curated-sigil-fish",
+      "file": "curated-sigil-fish.png",
+      "width": 128,
+      "height": 128,
+      "source": "Fish.png",
+      "transparentPixels": 4611
+    },
+    {
+      "id": "enhancement:glass",
+      "resource": "curated-enhancement-glass",
+      "file": "curated-enhancement-glass.png",
+      "width": 124,
+      "height": 176,
+      "source": "Glass Card.png",
+      "transparentPixels": 11060
+    },
+    {
+      "id": "enhancement:silver",
+      "resource": "curated-enhancement-silver",
+      "file": "curated-enhancement-silver.png",
+      "width": 124,
+      "height": 176,
+      "source": "Silver Card.png",
+      "transparentPixels": 0
+    },
+    {
+      "id": "enhancement:golden",
+      "resource": "curated-enhancement-golden",
+      "file": "curated-enhancement-golden.png",
+      "width": 124,
+      "height": 176,
+      "source": "Gold Card.png",
+      "transparentPixels": 0
+    },
+    {
+      "id": "sigil:vulture",
+      "resource": "curated-sigil-vulture",
+      "file": "curated-sigil-vulture.png",
+      "width": 128,
+      "height": 128,
+      "source": "Vulture.png",
+      "transparentPixels": 4672
+    },
+    {
+      "id": "gumball:high-low",
+      "resource": "curated-gumball-high-low",
+      "file": "curated-gumball-high-low.png",
+      "width": 128,
+      "height": 128,
+      "source": "High_Low Gumball.png",
+      "transparentPixels": 4423
+    },
+    {
+      "id": "sigil:frog",
+      "resource": "curated-sigil-frog",
+      "file": "curated-sigil-frog.png",
+      "width": 128,
+      "height": 128,
+      "source": "Frog.png",
+      "transparentPixels": 4837
+    },
+    {
+      "id": "sigil:spider",
+      "resource": "curated-sigil-spider",
+      "file": "curated-sigil-spider.png",
+      "width": 128,
+      "height": 128,
+      "source": "Spider.png",
+      "transparentPixels": 4707
+    },
+    {
+      "id": "sigil:eagle",
+      "resource": "curated-sigil-eagle",
+      "file": "curated-sigil-eagle.png",
+      "width": 128,
+      "height": 128,
+      "source": "Eagle.png",
+      "transparentPixels": 4971
+    },
+    {
+      "id": "enhancement:lucky",
+      "resource": "curated-enhancement-lucky",
+      "file": "curated-enhancement-lucky.png",
+      "width": 124,
+      "height": 176,
+      "source": "Lucky Card.png",
+      "transparentPixels": 0
+    },
+    {
+      "id": "sigil:duck",
+      "resource": "curated-sigil-duck",
+      "file": "curated-sigil-duck.png",
+      "width": 128,
+      "height": 128,
+      "source": "Duck.png",
+      "transparentPixels": 5079
+    },
+    {
+      "id": "enhancement:bouncy",
+      "resource": "curated-enhancement-bouncy",
+      "file": "curated-enhancement-bouncy.png",
+      "width": 124,
+      "height": 176,
+      "source": "Bouncy Card.png",
+      "transparentPixels": 0
+    },
+    {
+      "id": "sigil:bear",
+      "resource": "curated-sigil-bear",
+      "file": "curated-sigil-bear.png",
+      "width": 128,
+      "height": 128,
+      "source": "Bear.png",
+      "transparentPixels": 4789
+    },
+    {
+      "id": "enhancement:cursed",
+      "resource": "curated-enhancement-cursed",
+      "file": "curated-enhancement-cursed.png",
+      "width": 124,
+      "height": 176,
+      "source": "Curse Card.png",
+      "transparentPixels": 0
+    },
+    {
+      "id": "sigil:chameleon",
+      "resource": "curated-sigil-chameleon",
+      "file": "curated-sigil-chameleon.png",
+      "width": 128,
+      "height": 128,
+      "source": "Chameleon.png",
+      "transparentPixels": 5084
+    },
+    {
+      "id": "gumball:chaos",
+      "resource": "curated-gumball-chaos",
+      "file": "curated-gumball-chaos.png",
+      "width": 128,
+      "height": 128,
+      "source": "Chaos Gumball.png",
+      "transparentPixels": 5641
+    },
+    {
+      "id": "gumball:alone",
+      "resource": "curated-gumball-alone",
+      "file": "curated-gumball-alone.png",
+      "width": 128,
+      "height": 128,
+      "source": "Alone Gumball.png",
+      "transparentPixels": 5820
+    },
+    {
+      "id": "enhancement:wild",
+      "resource": "curated-enhancement-wild",
+      "file": "curated-enhancement-wild.png",
+      "width": 124,
+      "height": 176,
+      "source": "Wild Card.png",
+      "transparentPixels": 0
+    },
+    {
+      "id": "enhancement:stone",
+      "resource": "curated-enhancement-stone",
+      "file": "curated-enhancement-stone.png",
+      "width": 124,
+      "height": 176,
+      "source": "Stone BG.png",
+      "transparentPixels": 0
+    }
+  ]
+}

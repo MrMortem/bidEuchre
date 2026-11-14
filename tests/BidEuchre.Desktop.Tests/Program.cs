@@ -15,6 +15,7 @@ AppBuilder.Configure<Application>()
     .SetupWithoutStarting();
 
 EnhancementBackgroundTests.Run();
+CuratedArtTests.Run();
 
 var motion = new PixelMotion();
 motion.SetEnabled(false);

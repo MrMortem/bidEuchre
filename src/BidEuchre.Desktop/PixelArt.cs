@@ -124,9 +124,18 @@ internal static class PixelArt
 
     public static Image Back(double width = 42, double height = 62) => Sprite(Load("back"), width, height);
 
+    private static bool HasImage(string name) => Images.ContainsKey(name) ||
+        AssetLoader.Exists(new Uri($"avares://BidEuchre/Pixel/{name}.png"));
+
+    private static string CampaignImageName(FeatureDefinition definition)
+    {
+        var curated = $"curated-{definition.Id.Replace(':', '-')}";
+        return HasImage(curated) ? curated : $"campaign/{definition.Id.Replace(':', '/')}";
+    }
+
     public static Image CampaignIcon(FeatureDefinition definition, double size = 64)
     {
-        var image = Sprite(Load($"campaign/{definition.Id.Replace(':', '/')}"), size, size);
+        var image = Sprite(Load(CampaignImageName(definition)), size, size);
         image.HorizontalAlignment = HorizontalAlignment.Center;
         image.VerticalAlignment = VerticalAlignment.Center;
         image.IsHitTestVisible = false;
@@ -136,8 +145,8 @@ internal static class PixelArt
     /// <summary>A gumball's own sprite, or null while its art has not been drawn yet.</summary>
     public static Image? Gumball(GumballId id, double size)
     {
-        var name = $"campaign/{FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Id.Replace(':', '/')}";
-        if (!Images.ContainsKey(name) && !AssetLoader.Exists(new Uri($"avares://BidEuchre/Pixel/{name}.png"))) return null;
+        var name = CampaignImageName(FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()));
+        if (!HasImage(name)) return null;
         var source = Load(name);
         var image = new Image { Source = source, Width = size, Height = size, Stretch = Stretch.Fill, IsHitTestVisible = false };
         // Shrunk sprites are smoothed; enlarged ones keep their hard pixels.
@@ -154,10 +163,33 @@ internal static class PixelArt
 
     // Face identity and paper are independent layers, including cards used in flights.
     // Pass another resource name here to reskin a card without changing its face.
-    public static Control CardContent(Card card, EnhancementId? enhancement) =>
-        CardContent(card, enhancement is { } value
-            ? $"card-background-{value.ToString().ToLowerInvariant()}"
-            : "card-background-white");
+    public static Control CardContent(Card card, EnhancementId? enhancement, SigilId? sigil = null)
+    {
+        var background = "card-background-white";
+        if (enhancement is { } value)
+        {
+            var slug = value.ToString().ToLowerInvariant();
+            var curated = $"curated-enhancement-{slug}";
+            background = HasImage(curated) ? curated : $"card-background-{slug}";
+        }
+        var grid = (Grid)CardContent(card, background);
+        if (sigil is { } seal)
+        {
+            // Scale the Sigil with the card and place it below the upper-left index.
+            grid.ColumnDefinitions = new ColumnDefinitions("6*,63*,55*");
+            grid.RowDefinitions = new RowDefinitions("52*,63*,61*");
+            foreach (var layer in grid.Children) { Grid.SetColumnSpan(layer, 3); Grid.SetRowSpan(layer, 3); }
+            var badge = new Image
+            {
+                Name = "CardSigil", Source = Load(CampaignImageName(FeatureCatalog.Get(FeatureCategory.Sigil, seal.ToString()))),
+                Stretch = Stretch.Uniform, IsHitTestVisible = false
+            };
+            RenderOptions.SetBitmapInterpolationMode(badge, BitmapInterpolationMode.None);
+            Grid.SetColumn(badge, 1); Grid.SetRow(badge, 1);
+            grid.Children.Add(badge);
+        }
+        return grid;
+    }
 
     public static Control CardContent(Card card, string background = "card-background-white")
     {
@@ -172,13 +204,19 @@ internal static class PixelArt
             Suit.Clubs => 0, Suit.Diamonds => 1, Suit.Hearts => 2, Suit.Spades => 3,
             _ => throw new ArgumentOutOfRangeException(nameof(card))
         };
-        var grid = new Grid();
+        var grid = new Grid { Background = Brushes.White };
         foreach (var source in new[] { (IImage)Load(background), Tile("card-faces", column, row, 6, 4) })
         {
             var layer = new Image { Source = source, Stretch = Stretch.Fill, IsHitTestVisible = false };
             RenderOptions.SetBitmapInterpolationMode(layer, BitmapInterpolationMode.None);
             grid.Children.Add(layer);
         }
+        // A small white halo keeps the original red/black ink readable over dark curated textures.
+        if (background.StartsWith("curated-enhancement-", StringComparison.Ordinal))
+            ((Image)grid.Children[1]).Effect = new DropShadowEffect
+            {
+                Color = Colors.White, BlurRadius = 2, OffsetX = 0, OffsetY = 0, Opacity = 1
+            };
         AutomationProperties.SetName(grid, $"{Card.DisplayRank(card.Rank)} of {card.Suit}");
         return grid;
     }
