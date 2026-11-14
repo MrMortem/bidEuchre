@@ -42,3 +42,17 @@ test('published server serves authoritative rules outside the source tree', asyn
   assert.match(response.headers.get('content-type'), /text\/markdown/);
   assert.equal(await response.text(), fs.readFileSync(path.join(root, 'bid-euchre-final-rules.md'), 'utf8'));
 });
+test('published server includes every campaign catalog placeholder PNG', async () => {
+  for (const category of ['joker', 'tarot', 'sigil', 'planet']) {
+    const source = path.join(root, 'assets/pixel/campaign-placeholders', category);
+    const files = fs.readdirSync(source).filter(name => name.endsWith('.png'));
+    assert.ok(files.length > 0, `${category} fixture directory must contain art`);
+    for (const name of files) {
+      const response = await fetch(`${base}/pixel/campaign-placeholders/${category}/${name}`);
+      assert.equal(response.status, 200, `${category}/${name}`);
+      assert.match(response.headers.get('content-type'), /image\/png/, `${category}/${name}`);
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()), fs.readFileSync(path.join(source, name)));
+    }
+  }
+  assert.equal(fs.existsSync(path.join(directory, 'wwwroot/pixel/campaign-placeholders/source')), false);
+});
