@@ -92,10 +92,22 @@ internal static class CampaignShopUiTests
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
             var old = Find(window, "ShopReroll");
+            var oldNext = Find(window, "CampaignNextMatch");
             Require(Text(old).Contains("$2"), "First reroll must display its $2 price.");
             Click(old);
             Require(flow.Run!.Money == 8 && CampaignStore.Load(path)!.Shop!.RerollCount == 1, "Reroll must save its payment and counter immediately.");
             Require(Text(Find(window, "ShopReroll")).Contains("$3"), "Next reroll must display its increased price.");
+            var savedAfterReroll = File.ReadAllText(path);
+            var moneyAfterReroll = flow.Run.Money;
+            var walletAfterReroll = flow.Run.Resources.Wallets[0];
+            var revisionAfterReroll = flow.Run.Resources.Revision;
+            var randomAfterReroll = flow.Run.Resources.RandomState;
+            Click(oldNext);
+            Require(flow.Run.Phase == CampaignPhase.Shop, "An old Next Match callback must not leave refreshed shop stock.");
+            Require(File.ReadAllText(path) == savedAfterReroll, "Stale Next Match must preserve the exact saved campaign state.");
+            Require(flow.Run.Money == moneyAfterReroll && flow.Run.Resources.Wallets[0] == walletAfterReroll
+                && flow.Run.Resources.Revision == revisionAfterReroll && flow.Run.Resources.RandomState == randomAfterReroll,
+                "Stale Next Match must not change money, wallet, revision or RNG.");
             Click(old);
             Require(flow.Run.Money == 8 && flow.Run.Shop!.RerollCount == 1, "A stale reroll button must not charge again.");
             var resumed = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
@@ -103,6 +115,13 @@ internal static class CampaignShopUiTests
             Require(Text(Find(window, "ShopReroll")).Contains("$3"), "Resuming must preserve the reroll price.");
             Click(Find(window, "ShopReroll"));
             Require(resumed.Run!.Money == 5 && resumed.Run.Shop!.RerollCount == 2, "Resumed reroll must charge the escalated price.");
+            var beforeNext = resumed.Run;
+            Click(Find(window, "CampaignNextMatch"));
+            Require(resumed.Run.Phase == CampaignPhase.Intro && CampaignStore.Load(path)!.Phase == CampaignPhase.Intro,
+                "The current Next Match control must still advance and save the intro screen.");
+            Require(resumed.Run.Money == beforeNext.Money && resumed.Run.Resources.Revision == beforeNext.Resources.Revision
+                && resumed.Run.Resources.RandomState == beforeNext.Resources.RandomState,
+                "Current Next Match must preserve shop transaction resources.");
         }
         finally { window.Close(); File.Delete(path); }
     }

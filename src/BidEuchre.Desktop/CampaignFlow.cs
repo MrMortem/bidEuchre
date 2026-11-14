@@ -179,7 +179,12 @@ internal sealed class CampaignFlow(
         var revision = Run!.Resources.Revision;
         show(_home = CampaignShopScreen.Build(Run!, new ShopActions(id => Buy(id, revision), id => BuyAndUse(id, revision), id => Sell(id, revision),
             (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
-            () => { Persist(Run!.LeaveShop()); ShowIntro(); }) { Pull = id => Pull(id, revision), Refresh = ShowShop, Reroll = () => Transact(() => CampaignShop.Reroll(Run!, revision)) }, motion, TakeNote()));
+            () => Transact(() =>
+            {
+                if (Run is not { Phase: CampaignPhase.Shop } run || run.Resources.Revision != revision)
+                    throw new GameRuleException("The shop changed. Choose again.");
+                return run.LeaveShop();
+            })) { Pull = id => Pull(id, revision), Refresh = ShowShop, Reroll = () => Transact(() => CampaignShop.Reroll(Run!, revision)) }, motion, TakeNote()));
     }
     private void InspectDeck()
     {
