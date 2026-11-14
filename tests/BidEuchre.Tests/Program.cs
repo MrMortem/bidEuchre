@@ -10,6 +10,7 @@ if (args.Length >= 2 && args[0] == "--arena-test-child")
 
 var tests = new List<(string Name, Func<Task> Run)>
 {
+    ("Exact resume live Tarot exchange and base-face mutation preserve history", () => Run(CampaignResumeTests.LiveTarotAndFaceMutation)),
     ("Exact resume fresh bot runtime continues without replay", CampaignResumePersistenceTests.FreshBotsContinueWithoutReplay),
     ("Exact resume developer termination preserves pending history", () => Run(CampaignResumeTests.DeveloperTerminalPendingAndPanic)),
     ("Exact resume persistence incomplete and legacy", () => Run(CampaignResumePersistenceTests.StoreRejectsIncompleteAndMigratesLegacy)),

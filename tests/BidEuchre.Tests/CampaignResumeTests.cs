@@ -104,4 +104,51 @@ internal static class CampaignResumeTests
         while (game.Phase != GamePhase.HandComplete) Advance(game);
         EqualViews(game, RoundTrip(game));
     }
+
+    public static void LiveTarotAndFaceMutation()
+    {
+        var resources = CampaignSnapshot.Create(73) with { Inventory = new([], [TarotId.Chameleon], [GumballId.PartnersBest]) };
+        var game = New(resources); game.StartGame(3);
+        game.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.PartnersBest));
+        while (game.Phase == GamePhase.Bidding) game.ExecuteCampaignAction(game.CampaignActor!.Value, new CampaignCommand.Pass());
+        game.ExecuteCampaignAction(0, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Hearts));
+        var id = game.CreateCampaignView(0).Players[0].VisibleCards[0].Id;
+        // Festival's stable Tarot identity is Chameleon. Its active effect is Wild, not
+        // a permanent printed-face change; exercise its real item action during exchange.
+        game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [id]));
+        Assert.Equal(EnhancementId.Wild, game.ExportCampaignSnapshot().Deck.Single(c => c.Id == id).Enhancement!.Value);
+        EqualViews(game, StoreRoundTrip(game));
+        game.ExecuteCampaignAction(0, new CampaignCommand.Exchange(id));
+        EqualViews(game, StoreRoundTrip(game));
+        game.ExecuteCampaignAction(2, new CampaignCommand.Exchange(id));
+        game.ExecuteCampaignAction(0, new CampaignCommand.Play(id, Suit.Spades));
+        EqualViews(game, StoreRoundTrip(game));
+        Assert.Equal(Suit.Spades, game.CreateCampaignView(0).Trick[0].EffectiveSuit);
+        while (game.CompletedTricks.Count == 0) Advance(game);
+        var historical = JsonSerializer.Serialize(game.CreateView(0).CompletedTricks);
+        var heldId = game.CreateCampaignView(0).Players[0].VisibleCards[0].Id;
+        var oldFace = game.ExportCampaignSnapshot().Deck.Single(c => c.Id == id).Face;
+        var changedFace = new Card(oldFace.Suit == Suit.Hearts ? Suit.Clubs : Suit.Hearts, oldFace.Rank == Rank.Ace ? Rank.Nine : Rank.Ace);
+        // Developer suit/rank hooks are the current supported base-face mutation seam.
+        // Change a played identity and a held identity to the same new printed face.
+        game.DeveloperReplaceResources(s => s with { Deck = s.Deck.Select(c => c.Id == id || c.Id == heldId ? c with { Face = changedFace } : c).ToArray() });
+        Assert.Equal(historical, JsonSerializer.Serialize(game.CreateView(0).CompletedTricks));
+        Assert.Equal(changedFace, game.ExportCampaignSnapshot().Deck.Single(c => c.Id == heldId).Face);
+        Advance(game); // Save with an incomplete trick after the permanent mutations.
+        var restored = StoreRoundTrip(game); EqualViews(game, restored);
+        while (game.Phase != GamePhase.GameComplete)
+        { Advance(game); Advance(restored); EqualViews(game, restored); }
+    }
+
+    private static GameEngine StoreRoundTrip(GameEngine game)
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            var run = new CampaignRun(Phase: CampaignPhase.InMatch).WithCheckpoint(new(game.ExportCampaignMatchSnapshot()));
+            Assert.True(CampaignStore.Save(run, path));
+            return GameEngine.RestoreCampaignMatch(CampaignStore.Load(path)!.LiveMatch!);
+        }
+        finally { File.Delete(path); }
+    }
 }
