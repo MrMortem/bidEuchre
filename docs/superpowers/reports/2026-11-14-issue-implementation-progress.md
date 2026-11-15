@@ -21,11 +21,11 @@ Baseline full solution build passed; test apphost 171/171 passed. Use test execu
 | 9 In-match settings | 46 | Implemented4bc6b89; Desktop52PASS normal/Skia; review PASS/APPROVE. Sorting P3 fixed/reviewed in Task10. |
 | 10 Trump announcement | 61 | Implemented948e403; Desktop55/55 plus focusedSkia; independent PASS/APPROVE no findings, includes Task9 sorting retry regression. |
 | 11 Score explanations | 17 | Implementedf994fde+2704b21; exact clean Core233/233, Desktop74PASS, Skia5PASS. Independent PASS/APPROVE, no findings. |
-| 12 Exact campaign resume | 22 | Core/Appfoundationa82a05a: Core240/240; Desktop Continue/Forfeit integration in progress. |
+| 12 Exact campaign resume | 22 | Implemented a82a05a+206d34a+c28fd19; Core242/242, Desktop78PASS and Skia4 groups. Independent review found two malformed-save validation gaps; focused fixes and re-review in progress. |
 | 13 Shop reroll/badges | 27 | Implemented6a2d219 plus22a3d47 stale-navigation fix; Core215/215, Desktop57PASS, focusedSkia2PASS, focusedfix2PASS. Independent review/re-review clean. |
 | 14 Engine/setup persistence | 25 | Implemented2538903 plus6eebeaa identity-collision fix; Desktop59PASS, Core215/216 with missing snapshot fixture corrected separately, final focused engine/session/collision groups green. Independent review/re-review clean. |
 | 15 Rematch/hotseat | 29 | Implemented576d7a9; fullDesktop69PASS, focused7/Skia7; independent PASS/APPROVE. |
-| 16 Web campaign | 30 | Server and browser implementations in progress against finalized wire contract and Task12 APIs. |
+| 16 Web campaign | 30 | Server4a48cc2+4a61db3 independently approved, service10 groups/HTTP and freeplay24/published2. Browser1a07e5e: combined49/49, desktop1280 and compact390 renders inspected; independent UI/integration review in progress. |
 
 No newly implemented issue is closed yet. Delivery, integrated verification and final review remain required. #85,#92,#95 had already been closed as resolved design/existing behavior before implementation.
 
