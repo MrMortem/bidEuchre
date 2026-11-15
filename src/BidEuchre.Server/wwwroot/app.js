@@ -53,6 +53,7 @@ function bindForms() {
 }
 
 function showView(name) {
+  if (name === 'campaign') CampaignClient.open(); else CampaignClient.leave();
   if (name !== 'game') { cancelTableMotion(); model.viewGeneration += 1; }
   document.body.classList.toggle('at-table', name === 'game');
   updateSuitBackdrop(name === 'game' ? model.session?.game?.contract : null);
@@ -742,9 +743,15 @@ function cardHtml(card, legal) {
   const rank = cardRank(card);
   const code = cardCode(card);
   const label = `${rank} of ${card.suit}`;
+  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}>${cardFaceHtml(card)}</button>`;
+}
+
+// Shared face layer; both freeplay and physical campaign cards use this atlas.
+function cardFaceHtml(card) {
+  const code = cardCode(card);
   const column = '9TJQKA'.indexOf(code[0]);
   const row = 'CDHS'.indexOf(code[1]);
-  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-face-sprite" style="--card-column:${column};--card-row:${row}" aria-hidden="true"></span></button>`;
+  return `<span class="card-face-sprite" style="--card-column:${column};--card-row:${row}" aria-hidden="true"></span>`;
 }
 
 function portraitHtml(seat) {
