@@ -2,6 +2,7 @@
 window.CampaignClient = (() => {
   let active=false,generation=0,state=null,pending=false,loading=false,timer=null,readController=null,readSerial=0,renderKey='',screenKey='';
   let message='',connectionLost=false,lastFeedback='';
+  let mutationController=null,mutationFocus=null;
   const root=()=>document.querySelector('#campaign-view');
   const content=()=>document.querySelector('#campaign-content');
   const cap=key=>state?.capabilities?.[key];
@@ -13,6 +14,7 @@ window.CampaignClient = (() => {
   function stop() {clearTimeout(timer);timer=null;}
   function leave() {
     active=false;generation++;readSerial++;stop();readController?.abort();readController=null;
+    mutationFocus=null;mutationController?.abort();
     CampaignCards.close(false);
   }
   async function open() {
@@ -85,7 +87,7 @@ window.CampaignClient = (() => {
       const nextScreen=state?.requiresContinue?'continue':state?.phase||'loading';
       if(nextScreen!==screenKey){
         content().querySelector('h1')?.focus({preventScroll:true});screenKey=nextScreen;
-      }else if(focused) {
+      }else if(focused&&!pending&&!loading) {
         [...root().querySelectorAll('[data-focus-key]')].find(x=>x.dataset.focusKey===focused)?.focus({preventScroll:true});
         window.scrollTo(0,scroll);
         if(document.activeElement===document.body)content().querySelector('h1')?.focus({preventScroll:true});
@@ -95,6 +97,16 @@ window.CampaignClient = (() => {
       if(button.dataset.serverDisabled===undefined)button.dataset.serverDisabled=String(button.disabled);
       button.disabled=button.dataset.serverDisabled==='true'||pending||loading||connectionLost;
     });
+    // A response can replace controls while pending. Restore only after their
+    // final enabled state is applied, including after an uncertain-outcome read.
+    if(!pending&&!loading&&mutationFocus?.generation===generation){
+      const desired=mutationFocus;mutationFocus=null;
+      const sameScreen=desired.screen===screenKey;
+      const control=sameScreen&&desired.key?[...root().querySelectorAll('[data-focus-key]')].find(element=>element.dataset.focusKey===desired.key&&!element.disabled):null;
+      const fallback=connectionLost?refreshButton:(!sameScreen?content().querySelector('h1'):content().querySelector('.campaign-moves h2')||content().querySelector('h1'));
+      const target=control||fallback;
+      if(target){if(!control&&target!==refreshButton)target.tabIndex=-1;target.focus({preventScroll:true});}
+    }
     const warning=document.querySelector('#campaign-save-warning');
     warning.hidden=state?.saveStatus!=='failed';
     warning.textContent=state?.saveStatus==='failed'?'Progress is not saved. '+(state.notice||'Changes are retained in this session only.'): '';
@@ -102,25 +114,34 @@ window.CampaignClient = (() => {
   async function mutate(route,body={}, {live=false,method='POST'}={}) {
     if(!active||pending||loading||connectionLost||!state)return;
     const myGeneration=generation;
+    mutationFocus={generation:myGeneration,key:document.activeElement?.dataset.focusKey,screen:screenKey};
+    const controller=new AbortController();mutationController=controller;
+    let timedOut=false;
+    const deadline=setTimeout(()=>{timedOut=true;controller.abort();},8000);
     const data={expectedVersion:state.version,...body};
     if(live){data.expectedRevision=state.table.revision;data.expectedDealSerial=state.table.dealSerial;}
     pending=true;stop();readSerial++;readController?.abort();CampaignCards.close(false);render();
     let needsRefresh=false;
     try {
-      const next=await request(route,method,data);
+      const next=await request(route,method,data,controller.signal);
       if(active&&myGeneration===generation){announce('Saved.');adopt(next);}
     }catch(error) {
       if(active&&myGeneration===generation){
         CampaignCards.close();
-        announce(error.status===409?'The table changed; choose again. Refreshing your campaign.':error.message+(error.status?'':' The request may have been accepted. Refreshing to check progress.'),true);
+        announce(error.status===409?'The table changed; choose again. Refreshing your campaign.':(timedOut?'The action response timed out.':error.message)+(error.status?'':' The request may have been accepted. Refreshing to check progress.'),true);
         needsRefresh=true;
       }
     }finally{
+      clearTimeout(deadline);
+      if(mutationController===controller)mutationController=null;
       // Keep old choices locked until failure reconciliation returns a fresh version.
       if(needsRefresh&&active&&myGeneration===generation)loading=true;
       pending=false;
       if(active&&myGeneration===generation){render();if(needsRefresh)await refresh({quiet:true});schedule();}
-      else if(active){await refresh({quiet:true});schedule();}
+      else if(active){
+        announce('An earlier action may have been accepted. Refreshing to check progress.',true);
+        await refresh({quiet:true});schedule();
+      }
     }
   }
   function targets(title,count,invoke,confirm,description='') {

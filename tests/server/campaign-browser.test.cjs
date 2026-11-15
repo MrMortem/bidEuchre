@@ -304,3 +304,67 @@ test('Recovery, Victory and RunOver remain actionable; replacement/deletion requ
   assert.equal(mutations,2);await page.getByRole('button',{name:'New run',exact:true}).waitFor();
  }finally{await context.close();}
 });
+
+test('keyboard same-phase mutation restores its control after unlocking and removed actions use a heading fallback',{skip},async()=>{
+ const context=await seeded('shop'),page=await context.newPage();
+ try{
+  await open(page);
+  const reroll=page.locator('[data-campaign-action="shop-reroll"]');
+  await reroll.focus();await page.keyboard.press('Enter');await settled(page);
+  assert.equal(await reroll.evaluate(element=>element===document.activeElement),true,'Keyboard reroll retains its place after controls unlock');
+  const sell=page.locator('[data-campaign-action="sell"]').first();
+  await sell.focus();await page.keyboard.press('Enter');await settled(page);
+  assert.equal(await page.locator('#campaign-content h1').evaluate(element=>element===document.activeElement),true,'A removed sale control falls back to the shop heading');
+ }finally{await context.close();}
+});
+test('a stalled accepted POST has a bounded wait and reconciles one charge without replay',{skip},async()=>{
+ const context=await seeded('shop'),page=await context.newPage();
+ let releaseResponse,acceptedResolve,calls=0;
+ const accepted=new Promise(resolve=>acceptedResolve=resolve);
+ await page.route('**/api/campaign/shop/reroll',async route=>{
+  calls++;const response=await route.fetch();assert.equal(response.status(),200);
+  acceptedResolve();await new Promise(resolve=>releaseResponse=resolve);
+  await route.fulfill({response}).catch(()=>{});
+ });
+ try{
+  await open(page);const before=await stateOf(page);
+  await page.clock.install();
+  await page.locator('[data-campaign-action="shop-reroll"]').focus();await page.keyboard.press('Enter');
+  await accepted;
+  assert.equal(await page.locator('#campaign-view').getAttribute('aria-busy'),'true');
+  await page.clock.runFor(9000);
+  await page.waitForFunction(()=>document.querySelector('#campaign-view').getAttribute('aria-busy')==='false',{},{timeout:1500});
+  const after=await stateOf(page);
+  assert.equal(calls,1);assert.equal(after.run.money,before.run.money-before.shop.rerollPrice);
+  assert.equal(after.shop.rerollCount,before.shop.rerollCount+1);
+  assert.match(await page.locator('#campaign-status').innerText(),/may have been accepted/i);
+  assert.equal(await page.locator('#campaign-refresh').isEnabled(),true);
+  releaseResponse?.();await page.waitForTimeout(100);
+  assert.equal(calls,1);assert.equal((await stateOf(page)).version,after.version);
+ }finally{releaseResponse?.();await context.close();}
+});
+test('leaving a stalled accepted mutation recovers on reopen and a late response cannot replace the fresh view',{skip},async()=>{
+ const context=await browser.newContext(),page=await context.newPage();
+ let state=fixture(),releaseResponse,acceptedResolve,calls=0;
+ const accepted=new Promise(resolve=>acceptedResolve=resolve);
+ await page.route('**/api/campaign',route=>route.fulfill({json:state}));
+ await page.route('**/api/campaign/shop/reroll',async route=>{
+  calls++;state={...state,version:'fixture:2',run:{...state.run,money:28},shop:{...state.shop,rerollCount:1}};
+  const oldResponse=state;acceptedResolve();
+  await new Promise(resolve=>releaseResponse=resolve);
+  await route.fulfill({json:oldResponse}).catch(()=>{});
+ });
+ try{
+  await open(page);
+  await page.locator('[data-campaign-action="shop-reroll"]').click();await accepted;
+  await page.locator('.nav-item[data-view="lobby"]').click();
+  state={...state,version:'fixture:3',run:{...state.run,money:25},shop:{...state.shop,rerollCount:2}};
+  await page.getByRole('button',{name:'Play campaign',exact:true}).click();
+  await page.waitForFunction(()=>document.querySelector('#campaign-view').getAttribute('aria-busy')==='false',{},{timeout:1500});
+  assert.match(await page.locator('.campaign-stats').innerText(),/\$25/);
+  assert.equal(await page.locator('#campaign-refresh').isEnabled(),true);
+  releaseResponse();await page.waitForTimeout(100);
+  assert.match(await page.locator('.campaign-stats').innerText(),/\$25/);
+  assert.equal(calls,1);
+ }finally{releaseResponse?.();await context.close();}
+});
