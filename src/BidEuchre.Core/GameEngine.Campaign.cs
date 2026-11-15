@@ -15,6 +15,7 @@ public sealed partial class GameEngine
     private string? _pendingChoice;
     private int? _pendingActor;
     private int? _duelOpponent;
+    private bool _duelistUsedThisMatch;
     private bool _pokerRevealed;
     private bool _telepathDone;
     private readonly int[] _cardPoints = new int[2];
@@ -23,6 +24,7 @@ public sealed partial class GameEngine
     private readonly int[] _matchOvertricks = new int[2];
     private readonly HashSet<int> _stickyTriggered = [];
     private bool _firstMatchCard;
+    private bool _firstHumanRoundCard;
     private CardId? _lastMatchCard;
     private readonly Dictionary<int, CampaignTrickPlay[]> _campaignTrickHistory = [];
     private int _rollerValue;
@@ -65,6 +67,7 @@ public sealed partial class GameEngine
     {
         _variant = null; _pendingBidVariant = null; _pendingChoice = null; _pendingActor = null; _duelOpponent = null;
         _campaignTrickHistory.Clear(); _trickPoints.Clear();
+        _rollerValue = 0; _firstHumanRoundCard = false;
         _pokerRevealed = false; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
         Array.Clear(_cardPoints); Array.Clear(_jokerPoints); Array.Clear(_modifierPoints);
         _handWalletStart = _resources.Wallets.ToArray();
@@ -79,22 +82,25 @@ public sealed partial class GameEngine
         _resources = _resources with { Revision = _resources.Revision + 1 };
         AutoPassVow();
     }
+    private bool CanRaiseCampaignBid(int seat, BidLevel bid) => HighBid is null || bid > HighBid
+        || (seat == 0 && Has(JokerId.Alpha) && Bidder == 2 && bid == HighBid);
+
     private IEnumerable<CampaignCommand.Bid> CampaignBids(int seat)
     {
         if (seat == 0 && Has(JokerId.VowofSilence)) yield break;
         foreach (var bid in GameRules.LegalRaises(null))
         {
-            if (HighBid is not null && bid <= HighBid && !(seat == 0 && Has(JokerId.Alpha) && Bidder == 2 && bid == HighBid && bid <= BidLevel.Six)) continue;
-            if (seat == 0 && bid == BidLevel.PartnersBest && !_resources.Inventory.Unlocks.Contains(GumballId.PartnersBest)) continue;
-            if (seat == 0 && bid == BidLevel.Alone && !_resources.Inventory.Unlocks.Contains(GumballId.Alone)) continue;
+            if (!CanRaiseCampaignBid(seat, bid)) continue;
+            if (bid == BidLevel.PartnersBest && !_resources.Inventory.Unlocks.Contains(GumballId.PartnersBest)) continue;
+            if (bid == BidLevel.Alone && !_resources.Inventory.Unlocks.Contains(GumballId.Alone)) continue;
             yield return new(bid);
             if (seat == 0 && bid <= BidLevel.Six)
                 foreach (var variant in _resources.Inventory.Unlocks)
                     if (variant is GumballId.Chaos && bid >= BidLevel.Four || variant is GumballId.Poker && bid == BidLevel.Four
-                        || variant is GumballId.Duelist && bid <= BidLevel.Five || variant is GumballId.Telepath && bid >= BidLevel.Five)
+                        || variant is GumballId.Duelist && !_duelistUsedThisMatch && (bid is BidLevel.Four or BidLevel.Five) || variant is GumballId.Telepath && bid >= BidLevel.Five)
                         yield return new(bid, variant);
         }
-        if (seat == 0 && _resources.Inventory.Unlocks.Contains(GumballId.Lowballer) && (HighBid is null || (int)HighBid < 2))
+        if (_resources.Inventory.Unlocks.Contains(GumballId.Lowballer) && CanRaiseCampaignBid(seat, (BidLevel)2))
             yield return new((BidLevel)2);
     }
     private List<CampaignCommand> CampaignLegal(int seat)
@@ -137,7 +143,7 @@ public sealed partial class GameEngine
         if (!IsCampaign) throw new GameRuleException("This is not a campaign table.");
         if (viewerSeat is { } v) GameRules.ValidateSeat(v);
         var players = Enumerable.Range(0, 4).Select(seat => new CampaignPlayerView(seat, _hands[seat].Count,
-            _hands[seat].Where(c => viewerSeat == seat || _pokerRevealed || StateFor(c).Sigil == SigilId.Owl || viewerSeat is { } who && _reveals.Contains((who, IdFor(c))))
+            _hands[seat].Where(c => viewerSeat == seat || _pokerRevealed || viewerSeat is { } who && _reveals.Contains((who, IdFor(c))))
                 .Select(CardView).ToArray(), !CampaignActive(seat))).ToArray();
         return new(_resources.Revision, DealSerial, viewerSeat, players, viewerSeat is { } actor ? CampaignLegal(actor) : [],
             _currentTrick.Select(p => new CampaignTrickPlay(p.Seat, CardView(p.Card), EffectiveCampaignSuit(p.Card))).ToArray(), _events.ToArray(),
@@ -176,7 +182,7 @@ public sealed partial class GameEngine
                     PlayCard(seat, TokenFor(p.Id)); break;
                 case CampaignCommand.Exchange e: ExchangeCard(seat, TokenFor(e.Id)); break;
                 case CampaignCommand.PanicButton:
-                    _scores[0] -= 8; _events.Add("Panic Button: your team -8; hand consumed.");
+                    _scores[0] -= 8; CompletionReason = "Panic Button: your team -8; hand consumed."; _events.Add(CompletionReason);
                     CurrentSeat = null; GameWinner = DetermineGameWinner(); Phase = GameWinner is null ? GamePhase.HandComplete : GamePhase.GameComplete;
                     if (GameWinner is not null) CampaignMatchEnd(); break;
                 case CampaignCommand.SwapPartnerCard swap:
@@ -210,7 +216,12 @@ public sealed partial class GameEngine
             BeginTrickPlay();
             return;
         }
-        if (_variant == GumballId.Duelist && _duelOpponent is null) { _pendingChoice = "Choose an opponent for Duelist"; _pendingActor = Bidder; }
+        if (_variant == GumballId.Duelist && _duelOpponent is null)
+        {
+            // A winning auction activates Duelist. An overcalled or rejected bid spends no use.
+            _duelistUsedThisMatch = true;
+            _pendingChoice = "Choose an opponent for Duelist"; _pendingActor = Bidder;
+        }
         if (_variant == GumballId.Telepath && !_telepathDone) { _pendingChoice = "Reveal a partner card"; _pendingActor = GameRules.PartnerOf(Bidder!.Value); }
     }
     private void AutoPassVow()
@@ -281,7 +292,7 @@ public sealed partial class GameEngine
         _campaignTrickHistory[_completedTricks.Count] = plays.Select(p => new CampaignTrickPlay(p.Seat, CardView(p.Card), EffectiveCampaignSuit(p.Card))).ToArray();
         ResolveWonTrick(winner, plays);
     }
-    private int[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
+    private TeamScoreBreakdown[] CampaignScore(int[] normal) => SettleCampaignHand(normal);
     private void CampaignMatchEnd() => ResolveMatchEnd();
     // A stored Tarot or Sigil is played on any of the human's own turns; a failed one leaves nothing behind.
     private void UseItem(Action resolve)

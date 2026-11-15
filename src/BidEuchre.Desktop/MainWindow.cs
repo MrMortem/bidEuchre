@@ -34,7 +34,7 @@ public sealed partial class MainWindow : Window
     private static readonly IBrush CardInk = Brush.Parse("#17201D");
     private static readonly IBrush CardRed = Brush.Parse("#B63D3D");
 
-    private readonly EngineCatalog _catalog = new();
+    private readonly EngineCatalog _catalog;
     private readonly DispatcherTimer _refreshTimer;
     private readonly ContentControl _playHost = new();
     private readonly TextBlock _status = new() { Foreground = Red, FontSize = 12 };
@@ -48,7 +48,8 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel _engineList = new() { Spacing = 8 };
     private readonly TextBlock _teamZeroScore = ScoreText();
     private readonly TextBlock _teamOneScore = ScoreText();
-    private readonly TextBlock _contractText = new() { Foreground = Ink, FontSize = 17, FontFamily = PixelArt.Font };
+    private readonly TextBlock _contractText = new() { Foreground = Ink, FontSize = 17, FontFamily = PixelArt.Font,
+        TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly TextBlock _dealerText = new() { Foreground = Muted, FontSize = 10 };
     private readonly ComboBox _viewerSeat = new() { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _startButton = PrimaryButton("Start session");
@@ -122,6 +123,8 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
+        _catalog = new EngineCatalog(Path.Combine(DataDirectory, "BidEuchre", "engines.json"), Path.Combine(AppContext.BaseDirectory, "engines"));
+        _lastTableSetup = LastTableSetup.Load(_lastTableSetupPath);
         Title = "Bid Euchre";
         Width = 1320;
         Height = 860;
@@ -141,8 +144,8 @@ public sealed partial class MainWindow : Window
             Background = Brush.Parse("#EE100B28"), BorderBrush = Gold, BorderThickness = new Thickness(2),
             Child = new ScrollViewer
             {
-                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                Content = new StackPanel { Spacing = 7, Children = { _centerTitle, _actionHelp, _actionButtons } }
+                Name = "TableActionScroll", HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = new StackPanel { Spacing = 7, Children = { _centerTitle, _actionHelp, _handScoreSummary, _actionButtons } }
             }
         };
         _campaign = new CampaignFlow(_campaignPath, screen => _screenHost.Content = screen,
@@ -154,9 +157,12 @@ public sealed partial class MainWindow : Window
         StyleInput(_engineArguments);
         StyleInput(_viewerSeat);
         _pace.ItemsSource = PaceOption.All;
-        _pace.SelectedIndex = 1;
+        _tableName.Text = _lastTableSetup.TableName;
+        _pace.SelectedItem = PaceOption.All.First(option => option.Milliseconds == _lastTableSetup.BotDelayMilliseconds);
         _viewerSeat.SelectionChanged += async (_, _) =>
         {
+            if (_settingViewer) return;
+            if (AutomaticHotseat) { SetViewerSelection(_viewer); return; }
             if (_viewerSeat.SelectedItem is ViewerOption option)
             {
                 _input.BeginViewChange();
@@ -188,7 +194,7 @@ public sealed partial class MainWindow : Window
             Children =
             {
                 _pageHost,
-                menuButton,
+                BuildTableNavigation(menuButton),
                 Place(_status, row: 1)
             }
         };
@@ -207,6 +213,7 @@ public sealed partial class MainWindow : Window
 
         Closed += async (_, _) =>
         {
+            SaveTableSetup();
             _refreshTimer.Stop();
             _deckDeal?.Cancel();
             _motion.Cancel();
@@ -239,18 +246,12 @@ public sealed partial class MainWindow : Window
         content.Children.Add(CardPanel(options));
 
         var seats = new StackPanel { Spacing = 10 };
-        var defaults = new[]
-        {
-            ("You", 0),
-            ("TableBot West", 1),
-            ("TableBot North", 1),
-            ("TableBot East", 1)
-        };
+        var defaults = _lastTableSetup.Seats;
         for (var seat = 0; seat < 4; seat++)
         {
-            _seatNames[seat] = new TextBox { Text = defaults[seat].Item1, MaxLength = 30 };
-            _seatKinds[seat] = new ComboBox { ItemsSource = new[] { "Human", "Bot" }, SelectedIndex = defaults[seat].Item2 };
-            _seatEngines[seat] = new ComboBox { IsEnabled = defaults[seat].Item2 == 1 };
+            _seatNames[seat] = new TextBox { Text = defaults[seat].Name, MaxLength = 30 };
+            _seatKinds[seat] = new ComboBox { ItemsSource = new[] { "Human", "Bot" }, SelectedIndex = defaults[seat].Kind == PlayerKind.Bot ? 1 : 0 };
+            _seatEngines[seat] = new ComboBox { IsEnabled = defaults[seat].Kind == PlayerKind.Bot };
             StyleInput(_seatNames[seat]);
             StyleInput(_seatKinds[seat]);
             StyleInput(_seatEngines[seat]);
@@ -312,7 +313,7 @@ public sealed partial class MainWindow : Window
         // These controls survive sessions; detached pages still own their logical children.
         // Release each immediate parent before constructing the next table page.
         foreach (var control in new Control[]{_startButton,_viewerSeat,_contractText,_dealerText,
-            _scoreEyebrow,_teamZeroScore,_teamOneScore,_actionTitle,_sessionError,_centerPanel,_jokerRow,_tarotRow,_tableHost})
+            _scoreEyebrow,_teamZeroScore,_teamOneScore,_actionTitle,_sessionError,_centerPanel,_jokerRow,_tarotRow,_tableHost,_publicLogPanel})
         {
             switch (control.Parent)
             {
@@ -327,10 +328,12 @@ public sealed partial class MainWindow : Window
             ? new TextBlock { Name = "CampaignStrip", Text = _campaign.Strip, Foreground = Gold, FontSize = 12, FontWeight = FontWeight.Bold, TextWrapping = TextWrapping.Wrap }
             : null;
 
+        CancelContractAnnouncement();
         _bidAnnouncement?.Clear();
         var bidDock = new ContentControl { IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
         var bidOverlay = new Canvas { IsHitTestVisible = false };
         _bidAnnouncement = new BidAnnouncement(bidOverlay, _tableHost, bidDock);
+        _contractAnnouncement = new ContractAnnouncement(bidOverlay, _tableHost);
         _cardFlights?.Cancel(); _deckDeal?.Cancel();
         _cardFlights = new CardFlights(bidOverlay);
         _deckDeal = new DeckDeal(bidOverlay, _tableHost, SyncNativeInput);
@@ -410,7 +413,7 @@ public sealed partial class MainWindow : Window
                 }, row: 1)
             }
         };
-        return new Grid { Children = { page, bidOverlay } };
+        return new Grid { Children = { page, bidOverlay, PublicLogButton(), PublicLogPanel() } };
     }
 
     // Illustrated campaign cards retain their names and rules on hover.
@@ -527,7 +530,19 @@ public sealed partial class MainWindow : Window
         pathRow.Children.Add(_engineExecutable);
         pathRow.Children.Add(Place(browse, column: 1));
 
-        var load = PrimaryButton("Handshake & load");
+        var load = _engineLoadButton = PrimaryButton("Handshake & load");
+        var cancelRepair = _cancelEngineRepair = QuietButton("Cancel repair");
+        cancelRepair.Name = "CancelEngineRepair";
+        cancelRepair.IsVisible = false;
+        cancelRepair.Click += (_, _) =>
+        {
+            _repairEngineId = null;
+            _engineExecutable.Text = "";
+            _engineArguments.Text = "";
+            load.Content = "Handshake & load";
+            cancelRepair.IsVisible = false;
+            ClearStatus();
+        };
         load.Click += async (_, _) => await LoadEngineAsync(load);
         var form = CardPanel(new StackPanel
         {
@@ -545,7 +560,7 @@ public sealed partial class MainWindow : Window
                     Foreground = Muted,
                     FontSize = 12
                 },
-                load
+                load, cancelRepair
             }
         });
 
@@ -584,17 +599,8 @@ public sealed partial class MainWindow : Window
                 await previousSession.DisposeAsync();
             }
 
-            var engines = _catalog.List();
-            var seats = Enumerable.Range(0, 4).Select(seat =>
-            {
-                var isBot = _seatKinds[seat].SelectedIndex == 1;
-                var engineIndex = Math.Max(0, _seatEngines[seat].SelectedIndex);
-                return new SeatConfiguration(
-                    seat,
-                    string.IsNullOrWhiteSpace(_seatNames[seat].Text) ? $"Player {seat + 1}" : _seatNames[seat].Text!.Trim(),
-                    isBot ? PlayerKind.Bot : PlayerKind.Human,
-                    isBot ? engines[engineIndex].Id : null);
-            }).ToArray();
+            var seats = ReadTableSeats();
+            SaveTableSetup();
             await OpenSessionAsync(seats,
                 string.IsNullOrWhiteSpace(_tableName.Text) ? "Bid Euchre Table" : _tableName.Text!.Trim(), options: null);
         }
@@ -613,17 +619,25 @@ public sealed partial class MainWindow : Window
 
     private async Task<GameSession> OpenSessionAsync(IReadOnlyList<SeatConfiguration> seats, string name, MatchOptions? options)
     {
-        var pace = _pace.SelectedItem as PaceOption ?? PaceOption.All[1];
+        return await OpenSessionAtPaceAsync(seats, name, options,
+            (_pace.SelectedItem as PaceOption ?? PaceOption.All[1]).Milliseconds);
+    }
+
+    private async Task<GameSession> OpenSessionAtPaceAsync(IReadOnlyList<SeatConfiguration> seats, string name, MatchOptions? options, int paceMilliseconds)
+    {
+        ResetHotseat();
+        _freePlayRematch = options is null ? new(name, paceMilliseconds, seats.ToArray()) : null;
         var session = new GameSession(
             Guid.NewGuid().ToString("N")[..10],
             name,
             seats,
             _catalog,
             seed: null,
-            botActionDelay: TimeSpan.FromMilliseconds(pace.Milliseconds),
+            botActionDelay: TimeSpan.FromMilliseconds(paceMilliseconds),
             matchOptions: options,
             campaign: options is null ? null : new CampaignContext(_campaign.Run!.Resources),
-            checkpoint: options is null ? null : _campaign.Checkpoint);
+            liveCheckpoint: options is null ? null : _campaign.Checkpoint,
+            waitForContractPresentation: true);
         _session = session;
         _campaignSession = options is null ? null : session;
         _sessionGeneration++;
@@ -635,9 +649,10 @@ public sealed partial class MainWindow : Window
         {
             viewers.Add(new ViewerOption(null, "Spectator"));
         }
-        _viewerSeat.ItemsSource = viewers;
-        _viewerSeat.SelectedIndex = 0;
         _viewer = viewers[0].Seat;
+        _settingViewer = true;
+        try { _viewerSeat.ItemsSource = viewers; _viewerSeat.SelectedIndex = 0; }
+        finally { _settingViewer = false; }
         _playHost.Content = BuildGamePage();
         _renderKey = null;
         await RefreshGameAsync();
@@ -661,7 +676,24 @@ public sealed partial class MainWindow : Window
                 "Campaign", options);
             _menuButton.Content = MenuLabel;
             ShowTable();
-            await StartSessionAsync();
+            if (_campaign.Run?.LiveMatch is { } live)
+            {
+                var arrangement = _campaign.Run.Arrangement;
+                var deal = $"{session.Id}:{live.DealSerial}";
+                _draggedDeal = arrangement?.ManuallyArranged is true ? deal : null;
+                _autoArranged = arrangement?.AutoStage is { } stage ? $"{deal}:{stage}" : null;
+                try
+                {
+                    await session.RestoreCampaignAsync(new(live, arrangement));
+                    await RefreshGameAsync();
+                }
+                catch
+                {
+                    if (ReferenceEquals(DetachSession(), session)) await session.DisposeAsync();
+                    throw;
+                }
+            }
+            else await StartSessionAsync();
             if (!session.Started)
             {
                 if (ReferenceEquals(DetachSession(), session)) await session.DisposeAsync();
@@ -678,7 +710,7 @@ public sealed partial class MainWindow : Window
     // Records the result at once, then swaps to the result screen after the last trick has been seen.
     private void CompleteCampaignMatch(GameSession session, GameView view)
     {
-        _campaign.MatchCompleted(view.GameWinner == 0, view.Scores);
+        _campaign.MatchCompleted(view.GameWinner == 0, view.Scores, view);
         DispatcherTimer.RunOnce(async () =>
         {
             if (!ReferenceEquals(session, _session)) return;
@@ -760,7 +792,7 @@ public sealed partial class MainWindow : Window
         var viewer = _viewer;
         var revision = _input.Revision;
         // Redrawing would drop a card the player is holding; the drop refreshes the table itself.
-        if (_refreshing || session is null || HandDrag.Active)
+        if (_refreshing || session is null || HandDrag.Active || _liveSettingsOpen)
         {
             return;
         }
@@ -768,11 +800,12 @@ public sealed partial class MainWindow : Window
         try
         {
             var view = await session.GetViewAsync(viewer);
+            if (_liveSettingsOpen || revision != _input.Revision) return;
             if (view?.Campaign is { } arranging && await AutoArrangeCampaignHandAsync(session, view, arranging))
                 view = await session.GetViewAsync(viewer);
             if (generation != _sessionGeneration ||
                 viewer != _viewer || revision != _input.Revision ||
-                !ReferenceEquals(session, _session))
+                !ReferenceEquals(session, _session) || _liveSettingsOpen)
             {
                 return;
             }
@@ -784,6 +817,7 @@ public sealed partial class MainWindow : Window
                 }
                 _renderKey = "waiting";
                 _motionTracker.Update(null, $"{session.Id}:{viewer}");
+                CancelContractAnnouncement();
                 _bidAnnouncement?.Clear();
                 _cardFlights?.Cancel(); _deckDeal?.Cancel();
                 _contractText.IsVisible = true;
@@ -793,9 +827,13 @@ public sealed partial class MainWindow : Window
                 return;
             }
 
+            UpdatePublicLog(view);
+            if (RenderHotseatHandoff(session, view)) { RenderScoreSummary(view); return; }
+
             var renderKey = JsonSerializer.Serialize(view) + '\n' + (session.LastError ?? string.Empty);
             if (renderKey == _renderKey)
             {
+                UpdateContractAnnouncement(session, view);
                 return;
             }
             _renderKey = renderKey;
@@ -812,7 +850,7 @@ public sealed partial class MainWindow : Window
             _scoreEyebrow.Text = view.Campaign is null ? $"TEAMS · TO {view.TargetScore}" : $"TEAMS · ±{view.TargetScore} · 8 HANDS";
             _contractText.Text = ContractName(view);
             _dealerText.Text = $"HAND {view.HandNumber} · TRICKS {view.TricksByTeam[0]}–{view.TricksByTeam[1]}";
-            _sessionError.Text = session.LastError ?? string.Empty;
+            _sessionError.Text = session.LastError ?? (InCampaignMatch ? _campaign.ResumeNotice : null) ?? string.Empty;
             _sessionError.IsVisible = _sessionError.Text.Length > 0;
             RenderInventory(view.Campaign);
             if (!motionEnabled || view.Phase != GamePhase.Bidding) _deckDeal?.Cancel();
@@ -836,6 +874,8 @@ public sealed partial class MainWindow : Window
             foreach (var team in _motionCue.ScoreTeams) _motion.Pulse(team == 0 ? _teamZeroScore : _teamOneScore, 1.2);
             RenderActions(view);
             UpdateBidAnnouncement(view);
+            UpdateContractAnnouncement(session, view);
+            if (_motionCue.TrumpChanged && motionEnabled) _motion.Pulse(_contractText, 1.1);
             _input.CompleteView(revision);
             SyncNativeInput();
             if (view.Phase is GamePhase.GameComplete && _campaign.InMatch && ReferenceEquals(session, _campaignSession))
@@ -889,10 +929,10 @@ public sealed partial class MainWindow : Window
     private void SyncNativeInput()
     {
         _tableHost.IsVisible = !_input.Loading;
-        _tableHost.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true;
-        _actionButtons.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true;
+        _tableHost.IsEnabled = _hotseatPending is null && !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
+        _actionButtons.IsEnabled = !_input.Locked && _cardFlights?.Collecting != true && _deckDeal?.Running != true && _session?.WaitingForDeal != true && _session?.WaitingForContractPresentation != true;
         _tarotRow.IsEnabled = _actionButtons.IsEnabled;
-        _viewerSeat.IsEnabled = !_input.Locked;
+        _viewerSeat.IsEnabled = !AutomaticHotseat && !_input.Locked;
     }
 
     private Control BuildTable(GameView view)
@@ -1172,6 +1212,7 @@ public sealed partial class MainWindow : Window
         _actionButtons.Children.Clear();
         _actionHelp.Text = string.Empty;
         _actionView = view;
+        RenderScoreSummary(view);
         RenderChoices(view);
         ShowCenter(view.Phase is GamePhase.GameComplete);
     }
@@ -1195,14 +1236,18 @@ public sealed partial class MainWindow : Window
         {
             _actionTitle.Text = "Hand complete";
             var next = ActionButton("Deal next hand");
-            next.Click += async (_, _) => await StartNextHandAsync(next);
+            var revision = _input.Revision; var generation = _sessionGeneration; var viewer = _viewer;
+            next.Click += async (_, _) => { if (AcceptTableInput(revision, generation, viewer, view)) await StartNextHandAsync(next); };
             _actionButtons.Children.Add(next);
             return;
         }
         if (view.Phase is GamePhase.GameComplete)
         {
-            _actionTitle.Text = $"Team {view.GameWinner + 1} wins";
+            _actionTitle.Text = view.Campaign is null
+                ? $"{string.Join(" + ", view.Players.Where(player => player.Team == view.GameWinner).Select(player => player.Name))} win"
+                : $"Team {view.GameWinner + 1} wins";
             _actionHelp.Text = view.Campaign is null ? $"The race to {view.TargetScore} is complete." : string.Empty;
+            if (view.Campaign is null) RenderFreePlayRematch();
             return;
         }
         if (view.Campaign is { } campaign)
@@ -1345,19 +1390,18 @@ public sealed partial class MainWindow : Window
         if (campaign.ViewerSeat is not { } seat) return false;
         var hand = campaign.Players[seat].VisibleCards;
         var deal = $"{session.Id}:{campaign.DealSerial}";
-        var stage = $"{deal}:{view.Contract?.Mode}:{view.Contract?.Trump}:{_preferences.HandSort}";
+        var autoStage = $"{view.Contract?.Mode}:{view.Contract?.Trump}:{_preferences.HandSort}";
+        var stage = $"{deal}:{autoStage}";
         if (hand.Count < 2 || _draggedDeal == deal || _autoArranged == stage) return false;
-        _autoArranged = stage;
         var sorted = HandOrder.Sort(hand, card => card.Face, _preferences.HandSort, view.Contract).Select(card => card.Id).ToArray();
-        if (sorted.SequenceEqual(hand.Select(card => card.Id))) return false;
-        try { await session.ArrangeCampaignHandAsync(seat, sorted); return true; }
+        var changed = !sorted.SequenceEqual(hand.Select(card => card.Id));
+        try { await session.ArrangeCampaignHandAsync(seat, sorted, manuallyArranged: false, autoArrangeStage: autoStage); _autoArranged = stage; return changed; }
         catch (GameRuleException) { return false; }
     }
 
     private async Task ArrangeCampaignHandAsync(GameSession session, CampaignGameView campaign, int seat, IReadOnlyList<CardId> order)
     {
-        _draggedDeal = $"{session.Id}:{campaign.DealSerial}";
-        try { await session.ArrangeCampaignHandAsync(seat, order); }
+        try { await session.ArrangeCampaignHandAsync(seat, order); _draggedDeal = $"{session.Id}:{campaign.DealSerial}"; }
         catch (Exception error) { ShowError(error.Message); }
         _renderKey = null;
         await RefreshGameAsync();
@@ -1365,7 +1409,7 @@ public sealed partial class MainWindow : Window
 
     private async Task SendCampaignActionAsync(CampaignGameView view, CampaignCommand command)
     {
-        var session = _session; if (session is null || !_input.TryBeginAction(out var revision)) return;
+        var session = _session; if (session is null || _hotseatPending is not null || _liveSettingsOpen || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         try
         {
@@ -1381,7 +1425,7 @@ public sealed partial class MainWindow : Window
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        if (session is null || _hotseatPending is not null || _liveSettingsOpen || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         ClearStatus();
         try
@@ -1407,7 +1451,7 @@ public sealed partial class MainWindow : Window
     {
         var session = _session;
         var generation = _sessionGeneration;
-        if (session is null || !_input.TryBeginAction(out var revision)) return;
+        if (session is null || _hotseatPending is not null || _liveSettingsOpen || !_input.TryBeginAction(out var revision)) return;
         SyncNativeInput();
         button.IsEnabled = false;
         ClearStatus();
@@ -1443,12 +1487,16 @@ public sealed partial class MainWindow : Window
         button.Content = "Handshaking…";
         try
         {
-            var engine = await _catalog.LoadAsync(_engineExecutable.Text.Trim(), _engineArguments.Text?.Trim());
+            var engine = _repairEngineId is null
+                ? await _catalog.LoadAsync(_engineExecutable.Text.Trim(), _engineArguments.Text?.Trim())
+                : await _catalog.RepairAsync(_repairEngineId, _engineExecutable.Text.Trim(), _engineArguments.Text?.Trim());
+            _repairEngineId = null;
+            if (_cancelEngineRepair is not null) _cancelEngineRepair.IsVisible = false;
             _engineExecutable.Text = string.Empty;
             _engineArguments.Text = string.Empty;
             RefreshEngineCatalog();
             _status.Foreground = Green;
-            _status.Text = $"Loaded {engine.Name} by {engine.Author}.";
+            _status.Text = _catalog.PersistenceError ?? $"Loaded {engine.Name} by {engine.Author}.";
             _status.IsVisible = true;
         }
         catch (Exception exception)
@@ -1458,51 +1506,7 @@ public sealed partial class MainWindow : Window
         finally
         {
             button.IsEnabled = true;
-            button.Content = "Handshake & load";
-        }
-    }
-
-    private void RefreshEngineCatalog()
-    {
-        var engines = _catalog.List();
-        _engineList.Children.Clear();
-        foreach (var engine in engines)
-        {
-            var row = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 8 };
-            row.Children.Add(new StackPanel
-            {
-                Children =
-                {
-                    new TextBlock { Text = engine.Name, FontWeight = FontWeight.Bold, Foreground = Ink },
-                    new TextBlock { Text = $"by {engine.Author} · {(engine.IsBuiltIn ? "built in" : "BEUCI process")}", Foreground = Muted, FontSize = 11 }
-                }
-            });
-            if (!engine.IsBuiltIn)
-            {
-                var remove = QuietButton("Remove");
-                remove.Foreground = Red;
-                remove.Click += (_, _) =>
-                {
-                    _catalog.Remove(engine.Id);
-                    RefreshEngineCatalog();
-                };
-                row.Children.Add(Place(remove, column: 1));
-            }
-            _engineList.Children.Add(new Border
-            {
-                BorderBrush = Line,
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(2),
-                Padding = new Thickness(12),
-                Child = row
-            });
-        }
-
-        foreach (var selector in _seatEngines.Where(selector => selector is not null))
-        {
-            var selected = selector.SelectedIndex;
-            selector.ItemsSource = engines.Select(engine => engine.Name).ToArray();
-            selector.SelectedIndex = Math.Clamp(selected, 0, engines.Count - 1);
+            button.Content = _repairEngineId is null ? "Handshake & load" : "Handshake & repair";
         }
     }
 
@@ -1570,8 +1574,10 @@ public sealed partial class MainWindow : Window
             button.PointerExited += (_, _) => UpdateHighlight();
             button.GotFocus += (_, _) => UpdateHighlight();
             button.LostFocus += (_, _) => UpdateHighlight();
+            var revision = _input.Revision; var generation = _sessionGeneration; var viewer = _viewer;
             button.Click += async (_, _) =>
             {
+                if (!AcceptTableInput(revision, generation, viewer, view)) return;
                 if (campaignAction is not null) { await campaignAction(); return; }
                 var type = view.Phase is GamePhase.Playing ? "play" : "exchange";
                 await SendActionAsync(new GameActionRequest(_viewer!.Value, type, null, null, null, card.Code));
@@ -1665,7 +1671,8 @@ public sealed partial class MainWindow : Window
         _screenHost.Content = MainMenu.Build(_campaign.Open, ShowTable, ShowCollection, ShowEngines, ShowRules, ShowSettings, _motion);
     }
 
-    private bool TableShown => ReferenceEquals(_pageHost.Content, _playHost);
+    private bool TableShown => !_liveSettingsOpen && ReferenceEquals(_screenHost.Content, _tableScreen)
+        && ReferenceEquals(_pageHost.Content, _playHost);
 
     private void ShowTable() => ShowPage(_playHost);
 
@@ -1736,17 +1743,26 @@ public sealed partial class MainWindow : Window
             button.Content = ForfeitLabel;
             return;
         }
+        if (InCampaignMatch && _campaign.InMatch && _session is { } campaignSession)
+        {
+            // Quiesce the action gate before deciding; a just-finished match earns its result.
+            await campaignSession.PauseAsync();
+            var final = await campaignSession.GetViewAsync(0);
+            if (final?.Phase == GamePhase.GameComplete) _campaign.MatchCompleted(final.GameWinner == 0, final.Scores, final);
+            else _campaign.ForfeitMatch();
+        }
         if (_session is not null)
         {
             await LeaveTableAsync(button);
             button.IsEnabled = true;
         }
-        ShowMenu();
+        if (!_campaign.ShowSaveFailure()) ShowMenu();
     }
 
     private void ShowSetup()
     {
         _renderKey = null;
+        if (_seatNames[0] is not null) _lastTableSetup = CaptureTableSetup();
         _playHost.Content = BuildSetupPage();
         _startButton.IsVisible = true;
         _startButton.IsEnabled = true;
@@ -1757,6 +1773,8 @@ public sealed partial class MainWindow : Window
 
     private GameSession? DetachSession()
     {
+        ResetHotseat();
+        CancelContractAnnouncement();
         _bidAnnouncement?.Clear();
         _cardFlights?.Cancel(); _deckDeal?.Cancel();
         _input.BeginViewChange();
@@ -1774,6 +1792,7 @@ public sealed partial class MainWindow : Window
 
     private void RenderWaitingTable()
     {
+        ResetScoreHistory();
         _startButton.IsVisible = true;
         _startButton.IsEnabled = true;
         _startButton.Content = "Start session";
@@ -1823,7 +1842,8 @@ public sealed partial class MainWindow : Window
     private void AddAction(string label, Func<Task> action)
     {
         var button = ActionButton(label);
-        button.Click += async (_, _) => await action();
+        var revision = _input.Revision; var generation = _sessionGeneration; var viewer = _viewer; var view = _actionView;
+        button.Click += async (_, _) => { if (AcceptTableInput(revision, generation, viewer, view)) await action(); };
         _actionButtons.Children.Add(button);
     }
 
@@ -1976,8 +1996,8 @@ public sealed partial class MainWindow : Window
         }
         var prefix = BidName(view.Contract.Bid);
         return view.Contract.Mode is ContractMode.Trump
-            ? $"{prefix} · {SuitSymbol(view.Contract.Trump!.Value)} {view.Contract.Trump}"
-            : $"{prefix} · {view.Contract.Mode}";
+            ? $"{ContractCaller(view)} · {prefix} · {SuitSymbol(view.Contract.Trump!.Value)} {view.Contract.Trump}"
+            : $"{ContractCaller(view)} · {prefix} · {view.Contract.Mode}";
     }
 
     private static string BidName(BidLevel bid) => bid switch

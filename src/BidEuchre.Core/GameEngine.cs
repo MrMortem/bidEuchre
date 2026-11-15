@@ -9,6 +9,7 @@ public sealed partial class GameEngine
     private readonly List<CompletedTrick> _completedTricks = [];
     private readonly List<HandResult> _handHistory = [];
     private readonly List<string> _events = [];
+    private readonly List<string> _priorHandEvents = [];
     private readonly int[] _scores;
     private readonly int _targetScore;
     private readonly MatchOptions _matchOptions;
@@ -60,12 +61,13 @@ public sealed partial class GameEngine
     public int? Bidder { get; private set; }
     public Contract? Contract { get; private set; }
     public int? GameWinner { get; private set; }
+    public string? CompletionReason { get; private set; }
     public IReadOnlyList<int> Scores => _scores;
     public IReadOnlyList<int> TricksByTeam => _tricksByTeam;
     public IReadOnlyList<AuctionAction> Auction => _auction;
     public IReadOnlyList<CardPlay> CurrentTrick => _currentTrick;
     public IReadOnlyList<CompletedTrick> CompletedTricks => _completedTricks;
-    public IReadOnlyList<HandResult> HandHistory => _handHistory;
+    public IReadOnlyList<HandResult> HandHistory => Array.AsReadOnly(_handHistory.ToArray());
 
     public void StartGame(int? dealer = null)
     {
@@ -162,7 +164,7 @@ public sealed partial class GameEngine
             throw new GameRuleException("Only the auction winner may choose the contract.");
         }
 
-        if (mode != ContractMode.Trump && !GetContractModes().Contains(mode) && IsCampaign && seat == 0)
+        if (mode != ContractMode.Trump && !GetContractModes().Contains(mode) && IsCampaign)
             throw new GameRuleException("High and Low are locked until you pull the High/Low gumball.");
         Contract = IsCampaign && (int)HighBid! == 2
             ? mode == ContractMode.Trump && trump is not null ? new Contract(HighBid.Value, mode, trump) : throw new GameRuleException("Bid 2 requires trump.")
@@ -296,13 +298,13 @@ public sealed partial class GameEngine
         {
             deltas[biddingTeam] = FailureScore(Contract);
             deltas[1 - biddingTeam] = 6;
-            CompleteHandWithDeltas(deltas, "The bidding team made an illegal play.");
+            CompleteHandWithBreakdowns(ContractScoreBreakdowns(deltas), "The bidding team made an illegal play.", false);
         }
         else
         {
             deltas[biddingTeam] = MaximumSuccessScore(Contract);
             deltas[1 - biddingTeam] = 0;
-            CompleteHandWithDeltas(deltas, "The defending team made an illegal play.");
+            CompleteHandWithBreakdowns(ContractScoreBreakdowns(deltas), "The defending team made an illegal play.", true);
         }
     }
 
@@ -362,7 +364,10 @@ public sealed partial class GameEngine
             _events.ToArray(),
             _targetScore)
         {
-            DealSerial = DealSerial
+            DealSerial = DealSerial,
+            HandHistory = Array.AsReadOnly(_handHistory.ToArray()),
+            PublicEvents = Array.AsReadOnly(_priorHandEvents.Concat(_events).ToArray()),
+            CompletionReason = CompletionReason
         };
         if (IsCampaign)
         {
@@ -386,14 +391,17 @@ public sealed partial class GameEngine
         {
             return [ContractMode.Trump];
         }
-        // In a campaign the human names only trump suits until the High/Low gumball is pulled.
-        if (IsCampaign && Bidder == 0 && !_resources.Inventory.Unlocks.Contains(GumballId.HighLow)) return [ContractMode.Trump];
+        // Every campaign seat shares the inventory's High/Low unlock gate.
+        if (IsCampaign && !_resources.Inventory.Unlocks.Contains(GumballId.HighLow)) return [ContractMode.Trump];
 
         return [ContractMode.High, ContractMode.Low, ContractMode.Trump];
     }
 
     private void DealHand()
     {
+        _priorHandEvents.AddRange(_events);
+        _events.Clear();
+        CompletionReason = null;
         HandNumber++;
         DealSerial++;
         HighBid = null;
@@ -471,20 +479,32 @@ public sealed partial class GameEngine
         }
 
         deltas[defendingTeam] = defendingTricks;
+        var breakdowns = IsCampaign ? CampaignScore(deltas) : ContractScoreBreakdowns(deltas);
         if (IsCampaign)
         {
-            deltas = CampaignScore(deltas);
             // Returned cards (Eagle) that were never replayed do not outlive the hand.
             foreach (var hand in _hands) hand.Clear();
         }
-        CompleteHandWithDeltas(deltas, reason);
+        CompleteHandWithBreakdowns(breakdowns, reason, biddingTricks >= Contract.RequiredTricks);
     }
 
-    private void CompleteHandWithDeltas(int[] deltas, string reason)
+    private static TeamScoreBreakdown[] ContractScoreBreakdowns(int[] deltas) =>
+        deltas.Select((points, team) => new TeamScoreBreakdown(team, points, 0, 0, 0, 1, 0)).ToArray();
+
+    private void CompleteHandWithBreakdowns(TeamScoreBreakdown[] breakdowns, string reason, bool madeContract)
     {
+        int[] deltas;
+        (int Team0, int Team1) totals;
+        try
+        {
+            deltas = breakdowns.Select(part => part.FinalDelta).ToArray();
+            totals = (checked(_scores[0] + deltas[0]), checked(_scores[1] + deltas[1]));
+        }
+        catch (OverflowException) { throw new GameRuleException("The hand score exceeds the supported point total."); }
         var biddingTeam = GameRules.TeamForSeat(Bidder!.Value);
-        _scores[0] += deltas[0];
-        _scores[1] += deltas[1];
+        CompletionReason = reason;
+        _scores[0] = totals.Team0;
+        _scores[1] = totals.Team1;
         _handHistory.Add(new HandResult(
             HandNumber,
             Bidder.Value,
@@ -493,7 +513,7 @@ public sealed partial class GameEngine
             _tricksByTeam[1 - biddingTeam],
             deltas[0],
             deltas[1],
-            reason));
+            reason) { MadeContract = madeContract, ScoreBreakdowns = breakdowns });
         _events.Add($"Hand complete: Team 1 {Signed(deltas[0])}, Team 2 {Signed(deltas[1])}.");
         CurrentSeat = null;
 

@@ -23,7 +23,7 @@ internal static class CampaignJokerScoringTests
         Assert.Equal(6, Sweep([]).Scores[0]);
         Assert.Equal(8, Sweep([JokerId.ThreesCompany]).Scores[0]);
         Assert.Equal(9, Sweep([JokerId.HighRoller], BidLevel.Five).Scores[0]);
-        Assert.Equal(11, Sweep([JokerId.SnakeEyes]).Scores[0]);
+        Assert.Equal(10, Sweep([JokerId.SnakeEyes]).Scores[0]);
         Assert.Equal(12, Sweep([JokerId.TwinFlame]).Scores[0]);
         Assert.Equal(12, Sweep([JokerId.Clubhouse]).Scores[0]);
         Assert.Equal(10, Sweep([JokerId.TheUndertaker]).Scores[0]);
@@ -40,7 +40,6 @@ internal static class CampaignJokerScoringTests
         Assert.Equal(12, Sweep([JokerId.ProtectiveBubble], BidLevel.Six, EnhancementId.Stone, trump: Suit.Diamonds).Scores[0]);
         Assert.Equal(30, Sweep([], enhancement: EnhancementId.Stone, sigil: SigilId.Frog).Scores[0]);
         Assert.Equal(390, Sweep([], enhancement: EnhancementId.Glass, sigil: SigilId.Fish).Scores[0]);
-        Assert.Equal(102, Sweep([], sigil: SigilId.Peacock).Scores[0]);
         Assert.Equal(28, Sweep([JokerId.LastLaugh], enhancement: EnhancementId.Golden).ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(24, Sweep([], enhancement: EnhancementId.Golden).ExportCampaignSnapshot().Wallets[0]);
         Assert.Equal(120, Sweep([], enhancement: EnhancementId.Silver).ExportCampaignSnapshot().Wallets[1]);

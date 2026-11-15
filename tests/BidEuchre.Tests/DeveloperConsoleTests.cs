@@ -68,19 +68,45 @@ internal static class DeveloperConsoleTests
     public static async Task TarotSigilsAndBids()
     {
         var (console, host) = Create();
-        await console.ExecuteAsync("tarot add glassblower 2");
-        await console.ExecuteAsync("sigil add coin");
+        var listed = await console.ExecuteAsync("list tarot");
+        foreach (var name in new[] { "Festival", "Stone mason", "Ectoplasm", "Taxes" })
+            Assert.True(listed.Any(line => line.Text.StartsWith(name + " ")), $"The developer catalogue must display {name}.");
+        foreach (var retired in new[] { "love potion", "nightshade", "clover tonic", "crystal elixir", "glassblower", "999" })
+            Assert.True(HasError(await console.ExecuteAsync($"tarot add {retired}")));
+        foreach (var retired in new[] { "coin", "snake", "owl", "peacock", "999" })
+            Assert.True(HasError(await console.ExecuteAsync($"sigil add {retired}")));
+        Assert.Equal(0, host.Run!.Resources.Inventory.ItemCount);
+        await console.ExecuteAsync("tarot add festival 2");
+        await console.ExecuteAsync("sigil add bear");
         Assert.Equal(3, host.Run!.Resources.Inventory.ItemCount);
         Assert.True(HasError(await console.ExecuteAsync("tarot add prospector 2")), "four item slots");
         await console.ExecuteAsync("tarot remove #1");
         Assert.Equal(1, host.Run!.Resources.Inventory.Tarot.Length);
-        await console.ExecuteAsync("sigil remove coin");
+        await console.ExecuteAsync("sigil remove bear");
         Assert.Equal(0, host.Run!.Resources.Inventory.Sigils.Length);
         await console.ExecuteAsync("gumball unlock all");
         Assert.Equal(CampaignInventory.GumballCount, host.Run!.Resources.Inventory.Unlocks.Length);
         await console.ExecuteAsync("gumball lock chaos");
         Assert.False(host.Run!.Resources.Inventory.Unlocks.Contains(GumballId.Chaos));
         Assert.True(HasError(await console.ExecuteAsync("tarot add chameleon wizard")));
+    }
+
+    public static async Task LockGumballRemovesExtraCopies()
+    {
+        var (console, host) = Create();
+        await host.UpdateResourcesAsync(resources => resources with { Inventory = resources.Inventory with
+        {
+            Unlocks = Enum.GetValues<GumballId>(),
+            GumballExtraCopies = new() { [GumballId.Chaos] = 2, [GumballId.Poker] = 3 }
+        } });
+        Assert.False(HasError(await console.ExecuteAsync("gumball lock chaos")));
+        Assert.False(host.Run!.Resources.Inventory.Unlocks.Contains(GumballId.Chaos));
+        Assert.False(host.Run.Resources.Inventory.GumballExtraCopies.ContainsKey(GumballId.Chaos));
+        Assert.Equal(3, host.Run.Resources.Inventory.GumballExtraCopies[GumballId.Poker]);
+        Assert.False(HasError(await console.ExecuteAsync("gumball lock all")));
+        Assert.Equal(0, host.Run.Resources.Inventory.Unlocks.Length);
+        Assert.Equal(0, host.Run.Resources.Inventory.GumballExtraCopies.Count);
+        Assert.True(host.Run.Resources.IsValid());
     }
 
     public static async Task DeckCards()

@@ -155,8 +155,8 @@ public sealed class DeveloperConsole(IDeveloperHost host)
     private static IEnumerable<ConsoleLine> Catalog(FeatureCategory category)
     {
         var entries = FeatureCatalog.All.Where(f => f.Category == category).ToArray();
-        var width = entries.Max(f => f.Key.Length) + 2;
-        return entries.Select(f => new ConsoleLine($"{f.Key.PadRight(width)}{f.Description}", ConsoleTone.Muted));
+        var width = entries.Max(f => f.Name.Length) + 2;
+        return entries.Select(f => new ConsoleLine($"{f.Name.PadRight(width)}{f.Description}", ConsoleTone.Muted));
     }
 
     // ---- money and lives ----
@@ -288,7 +288,7 @@ public sealed class DeveloperConsole(IDeveloperHost host)
         var ids = all ? Enum.GetValues<GumballId>() : [Resolve<GumballId>(FeatureCategory.Gumball, Rest(args, 1))];
         await Inventory(i => verb == "unlock"
             ? i with { Unlocks = i.Unlocks.Union(ids).ToArray() }
-            : i with { Unlocks = i.Unlocks.Except(ids).ToArray() });
+            : i with { Unlocks = i.Unlocks.Except(ids).ToArray(), GumballExtraCopies = i.GumballExtraCopies.Where(copy => !ids.Contains(copy.Key)).ToDictionary(copy => copy.Key, copy => copy.Value) });
         var what = all ? "every bid" : Name(FeatureCategory.Gumball, ids[0].ToString());
         return [Ok($"{(verb == "unlock" ? "Unlocked" : "Locked")} {what}.")];
     }

@@ -8,11 +8,12 @@ const fs = require('node:fs');
 
 const root = path.resolve(__dirname, '../..');
 let server, base, logs = '';
+const campaignRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bideuchre-security-campaign-'));
 before(async () => {
   server = spawn(process.env.BIDEUCHRE_DOTNET || 'dotnet', [
     path.join(root, 'src/BidEuchre.Server/bin/Debug/net10.0/BidEuchre.Server.dll'),
     '--urls=http://0.0.0.0:0', '--WebSessions:MaxSessions=4',
-    '--WebSessions:IdleTimeoutSeconds=2'
+    '--WebSessions:IdleTimeoutSeconds=2', `--WebCampaigns:DataDirectory=${campaignRoot}`
   ], { cwd: path.join(root, 'src/BidEuchre.Server'), env: {
     ...process.env, AllowedHosts: '*', DOTNET_CLI_HOME: path.join(root, '.dotnet-home')
   } });
@@ -32,6 +33,7 @@ after(async () => {
     server.kill('SIGTERM');
     await new Promise(resolve => server.once('exit', resolve));
   }
+  fs.rmSync(campaignRoot, { recursive: true, force: true });
 });
 
 const table = { seats: Array.from({ length: 4 }, (_, i) => ({ name: `Human ${i}`, kind: 'Human' })) };

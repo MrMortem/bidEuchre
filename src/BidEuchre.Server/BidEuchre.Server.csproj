@@ -14,6 +14,10 @@
     <Content Include="../../bid-euchre-final-rules.md" Link="bid-euchre-final-rules.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="wwwroot/**" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../assets/pixel/*" Link="wwwroot/pixel/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../assets/pixel/campaign-placeholders/joker/*.png" Link="wwwroot/pixel/campaign-placeholders/joker/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../assets/pixel/campaign-placeholders/tarot/*.png" Link="wwwroot/pixel/campaign-placeholders/tarot/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../assets/pixel/campaign-placeholders/sigil/*.png" Link="wwwroot/pixel/campaign-placeholders/sigil/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../assets/pixel/campaign-placeholders/planet/*.png" Link="wwwroot/pixel/campaign-placeholders/planet/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

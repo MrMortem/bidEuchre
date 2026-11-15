@@ -261,26 +261,44 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 **Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
-the other. The campaign includes 8 enhancements, 31 Jokers, 9 Gumball bidding
-unlocks, 12 Sigils, and 14 Tarot consumables. Emerald and Stinky have been retired,
-along with their Merchant and Beggar Tarot cards. Older runs load with those
-enhancements cleared and those Tarots removed, preserving the rest of the run.
+the other. The campaign includes 8 enhancements, 32 Jokers, 9 Gumball bidding
+unlocks, 8 Sigils, and 9 Tarot consumables. The active Sigils are Bear, Eagle,
+Fish, Spider, Frog, Duck, Vulture, and Chameleon. The nine Tarot Cards are
+Festival (Wild), Stone mason (Stone), Prospector (Golden), Devilish Deal,
+Gambler, Traitor (Silver), Astronomer, Taxes, and Ectoplasm (Bouncy).
+Safety Net unlocks bidding 2. The Chameleon Sigil keeps its separate identity.
+Emerald and Stinky enhancements; Coin, Snake, Owl, and Peacock Sigils; and
+Merchant, Beggar, Love Potion, Nightshade, Clover Tonic, Crystal Elixir, and
+Glassblower Tarots are retired. Older runs load with retired card modifiers
+cleared and retired held items, generated Tarots, and shop offers removed,
+preserving the rest of the run and surviving item identities.
 
 Losing or forfeiting a match costs one life (two for the boss) in Antes 1 to 3,
 and two lives (three for the boss) from Ante 4 onward. The run moves on to the
 next match while any lives remain.
 
-Both teams start each match at zero. Matches end after a fully scored hand
-reaches either ±24 points in Ante 1, increasing by four per Ante, or after eight
-hands. Ties continue. Contract success counts tricks only; effect bonuses remain
-even after a failed bid.
+Both teams start each match at zero. Antes 1–5 use targets of ±12, ±16, ±24,
+±32, and ±42 points. Matches end after a fully scored hand reaches a target
+or after eight full rounds; a tie continues for additional full rounds until
+broken. Successful opponent contracts add +0/+1/+2/+3/+4 fixed points in
+Antes 1–5, after hand multipliers. Contract success counts tricks only; effect
+bonuses remain even after a failed bid.
 
 Between matches the shop offers two $4 Jokers, a $3 Tarot, a $3 Sigil, and a
 gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
 four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
 gumball rolls out and permanently unlocks a random bidding option you do not
-have yet; Partners Best, Alone, and the High and Low contracts
-start locked for you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+have yet. After all nine unique bids are unlocked, pulls grant random duplicates.
+Astronomer uses the same rule and grants its gumball immediately, without a held
+Planet card. Each extra copy awards +1 fixed point after hand multipliers when
+you successfully make its matching bid; matching types such as Alone and High/Low
+stack once each. Failed, unrelated and partner-made bids earn no duplicate bonus.
+Panic Button has no successful contract, so its extra copies award no success
+points. Unique unlocks and duplicate counts persist for the run. A shop reroll
+costs $2, then $1 more per reroll that visit, and refills all four regular offers,
+including sold slots. It preserves the gumball offer and whether its one paid
+pull has been used. Partners Best,
+Alone, and the High and Low contracts start locked for every seat. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
 shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
 it is yours to act: in the shop and on the screen before a match it is aimed at
 the shared deck, and during a match it is played on cards in your hand on any of
@@ -291,10 +309,13 @@ continues.
 
 Win rewards are $5/$6/$8 for Small/Medium/Boss matches, plus $2/$4/$6 for victory
 margins of 1–4/5–9/10+. Losses keep card and Joker earnings. Interest is $1 per $5
-held after rewards, capped at $5. Match-end earnings and shop purchases are saved;
-quitting an unfinished match retains committed card/inventory/money changes and
-counts as a loss on Continue. A failed save is reported, and play can continue
-in memory.
+held after rewards, capped at $5. Version 3 saves commit the hand, auction, pending
+choices, effects, physical card order and arrangement policy atomically with campaign
+resources after accepted actions. Closing the window preserves the match; Continue
+restores it without charging a life. The menu's explicit Forfeit applies the loss
+immediately. Older version 2 or bare saves restart the same match with a visible
+legacy notice because they did not store the hand. Invalid saves are preserved until
+explicit recovery. Failed saves are reported and accepted changes remain in memory.
 
 Campaign bots use the campaign's legal actions. Opponents can benefit from shared
 card effects; they do not buy or use items in this version. External engines remain
@@ -305,3 +326,21 @@ claim of competitive balance or improved bot strength.
 For an isolated local profile, set `BIDEUCHRE_DATA_DIRECTORY` before launching.
 The app creates its `BidEuchre` subfolder there. Without the variable it uses the
 normal local application-data directory.
+
+### Browser campaigns
+
+Choose **Play campaign** for a persistent single-player run: you control seat 0 and three built-in campaign bots control the other seats. Campaigns use the shared desktop game rules, shop, physical card identities, and exact match saves. Freeplay tables remain shared, memory-only tables under `/api/sessions`; campaigns never appear in that list.
+
+Each browser cookie jar has one private run. Closing a tab or returning to Tables keeps progress; **Forfeit** explicitly charges the campaign loss. **Continue** restores the saved hand, auction, pending choices, items and card order with fresh bots. Results and their scoring history survive server restarts. New run replaces your current run; Delete removes your own saved run. An unreadable save stays untouched until you explicitly choose recovery by New run or Delete.
+
+Campaign saves default to `BidEuchre/web-campaigns` beneath .NET's user `LocalApplicationData` directory. Each file is `<root>/<hashed-browser-identity>/campaign.json`, separate from the desktop `BidEuchre/campaign.json`. No browser input controls a filesystem path. The directory must be outside `wwwroot` and the published application output. Configure it using ASP.NET configuration, for example:
+
+```sh
+dotnet run --project src/BidEuchre.Server -- --WebCampaigns:DataDirectory=/absolute/private/campaign-data
+```
+
+`WebCampaigns:MaxSessions` defaults to 32 (range 1–128) and `WebCampaigns:IdleTimeoutSeconds` to 1800 (range 1–86400). Idle eviction stops resident bots without losing a life or deleting the save. GET displays a dormant saved match; Continue activates it. Each resident profile holds at most one session. The root is exclusively locked for the process lifetime: two servers cannot safely write the same directory. Automated server tests use separate temporary roots.
+
+The persistent `bideuchre.campaign` cookie lasts one year and is HttpOnly, SameSite Strict, host-only, scoped to `/api/campaign`, and Secure on HTTPS. Plain loopback HTTP remains supported. `localhost` and `127.0.0.1` have distinct identities; cookies are shared across ports on the same host. Separate instances on one host should configure both separate roots and distinct `WebCampaigns:CookieName` values. Losing/clearing the cookie loses access to that run; there is no public profile listing or account recovery. Saved files are not automatically deleted on cookie or runtime expiry.
+
+All existing loopback, Host, same-origin and JSON mutation protections remain active. This is a local browser client, not a hosted account service. If saving fails, the accepted action stays in memory and the UI reports unsaved progress. Dirty sessions are retained at the capacity limit while saves retry; shutting down with persistent disk failure cannot guarantee that unsaved progress survives. After a network failure, refresh the current state before choosing another action; purchases and game moves are never automatically replayed.

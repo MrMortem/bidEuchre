@@ -109,7 +109,7 @@ internal static class TableRenderingTests
                     Field<TextBlock>(window, "_dealerText").Text = "HAND 8 · TRICKS 3–3";
                     Call(window, "RenderInventory", campaign with { Inventory = new(
                         Enum.GetValues<JokerId>().Take(5).Select(j => new JokerState(j)).ToArray(),
-                        [TarotId.LovePotion, TarotId.Nightshade], []) { Sigils = [SigilId.Fish, SigilId.Bear] } });
+                        [TarotId.Prospector, TarotId.Grindstone], []) { Sigils = [SigilId.Fish, SigilId.Bear] } });
                 }
                 window.Show(); Flush();
                 if (Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is { } output)
@@ -139,7 +139,7 @@ internal static class TableRenderingTests
                 var contract = Field<TextBlock>(window, "_contractText");
                 Require(contract.TextLayout.Width <= contract.Bounds.Width + 1, "The contract must fit without clipping.");
                 Require(Bounds(contract, window).Height >= 14, "Contract text must stay readable.");
-                var scroll = Field<Border>(window, "_centerPanel").GetVisualDescendants().OfType<ScrollViewer>().Single();
+                var scroll = Field<Border>(window, "_centerPanel").GetVisualDescendants().OfType<ScrollViewer>().Single(c => c.Name == "TableActionScroll");
                 scroll.Offset = new Vector(0, scroll.Extent.Height); Flush();
                 var actions = Field<WrapPanel>(window, "_actionButtons").Children;
                 string[] Labels() => actions.OfType<Button>().Select(b => ((TextBlock)b.Content!).Text!).ToArray();

@@ -21,7 +21,7 @@ internal static class RulesPage
         (FeatureCategory.Enhancement, "Enhancements", "Permanent changes to a card in your campaign deck."),
         (FeatureCategory.Sigil, "Sigils", "Placed on a card in your hand on one of your turns. The Sigil stays on that card."),
         (FeatureCategory.Tarot, "Tarots", "Used on one of your turns for a one-time effect, usually on cards in your hand."),
-        (FeatureCategory.Gumball, "Gumball bids", "Extra bids you can unlock during a run.")
+        (FeatureCategory.Gumball, "Gumball bids", "Pulls and Astronomer unlock missing bids first, then grant random duplicates. Each extra copy gives +1 point after hand multipliers when you successfully make its matching bid. Matching types stack once each; partner bids do not qualify. Panic Button has no successful contract reward.")
     ];
 
     public static Control Build()

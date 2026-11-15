@@ -19,6 +19,7 @@ internal sealed record ShopActions(Action<string> Buy, Action<string> BuyAndUse,
     public required Func<string, GumballId?> Pull { get; init; }
     /// <summary>Redraws the shop, after the pull has been shown.</summary>
     public required Action Refresh { get; init; }
+    public Action? Reroll { get; init; }
 }
 
 /// <summary>The shop between matches. Offers are drawn as cards: Jokers on the top row, then a Sigil
@@ -78,9 +79,12 @@ internal static class CampaignShopScreen
         {
             var definition = FeatureCatalog.Get(offer.Category, offer.FeatureId);
             var ink = Ink(offer.Category);
-            var face = Face(definition, ink, offer.Sold ? "SOLD" : $"${offer.Price}");
+            var blocked = offer.Sold ? null : run.Money < offer.Price ? "Not enough money"
+                : offer.Category == FeatureCategory.Joker && inventory.Jokers.Length >= CampaignTableControls.JokerSlots ? "Sell a Joker first"
+                : offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil && !inventory.HasItemRoom ? "Card slots full" : null;
+            var face = Face(definition, ink, offer.Sold ? "SOLD" : $"${offer.Price}", blocked);
             if (offer.Sold) { face.Opacity = .4; face.Margin = new Thickness(0, Lift, 0, 0); return face; }
-            return Selectable(face, ink, $"Offer{offer.Id}", $"{offer.Category}: {definition.Name}, ${offer.Price}",
+            return Selectable(face, ink, $"Offer{offer.Id}", $"{offer.Category}: {definition.Name}, ${offer.Price}{(blocked is null ? "" : ", " + blocked)}",
                 () => OfferDetail(run, offer, definition, actions, motion));
         }
 
@@ -90,10 +94,11 @@ internal static class CampaignShopScreen
         Control? Machine()
         {
             var offer = run.Shop!.Offers.SingleOrDefault(o => o.Category == FeatureCategory.Gumball);
-            if (offer is null && locked.Length > 0) return null;
-            var open = offer is { Sold: false } && locked.Length > 0;
-            var machine = new GumballMachine(locked, open ? $"${offer!.Price}" : locked.Length == 0 ? "EMPTY" : "SOLD");
+            if (offer is null) return null;
+            var open = offer is { Sold: false };
+            var machine = new GumballMachine(locked.Length > 0 ? locked : Enum.GetValues<GumballId>(), open ? $"${offer!.Price}" : "SOLD");
             if (!open) { machine.Face.Opacity = .4; machine.Face.Margin = new Thickness(0, Lift, 0, 0); return machine.Face; }
+            if (run.Money < offer!.Price) ((Grid)machine.Face.Child!).Children.Add(Badge("Not enough money", Danger));
             var pulling = false;
             async void Pull()
             {
@@ -103,13 +108,15 @@ internal static class CampaignShopScreen
                 panel.IsHitTestVisible = false;
                 if (await machine.Dispense(gumball, FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name)) actions.Refresh();
             }
-            return Selectable(machine.Face, MainWindow.Green, "GumballMachine", $"Gumball machine: mystery bid, ${offer!.Price}", () =>
+            return Selectable(machine.Face, MainWindow.Green, "GumballMachine", $"Gumball machine: mystery bid, ${offer!.Price}{(run.Money < offer.Price ? ", Not enough money" : "")}", () =>
             {
                 var pull = MenuParts.Button($"Pull ${offer.Price}", true, motion, "PullGumball", Pull, true, 264);
                 pull.IsEnabled = run.Money >= offer.Price;
                 return Detail("GUMBALL", MainWindow.Green, "Mystery bid",
-                    $"Turn the crank and a gumball rolls out, unlocking a random bid you do not have yet. {locked.Length} of {CampaignInventory.GumballCount} left in the machine.",
-                    pull.IsEnabled ? "The bid stays unlocked for the rest of the run." : $"You need ${offer.Price - run.Money} more.", [pull], !pull.IsEnabled);
+                    locked.Length > 0
+                        ? $"Unlock a random missing bid. {locked.Length} of {CampaignInventory.GumballCount} bids remain locked."
+                        : "All nine bids are unlocked. Pull a random duplicate: each extra copy earns +1 point when you successfully make its matching bid, after hand multipliers. Panic Button has no successful contract reward.",
+                    pull.IsEnabled ? "Unlocks and duplicate counts last for the run. Partner bids earn no duplicate bonus." : $"You need ${offer.Price - run.Money} more.", [pull], !pull.IsEnabled);
             });
         }
 
@@ -128,7 +135,11 @@ internal static class CampaignShopScreen
         foreach (var joker in inventory.Jokers)
         {
             var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
-            ownedJokers.Children.Add(Selectable(Small(definition, Gold), Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name, () => Detail(
+            var face = Small(definition, Gold);
+            var icon = face.Child!;
+            face.Child = null;
+            face.Child = new Grid { Children = { icon, Badge("Sell +$2", Gold) } };
+            ownedJokers.Children.Add(Selectable(face, Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name + ", sell for $2", () => Detail(
                 "YOUR JOKER", Gold, definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}", null,
                 MenuParts.Button("Sell +$2", false, motion, $"Sell{joker.Id}", () => actions.Sell(joker.Id), true, 264))));
         }
@@ -138,13 +149,11 @@ internal static class CampaignShopScreen
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
             var ink = Ink(category);
-            var usable = !(category == FeatureCategory.Tarot && definition.Key == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
             // The detail panel is rebuilt on every press, so it needs its own Use button each time:
             // a control can only sit in one panel, and reusing one crashed on the second press.
             Button Use()
             {
                 var use = MenuParts.Button("Use", true, motion, $"Use{category}{slot}", () => actions.UseItem(category, slot), true, 264);
-                use.IsEnabled = usable;
                 return use;
             }
             ownedItems.Children.Add(Selectable(Small(definition, ink), ink, $"Owned{category}{slot}", $"Your {category}: {definition.Name}", () => Detail(
@@ -161,8 +170,11 @@ internal static class CampaignShopScreen
         foreach (var id in inventory.Unlocks)
         {
             var definition = FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString());
-            var ball = new Border { Background = Brushes.Transparent, Padding = new Thickness(2), Child = GumballMachine.Ball(id, 34) };
-            ToolTip.SetTip(ball, $"{definition.Name}: {definition.Description}"); ToolTip.SetShowDelay(ball, 120);
+            var face = new StackPanel { Children = { GumballMachine.Ball(id, 34), Label($"×{inventory.GumballCopies(id)}", MainWindow.Ink, 9) } };
+            var ball = new Border { Background = Brushes.Transparent, Padding = new Thickness(2), Child = face };
+            var reward = id == GumballId.PanicButton ? "No successful contract; extra copies award no success points."
+                : $"Successful matching human bid: +{inventory.GumballExtraCopies.GetValueOrDefault(id)} points after hand multipliers. Partner bids do not qualify.";
+            ToolTip.SetTip(ball, $"{definition.Name}: {definition.Description}\nCopies: {inventory.GumballCopies(id)}. {reward}"); ToolTip.SetShowDelay(ball, 120);
             pulled.Children.Add(ball);
         }
         var owned = new StackPanel
@@ -197,11 +209,17 @@ internal static class CampaignShopScreen
             Children = { offers, detail }
         });
         panel.Children.Add(owned);
+        var rerollPrice = CampaignShop.RerollPrice(run);
+        var reroll = MenuParts.Button($"Reroll ${rerollPrice}", false, motion, "ShopReroll", () => actions.Reroll?.Invoke(), true, 260);
+        reroll.IsEnabled = actions.Reroll is not null && run.Money >= rerollPrice;
+        ToolTip.SetTip(reroll, run.Money < rerollPrice ? $"Not enough money. You need ${rerollPrice - run.Money} more."
+            : "Replenish all four regular offers. The gumball pull stays as it is. Next reroll costs $1 more.");
         panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center,
             Children =
             {
+                reroll,
                 MenuParts.Button("Inspect Deck", false, motion, "InspectDeck", actions.Inspect, true, 260),
                 MenuParts.Button("Next Match", true, motion, "CampaignNextMatch", actions.Next, false, 260)
             }
@@ -234,7 +252,7 @@ internal static class CampaignShopScreen
         if (offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil)
         {
             var use = MenuParts.Button($"Buy & Use ${offer.Price}", true, motion, $"BuyUse{offer.Id}", () => actions.BuyAndUse(offer.Id), true, 264);
-            use.IsEnabled = afford && !(offer.Category == FeatureCategory.Tarot && offer.FeatureId == nameof(TarotId.Astronomer) && inventory.Unlocks.Length == CampaignInventory.GumballCount);
+            use.IsEnabled = afford;
             buttons.Add(use);
         }
         var problem = !afford ? $"You need ${offer.Price - run.Money} more."
@@ -266,7 +284,7 @@ internal static class CampaignShopScreen
     };
 
     // A card: its kind, its picture at twice size, its name, and a price tag on the corner.
-    private static Border Face(FeatureDefinition definition, IBrush ink, string tag)
+    private static Border Face(FeatureDefinition definition, IBrush ink, string tag, string? blocked = null)
     {
         var name = Label(definition.Name, MainWindow.Ink, 10);
         name.TextAlignment = TextAlignment.Center; name.HorizontalAlignment = HorizontalAlignment.Center;
@@ -283,17 +301,27 @@ internal static class CampaignShopScreen
             }
         };
         name.VerticalAlignment = VerticalAlignment.Center;
+        if (blocked is not null) name.Margin = new Thickness(0, 0, 0, 14);
         var price = new Border
         {
             Background = Gold, Padding = new Thickness(6, 2), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
             Child = new TextBlock { Text = tag, Foreground = Paper, FontSize = 11, FontFamily = PixelArt.Font, FontWeight = FontWeight.Bold }
         };
+        var content = new Grid { Children = { body, price } };
+        if (blocked is not null) content.Children.Add(Badge(blocked, Danger));
         return new Border
         {
             Width = CardWidth, Height = CardHeight, Background = MainWindow.Panel, BorderBrush = ink, BorderThickness = new Thickness(3),
-            CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = new Grid { Children = { body, price } }
+            CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = content
         };
     }
+
+    private static Border Badge(string text, IBrush ink) => new()
+    {
+        Background = Brush.Parse("#F0100B28"), Padding = new Thickness(2), VerticalAlignment = VerticalAlignment.Bottom,
+        IsHitTestVisible = false,
+        Child = new TextBlock { Text = text, Foreground = ink, FontSize = 9, FontFamily = PixelArt.Font, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
+    };
 
     internal static Border Small(FeatureDefinition definition, IBrush ink) => new()
     {

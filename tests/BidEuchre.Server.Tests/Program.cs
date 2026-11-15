@@ -4,6 +4,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
 using System.Net;
 
+if (args is ["--campaign-fixture", var fixtureRoot, var fixtureToken, var fixtureKind])
+{
+    CampaignBrowserFixtures.Write(fixtureRoot, fixtureToken, fixtureKind);
+    return;
+}
+
 foreach (var (peer, host, expected) in new (string, string, int)[]
 {
     ("127.0.0.1", "localhost:5050", 200),
@@ -55,3 +61,5 @@ try
     Console.WriteLine("PASS  Background idle expiry disposes a started bot table and releases its capacity");
 }
 finally { await reaper.StopAsync(CancellationToken.None); }
+
+await CampaignServerTests.RunAsync();

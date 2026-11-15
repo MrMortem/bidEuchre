@@ -29,6 +29,9 @@ public sealed record GameView(
     int TargetScore = 40)
 {
     public long? DealSerial { get; init; }
+    public IReadOnlyList<HandResult> HandHistory { get; init; } = Array.Empty<HandResult>();
+    public IReadOnlyList<string> PublicEvents { get; init; } = Array.Empty<string>();
+    public string? CompletionReason { get; init; }
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public CampaignGameView? Campaign { get; init; }
 }

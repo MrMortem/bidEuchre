@@ -16,7 +16,9 @@ internal sealed class CampaignFlow(
     // The ante or shop screen last shown, so a developer change can redraw it.
     private Control? _home;
     private bool _starting;
-    private (MatchOutcome Outcome, int[] Scores)? _pendingResult;
+    private bool _saveFailed;
+    public string? ResumeNotice { get; private set; }
+    private (MatchOutcome Outcome, int[] Scores, GameView? Summary)? _pendingResult;
 
     public CampaignRun? Run { get; private set; }
 
@@ -29,8 +31,14 @@ internal sealed class CampaignFlow(
     public void Open()
     {
         _pendingResult = null;
-        var saved = CampaignStore.Load(savePath);
-        if (saved is null)
+        var loaded = CampaignStore.LoadSave(savePath);
+        if (!_saveFailed && loaded.Status == CampaignLoadStatus.Corrupt)
+        {
+            show(CampaignScreens.Recovery(loaded.Error!, StartNewRun, showMenu, motion));
+            return;
+        }
+        var saved = _saveFailed ? Run : loaded.Save?.Run;
+        if (saved is null || saved.IsOver)
         {
             StartNewRun();
             return;
@@ -41,12 +49,12 @@ internal sealed class CampaignFlow(
 
     // The result is recorded the moment the match ends, so leaving the finished table cannot turn it into a
     // forfeit. A second report finds the run out of InMatch and is ignored.
-    public void MatchCompleted(bool won, int[] scores)
+    public void MatchCompleted(bool won, int[] scores, GameView? summary = null)
     {
         if (Run is not { Phase: CampaignPhase.InMatch } run) return;
         var (next, outcome) = run.ApplyResult(won, scores[0], scores[1]);
         Record(next);
-        _pendingResult = (outcome, scores);
+        _pendingResult = (outcome, scores.ToArray(), summary);
     }
 
     // Shown a moment later so the last trick can be seen before the table is replaced.
@@ -54,11 +62,12 @@ internal sealed class CampaignFlow(
     {
         if (_pendingResult is not { } pending || Run is not { } run) return;
         _pendingResult = null;
-        show(CampaignScreens.Result(run, pending.Outcome, pending.Scores, AfterResult, TakeNote(), motion));
+        show(CampaignScreens.Result(run, pending.Outcome, pending.Scores, AfterResult, TakeNote(), motion, pending.Summary));
     }
 
     private void StartNewRun()
     {
+        ResumeNotice = null;
         Persist(new CampaignRun());
         ShowIntro();
     }
@@ -69,9 +78,7 @@ internal sealed class CampaignFlow(
         switch (saved.Phase)
         {
             case CampaignPhase.InMatch:
-                // The match was abandoned by leaving or quitting, which counts as a loss.
-                var (next, outcome) = saved.Forfeit();
-                ShowResult(next, outcome, null);
+                ResumeMatch(saved);
                 break;
             case CampaignPhase.Shop:
                 ShowShop();
@@ -83,6 +90,41 @@ internal sealed class CampaignFlow(
                 ShowIntro();
                 break;
         }
+    }
+
+    private async void ResumeMatch(CampaignRun saved)
+    {
+        if (_starting) return;
+        _starting = true;
+        ResumeNotice = saved.LegacyMatchRestart
+            ? "This older save did not contain the hand. The same match has restarted without losing a life."
+            : null;
+        try { await startMatch(saved.NextMatch()); }
+        catch (Exception error)
+        {
+            Run = saved;
+            show(CampaignScreens.Recovery($"The saved match could not open: {error.Message}", () => ResumeMatch(saved), showMenu, motion, "Retry"));
+        }
+        finally { _starting = false; }
+    }
+
+    public void ForfeitMatch()
+    {
+        if (Run is not { Phase: CampaignPhase.InMatch } run) return;
+        var (next, _) = run.Forfeit();
+        _pendingResult = null;
+        Record(next);
+    }
+
+    public bool ShowSaveFailure()
+    {
+        if (!_saveFailed || Run is null) return false;
+        show(CampaignScreens.Recovery("Could not save progress. Changes are retained in this session only.", () =>
+        {
+            Record(Run!);
+            if (!ShowSaveFailure()) showMenu();
+        }, showMenu, motion, "Retry save"));
+        return true;
     }
 
     private void ShowIntro()
@@ -104,13 +146,16 @@ internal sealed class CampaignFlow(
         _starting = true;
         try
         {
-            Persist(run.StartMatch());
+            ResumeNotice = null;
+            // Persisting InMatch before a complete engine checkpoint would make a crash
+            // indistinguishable from corruption. The previous Intro remains durable until start.
+            Run = run.StartMatch();
             await startMatch(run.NextMatch());
         }
         catch (Exception error)
         {
             // A table that never opened is not a forfeit; MainWindow has already reported why.
-            Persist(run);
+            Run = run;
             _note = $"The match could not start: {error.Message}";
             ShowIntro();
         }
@@ -132,7 +177,8 @@ internal sealed class CampaignFlow(
         if (next.IsOver)
         {
             Run = next;
-            CampaignStore.Delete(savePath);
+            _saveFailed = !CampaignStore.Delete(savePath);
+            if (_saveFailed) _note = "Could not save progress. Changes are retained in this session only.";
         }
         else
         {
@@ -165,11 +211,14 @@ internal sealed class CampaignFlow(
         ShowShop();
     }, showMenu, motion));
 
-    public bool Checkpoint(CampaignSnapshot snapshot)
+    public bool Checkpoint(CampaignCheckpoint checkpoint)
     {
-        if (Run is not { Phase: CampaignPhase.InMatch } run || snapshot.Revision < run.LastAppliedRevision) return false;
-        Run = run with { Resources = snapshot.Copy(), Money = snapshot.Wallets[0], LastAppliedRevision = snapshot.Revision };
-        var saved = CampaignStore.Save(Run, savePath); if (!saved) _note = "Could not save progress."; return saved;
+        if (Run is not { Phase: CampaignPhase.InMatch } run || checkpoint.Match.Resources.Revision < run.LastAppliedRevision) return false;
+        Run = run.WithCheckpoint(checkpoint);
+        _saveFailed = !CampaignStore.Save(Run, savePath);
+        if (_saveFailed) _note = "Could not save progress. Changes are retained in this session only.";
+        else if (_note?.StartsWith("Could not save progress") is true) _note = null;
+        return !_saveFailed;
     }
 
     private void ShowShop()
@@ -177,40 +226,46 @@ internal sealed class CampaignFlow(
         if (Run is null) return;
         Persist(CampaignShop.Open(Run));
         var revision = Run!.Resources.Revision;
-        show(_home = CampaignShopScreen.Build(Run!, new ShopActions(Buy, BuyAndUse, Sell,
+        show(_home = CampaignShopScreen.Build(Run!, new ShopActions(id => Buy(id, revision), id => BuyAndUse(id, revision), id => Sell(id, revision),
             (category, slot) => UseItem(category, slot, revision), (category, slot) => Discard(category, slot, revision), InspectDeck,
-            () => { Persist(Run!.LeaveShop()); ShowIntro(); }) { Pull = Pull, Refresh = ShowShop }, motion, TakeNote()));
+            () => Transact(() =>
+            {
+                if (Run is not { Phase: CampaignPhase.Shop } run || run.Resources.Revision != revision)
+                    throw new GameRuleException("The shop changed. Choose again.");
+                return run.LeaveShop();
+            })) { Pull = id => Pull(id, revision), Refresh = ShowShop, Reroll = () => Transact(() => CampaignShop.Reroll(Run!, revision)) }, motion, TakeNote()));
     }
     private void InspectDeck()
     {
         if (Run is null) return;
         show(CampaignDeckPicker.Build(Run.Resources.Deck, 0, _ => { }, ShowShop, motion, "Shared deck · changes last for this run"));
     }
-    private void Buy(string id) => Transact(() => CampaignShop.Buy(Run!, id));
+    private void Buy(string id, long revision) => Transact(() => CampaignShop.Buy(Run!, id, expectedRevision: revision));
     // The run is saved before the machine plays, so a pull is never lost or repeated. The shop is redrawn afterwards.
-    private GumballId? Pull(string id)
+    private GumballId? Pull(string id, long revision)
     {
         if (Run is not { Phase: CampaignPhase.Shop } before) return null;
         try
         {
-            var after = CampaignShop.Buy(before, id);
-            var gumball = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks).Single();
-            _note = $"The gumball unlocked the {FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name} bid!";
+            var after = CampaignShop.Buy(before, id, expectedRevision: revision);
+            var gumball = Enum.Parse<GumballId>(after.Shop!.Offers.Single(offer => offer.Id == id).FeatureId);
+            _note = GumballReport("The gumball", before.Resources.Inventory, after.Resources.Inventory, gumball);
             Persist(after);
             return gumball;
         }
         catch (GameRuleException error) { _note = error.Message; return null; }
     }
     // Items used from the shop are aimed at the shared deck, since there is no hand to aim at.
-    private void BuyAndUse(string id)
+    private void BuyAndUse(string id, long revision)
     {
+        if (Run?.Resources.Revision != revision) { _note = "The shop changed. Choose again."; ShowHome(); return; }
         if (Run?.Shop?.Offers.SingleOrDefault(o => o.Id == id) is not { } offer || offer.Category is not (FeatureCategory.Tarot or FeatureCategory.Sigil)) return;
         var definition = FeatureCatalog.Get(offer.Category, offer.FeatureId);
         var required = offer.Category == FeatureCategory.Sigil ? 1 : CampaignShop.TarotTargets(Enum.Parse<TarotId>(offer.FeatureId));
         CampaignRun Use(CardId[] targets)
         {
             var before = Run!;
-            var after = CampaignShop.BuyAndUse(before, id, targets);
+            var after = CampaignShop.BuyAndUse(before, id, targets, revision);
             _note = UseReport(definition.Name, before, after);
             return after;
         }
@@ -248,9 +303,8 @@ internal sealed class CampaignFlow(
     private static string UseReport(string name, CampaignRun before, CampaignRun after)
     {
         static string Card(CardState card) => $"{Core.Card.DisplayRank(card.Face.Rank)} of {card.Face.Suit}";
-        var gumballs = after.Resources.Inventory.Unlocks.Except(before.Resources.Inventory.Unlocks)
-            .Select(id => FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Name).ToArray();
-        if (gumballs.Length > 0) return $"{name} unlocked the {gumballs[0]} bid!";
+        var gumballs = Enum.GetValues<GumballId>().Where(id => after.Resources.Inventory.GumballCopies(id) > before.Resources.Inventory.GumballCopies(id)).ToArray();
+        if (gumballs.Length > 0) return GumballReport(name, before.Resources.Inventory, after.Resources.Inventory, gumballs[0]);
         // Card ids keep their place in the deck, so the same index is the same physical card.
         var changes = after.Resources.Deck.Select((card, index) => (Old: before.Resources.Deck[index], New: card)).Where(pair => pair.Old != pair.New)
             .Select(pair => pair.New.Sigil is { } sigil && pair.Old.Sigil != sigil
@@ -260,7 +314,15 @@ internal sealed class CampaignFlow(
         if (changes.Length > 0) return $"{name}: {string.Join(", ", changes)}!";
         return $"Used {name}!";
     }
-    private void Sell(JokerId id) => Transact(() => CampaignShop.SellJoker(Run!, id));
+    private static string GumballReport(string source, CampaignInventory before, CampaignInventory after, GumballId id)
+    {
+        var name = FeatureCatalog.Get(FeatureCategory.Gumball, id.ToString()).Name;
+        if (!before.Unlocks.Contains(id)) return $"{source} unlocked the {name} bid!";
+        var reward = id == GumballId.PanicButton ? "No successful contract reward!"
+            : $"+{after.GumballExtraCopies.GetValueOrDefault(id)} points on your successful matching bid, after hand multipliers!";
+        return $"{source} granted {name} copy {after.GumballCopies(id)}! {reward}";
+    }
+    private void Sell(JokerId id, long revision) => Transact(() => CampaignShop.SellJoker(Run!, id, revision));
     private void Discard(FeatureCategory category, int slot, long revision) => Transact(() => category == FeatureCategory.Sigil
         ? CampaignShop.DiscardSigil(Run!, slot, revision) : CampaignShop.DiscardTarot(Run!, slot, revision));
     private void Transact(Func<CampaignRun> update)
@@ -273,7 +335,8 @@ internal sealed class CampaignFlow(
     private void Persist(CampaignRun run)
     {
         Run = run;
-        if (!CampaignStore.Save(run, savePath)) _note = "Could not save progress.";
+        _saveFailed = !CampaignStore.Save(run, savePath);
+        if (_saveFailed) _note = "Could not save progress. Changes are retained in this session only.";
     }
 
     /// <summary>Applies a developer-console change between matches, saves it, and redraws the

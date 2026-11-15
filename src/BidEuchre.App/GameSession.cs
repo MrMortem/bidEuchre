@@ -8,6 +8,8 @@ public sealed class GameSession : IAsyncDisposable
     private readonly EngineCatalog _catalog;
     private readonly CampaignContext? _campaign;
     private readonly Func<CampaignSnapshot, bool>? _checkpoint;
+    private readonly Func<CampaignCheckpoint, bool>? _liveCheckpoint;
+    private CampaignArrangement? _arrangement;
     private readonly Func<GameView, int, CampaignCommand> _campaignPolicy;
     private readonly int? _seed;
     private readonly MatchOptions? _matchOptions;
@@ -22,6 +24,12 @@ public sealed class GameSession : IAsyncDisposable
     private Task? _disposeTask;
     private int? _observedTerminalHand;
     private TaskCompletionSource? _dealReady;
+    private TaskCompletionSource? _resumeReady;
+    private readonly bool _waitForContractPresentation;
+    private TaskCompletionSource? _contractReady;
+    private long? _contractPresentationDeal;
+    public bool WaitingForContractPresentation => _contractReady is { Task.IsCompleted: false };
+    private bool _paused;
     public bool WaitingForDeal => _dealReady is { Task.IsCompleted: false };
 
     public GameSession(
@@ -34,8 +42,11 @@ public sealed class GameSession : IAsyncDisposable
         TimeSpan? completedTrickDelay = null,
         Func<SeatConfiguration, EngineDescriptor, IBotDriver>? botDriverFactory = null,
         MatchOptions? matchOptions = null, CampaignContext? campaign = null, Func<CampaignSnapshot, bool>? checkpoint = null,
-        Func<GameView, int, CampaignCommand>? campaignPolicy = null)
+        Func<GameView, int, CampaignCommand>? campaignPolicy = null,
+        bool waitForContractPresentation = false, Func<CampaignCheckpoint, bool>? liveCheckpoint = null)
     {
+        _liveCheckpoint = liveCheckpoint;
+        _waitForContractPresentation = waitForContractPresentation;
         _campaignPolicy = campaignPolicy ?? CampaignBotPolicy.Choose;
         _matchOptions = matchOptions;
         _campaign = campaign; _checkpoint = checkpoint;
@@ -48,9 +59,7 @@ public sealed class GameSession : IAsyncDisposable
         _completedTrickDelay = completedTrickDelay ?? (_botActionDelay == TimeSpan.Zero
             ? TimeSpan.Zero
             : TimeSpan.FromMilliseconds(Math.Max(1600, _botActionDelay.TotalMilliseconds * 1.6)));
-        _botDriverFactory = botDriverFactory ?? ((_, descriptor) => descriptor.IsBuiltIn
-            ? new BuiltInBotDriver()
-            : new ProcessBotDriver(descriptor));
+        _botDriverFactory = botDriverFactory ?? ((_, descriptor) => catalog.CreateDriver(descriptor));
     }
 
     public string Id { get; }
@@ -62,20 +71,36 @@ public sealed class GameSession : IAsyncDisposable
     // Set when the background bot loop stopped on an error nothing else handled.
     public Exception? BotLoopFault => _botLoopTask is { IsFaulted: true } loop ? loop.Exception!.GetBaseException() : null;
 
-    public async Task StartAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
+    public Task StartAsync(CancellationToken cancellationToken = default, bool waitForDeal = false) => StartCoreAsync(null, cancellationToken, waitForDeal);
+
+    public Task RestoreCampaignAsync(CampaignCheckpoint checkpoint, CancellationToken cancellationToken = default)
+    {
+        if (checkpoint is null || !checkpoint.IsValid()) throw new GameRuleException("Invalid campaign checkpoint.");
+        // Detach before awaiting startup so the caller cannot mutate the engine being restored.
+        var detached = new CampaignCheckpoint(GameEngine.RestoreCampaignMatch(checkpoint.Match).ExportCampaignMatchSnapshot(), checkpoint.Arrangement);
+        return StartCoreAsync(detached, cancellationToken, false);
+    }
+
+    private async Task StartCoreAsync(CampaignCheckpoint? restored, CancellationToken cancellationToken, bool waitForDeal)
     {
         using var startup = CreateStartupCancellation(cancellationToken);
         await _gate.WaitAsync(startup.Token);
+        var initializing = false;
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game is not null)
             {
                 throw new GameRuleException("This session has already started.");
             }
 
-            if (_campaign is not null && Seats.Any(s => s.Kind == PlayerKind.Bot && s.EngineId is not null && s.EngineId != EngineCatalog.BuiltInEngineId))
+            if (restored is not null && (Seats.Count != 4 || !Seats.OrderBy(s => s.Seat).Select(s => s.Seat).SequenceEqual(new[] { 0, 1, 2, 3 })
+                || !Seats.OrderBy(s => s.Seat).Select(s => s.Name).SequenceEqual(restored.Match.PlayerNames)))
+                throw new GameRuleException("The saved campaign seats do not match this session.");
+            if ((_campaign is not null || restored is not null) && Seats.Any(s => s.Kind == PlayerKind.Bot && s.EngineId is not null && s.EngineId != EngineCatalog.BuiltInEngineId))
                 throw new GameRuleException("External engines do not support campaign cards and bidding options.");
+            initializing = true;
             foreach (var seat in Seats.Where(seat => seat.Kind is PlayerKind.Bot))
             {
                 ThrowIfClosing();
@@ -87,8 +112,17 @@ public sealed class GameSession : IAsyncDisposable
             }
 
             ThrowIfClosing();
-            Game = new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions, _campaign);
-            Game.StartGame();
+            Game = restored is null ? new GameEngine(Seats.OrderBy(seat => seat.Seat).Select(seat => seat.Name).ToArray(), _seed, _matchOptions, _campaign)
+                : GameEngine.RestoreCampaignMatch(restored.Match);
+            if (restored is null) Game.StartGame();
+            else
+            {
+                _arrangement = restored.Arrangement;
+                // A selected contract was already acknowledged in the saved game. A future
+                // contract still arms its usual fresh gate. No abandoned animation can block bots.
+                _contractPresentationDeal = Game.Contract is null ? null : Game.DealSerial;
+                _contractReady = null;
+            }
             _dealReady = waitForDeal ? new(TaskCreationOptions.RunContinuationsAsynchronously) : null;
             LastError = null;
             CheckpointCampaign();
@@ -96,14 +130,49 @@ public sealed class GameSession : IAsyncDisposable
         }
         catch
         {
-            await DisposeBotsAsync();
-            Game = null;
+            if (initializing)
+            {
+                await DisposeBotsAsync();
+                Game = null;
+            }
             throw;
         }
         finally
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>Stops table mutations after the current locked operation has completed.
+    /// A cancelled visual deal is acknowledged here so hiding the table cannot strand its bots.</summary>
+    public async Task PauseAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (_paused) return;
+            _paused = true;
+            _resumeReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _dealReady?.TrySetResult();
+            _contractReady?.TrySetResult();
+        }
+        finally { _gate.Release(); }
+    }
+
+    public async Task ResumeAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            _paused = false;
+            _resumeReady?.TrySetResult();
+            _resumeReady = null;
+        }
+        finally { _gate.Release(); }
     }
 
     public async Task<GameView?> GetViewAsync(int? viewerSeat, CancellationToken cancellationToken = default)
@@ -128,6 +197,8 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
+            ThrowIfContractPresentationPending();
             if (WaitingForDeal) throw new GameRuleException("Wait for dealing to finish before bidding.");
             if (Game?.IsCampaign is true) throw new GameRuleException("Campaign tables only accept campaign actions.");
             EnsureHumanTurn(request.Seat);
@@ -160,16 +231,36 @@ public sealed class GameSession : IAsyncDisposable
 
     private void CheckpointCampaign()
     {
-        if (Game?.IsCampaign is true && _checkpoint?.Invoke(Game.ExportCampaignSnapshot()) is false)
-            LastError = "Could not save progress. Changes are retained in this session only.";
+        if (Game?.IsCampaign is not true) return;
+        var checkpoint = CreateCampaignCheckpointLocked();
+        var saved = _liveCheckpoint is not null ? _liveCheckpoint(checkpoint) : _checkpoint?.Invoke(checkpoint.Match.Resources) ?? true;
+        if (!saved) LastError = "Could not save progress. Changes are retained in this session only.";
     }
 
-    public async Task ExecuteCampaignAsync(CampaignActionRequest request, CancellationToken cancellationToken = default)
+    private CampaignCheckpoint CreateCampaignCheckpointLocked() => new(Game!.ExportCampaignMatchSnapshot(),
+        _arrangement?.DealSerial == Game.DealSerial ? _arrangement : null);
+
+    public async Task<CampaignCheckpoint?> GetCampaignCheckpointAsync(CancellationToken cancellationToken = default) =>
+        await ReadCampaignAsync((_, checkpoint, _) => checkpoint, cancellationToken);
+
+    /// <summary>Projects a detached seat-zero view, complete checkpoint and error under the action gate.
+    /// The synchronous projection may take a short state lock but must not await session operations.</summary>
+    public async Task<T> ReadCampaignAsync<T>(Func<GameView?, CampaignCheckpoint?, string?, T> projection, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
+        try { ThrowIfClosing(); return projection(Game?.CreateView(0), Game?.IsCampaign is true ? CreateCampaignCheckpointLocked() : null, LastError); }
+        finally { _gate.Release(); }
+    }
+
+    public async Task ExecuteCampaignAsync(CampaignActionRequest request, CancellationToken cancellationToken = default, Action? precondition = null)
     {
         ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
+            precondition?.Invoke();
+            ThrowIfContractPresentationPending();
             if (Game?.IsCampaign is not true || WaitingForDeal) throw new GameRuleException("Wait for the campaign deal to finish.");
             GameRules.ValidateSeat(request.Seat);
             if (Seats[request.Seat].Kind != PlayerKind.Human) throw new GameRuleException("Bot actions come from the campaign policy.");
@@ -191,6 +282,7 @@ public sealed class GameSession : IAsyncDisposable
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
             if (Game is null) throw new GameRuleException("The session has not started.");
             change(Game);
             LastError = null; CheckpointCampaign(); await ObserveTerminalStateLockedAsync(_lifetime.Token);
@@ -201,27 +293,33 @@ public sealed class GameSession : IAsyncDisposable
 
     /// <summary>Rearranges a human's campaign hand. It is not a game action: it is allowed at any time,
     /// even during the deal or another seat's turn, and does not change the table revision or wake the bots.</summary>
-    public async Task ArrangeCampaignHandAsync(int seat, IReadOnlyList<CardId> order, CancellationToken cancellationToken = default)
+    public async Task ArrangeCampaignHandAsync(int seat, IReadOnlyList<CardId> order, CancellationToken cancellationToken = default, Action? precondition = null, bool manuallyArranged = true, string? autoArrangeStage = null)
     {
         ThrowIfClosing(); await _gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
+            precondition?.Invoke();
             if (Game?.IsCampaign is not true) throw new GameRuleException("Only campaign hands are arranged on the table.");
             GameRules.ValidateSeat(seat);
             if (Seats[seat].Kind != PlayerKind.Human) throw new GameRuleException("Only a human seat arranges its hand.");
             Game.ArrangeCampaignHand(seat, order);
+            if (seat == 0) _arrangement = new(Game.DealSerial, manuallyArranged, autoArrangeStage);
+            LastError = null; CheckpointCampaign();
         }
         finally { _gate.Release(); }
     }
 
-    public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false)
+    public async Task StartNextHandAsync(CancellationToken cancellationToken = default, bool waitForDeal = false, Action? precondition = null)
     {
         ThrowIfClosing();
         await _gate.WaitAsync(cancellationToken);
         try
         {
             ThrowIfClosing();
+            ThrowIfPaused();
+            precondition?.Invoke();
             if (Game is null)
             {
                 throw new GameRuleException("The session has not started.");
@@ -249,6 +347,36 @@ public sealed class GameSession : IAsyncDisposable
             if (Game?.HandNumber == handNumber) _dealReady?.TrySetResult();
         }
         finally { _gate.Release(); }
+    }
+
+    /// <summary>Acknowledges only this deal's optional desktop cue. This never resumes a settings pause.</summary>
+    public async Task CompleteContractPresentationAsync(long dealSerial, CancellationToken cancellationToken = default)
+    {
+        ThrowIfClosing();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfClosing();
+            if (_contractPresentationDeal == dealSerial) _contractReady?.TrySetResult();
+        }
+        finally { _gate.Release(); }
+    }
+
+    // Called while holding the action gate, before a human response or the next bot action.
+    // Later Chaos rolls alter the contract within the same deal and need no new start hold.
+    private void ArmContractPresentationLocked()
+    {
+        if (!_waitForContractPresentation || Game is null) return;
+        if (_contractPresentationDeal != Game.DealSerial) _contractReady?.TrySetResult();
+        if (Game.Contract is null || _contractPresentationDeal == Game.DealSerial) return;
+        _contractPresentationDeal = Game.DealSerial;
+        _contractReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (_paused) _contractReady.TrySetResult();
+    }
+
+    private void ThrowIfContractPresentationPending()
+    {
+        if (WaitingForContractPresentation) throw new GameRuleException("Wait for the contract announcement to finish.");
     }
 
     public SessionSummary Summary() => new(
@@ -370,11 +498,20 @@ public sealed class GameSession : IAsyncDisposable
         for (var actions = 0; actions < 200; actions++)
         {
             if (_dealReady is { } deal) await deal.Task.WaitAsync(cancellationToken);
-            int expectedSeat;
+            int expectedSeat = -1;
+            Task? resume = null;
             await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (Game is null ||
+                if (_paused)
+                {
+                    resume = _resumeReady!.Task;
+                }
+                else if (WaitingForContractPresentation)
+                {
+                    resume = _contractReady!.Task;
+                }
+                else if (Game is null ||
                     Game.Phase is GamePhase.HandComplete or GamePhase.GameComplete ||
                     (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) is null ||
                     !_bots.ContainsKey((Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value))
@@ -382,11 +519,18 @@ public sealed class GameSession : IAsyncDisposable
                     return;
                 }
 
-                expectedSeat = (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value;
+                if (resume is null) expectedSeat = (Game!.IsCampaign ? Game.CampaignActor : Game.CurrentSeat)!.Value;
             }
             finally
             {
                 _gate.Release();
+            }
+
+            if (resume is not null)
+            {
+                await resume.WaitAsync(cancellationToken);
+                actions--; // A pause does not consume the bot action guard or an action delay.
+                continue;
             }
 
             if (nextDelay > TimeSpan.Zero)
@@ -397,6 +541,7 @@ public sealed class GameSession : IAsyncDisposable
             await _gate.WaitAsync(cancellationToken);
             try
             {
+                if (_paused || WaitingForContractPresentation) { actions--; continue; }
                 if (WaitingForDeal) continue;
                 if (Game is null || (Game.IsCampaign ? Game.CampaignActor : Game.CurrentSeat) != expectedSeat || !_bots.TryGetValue(expectedSeat, out var bot))
                 {
@@ -452,6 +597,7 @@ public sealed class GameSession : IAsyncDisposable
                     }
                 }
 
+                ArmContractPresentationLocked();
                 nextDelay = Game.CompletedTricks.Count > completedTricksBefore
                     ? _completedTrickDelay
                     : _botActionDelay;
@@ -467,6 +613,7 @@ public sealed class GameSession : IAsyncDisposable
 
     private async Task ObserveTerminalStateLockedAsync(CancellationToken cancellationToken)
     {
+        ArmContractPresentationLocked();
         var game = Game;
         if (game is null ||
             game.Phase is not (GamePhase.HandComplete or GamePhase.GameComplete) ||
@@ -656,6 +803,11 @@ public sealed class GameSession : IAsyncDisposable
 
             return CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         }
+    }
+
+    private void ThrowIfPaused()
+    {
+        if (_paused) throw new GameRuleException("Match paused. Return to the table to continue.");
     }
 
     private void ThrowIfClosing()

@@ -32,14 +32,14 @@ internal static class CampaignModelTests
             Assert.False(Enum.GetNames<TarotId>().Contains(retired), $"{retired} must not remain a Tarot.");
         foreach (var retired in new[] { "enhancement:emerald", "enhancement:stinky", "tarot:merchant", "tarot:beggar" })
             Assert.False(FeatureCatalog.All.Any(feature => feature.Id == retired), $"{retired} must not remain in the catalogue.");
-        Assert.Equal(74, FeatureCatalog.All.Count);
-        Assert.Equal(74, FeatureCatalog.All.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(66, FeatureCatalog.All.Count);
+        Assert.Equal(66, FeatureCatalog.All.Select(x => x.Id).Distinct().Count());
         Assert.Equal(8, Enum.GetValues<EnhancementId>().Length);
-        Assert.Equal(31, Enum.GetValues<JokerId>().Length);
+        Assert.Equal(32, Enum.GetValues<JokerId>().Length);
         Assert.Equal(9, Enum.GetValues<GumballId>().Length);
-        Assert.Equal(12, Enum.GetValues<SigilId>().Length);
-        Assert.Equal(14, Enum.GetValues<TarotId>().Length);
+        Assert.Equal(8, Enum.GetValues<SigilId>().Length);
+        Assert.Equal(9, Enum.GetValues<TarotId>().Length);
         Assert.True(Enum.GetValues<EnhancementId>().Select(value => (int)value).SequenceEqual(new[] { 0, 1, 2, 3, 4, 6, 8, 9 }), "Active enhancement IDs must keep their protocol values.");
-        Assert.True(Enum.GetValues<TarotId>().Select(value => (int)value).SequenceEqual(new[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15 }), "Active Tarot IDs must keep their protocol values.");
+        Assert.True(Enum.GetValues<TarotId>().Select(value => (int)value).SequenceEqual(new[] { 4, 5, 6, 7, 8, 11, 12, 14, 15 }), "Active Tarot IDs must keep their protocol values.");
     }
 }

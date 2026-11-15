@@ -31,13 +31,13 @@ public sealed partial class GameEngine
         _resources = _resources with { Inventory = inventory with { Tarot = [.. inventory.Tarot, card] } };
         _events.Add($"Created {FeatureCatalog.Get(FeatureCategory.Tarot, card.ToString()).Name}.");
     }
-    private void OnCardEffects(int seat, Card token, bool replay = false, int? trickNumber = null, bool finalAlreadyApplied = false)
+    private void OnCardEffects(int seat, Card token, bool replay = false, int? trickNumber = null, bool finalAlreadyApplied = false, bool doubleDown = false)
     {
         var state = StateFor(token);
         var number = trickNumber ?? (_completedTricks.Count + 1);
         var finalMultiplier = Has(JokerId.LastLaugh) && number == 6 && !finalAlreadyApplied ? 2 : 1;
         // Schedule independent activations once. A replay never schedules another replay bonus.
-        var extra = replay ? 0 : (state.Enhancement == EnhancementId.Lucky && Has(JokerId.LuckyDuck) ? 1 : 0) + (state.Sigil == SigilId.Frog ? 1 : 0);
+        var extra = replay ? 0 : (state.Enhancement == EnhancementId.Lucky && Has(JokerId.LuckyDuck) ? 1 : 0) + (state.Sigil == SigilId.Frog ? 1 : 0) + (doubleDown ? 1 : 0);
         var repeat = (1 + extra) * finalMultiplier;
         for (var activation = 0; activation < repeat; activation++)
         {
@@ -53,10 +53,8 @@ public sealed partial class GameEngine
             }
             switch (state.Sigil)
             {
-                case SigilId.Coin: Money(seat, 3, "Coin"); break;
                 case SigilId.Fish: Point(seat, 2, "Fish"); break;
-                case SigilId.Snake: Point(seat, 1, "Snake"); Point(1 - seat % 2, -1, "Snake"); break;
-                case SigilId.Duck: if (_campaignRandom.NextInt(2) == 0) Point(seat, 4, "Duck"); break;
+                case SigilId.Duck: if (_campaignRandom.NextInt(3) == 0) Point(seat, 4, "Duck"); break;
                 case SigilId.Spider:
                     var previous = _currentTrick.Where(p => p.Card != token).ToArray();
                     if (previous.Length > 0) ChangeCard(IdFor(previous[_campaignRandom.NextInt(previous.Length)].Card), c => c with { Enhancement = EnhancementId.Cursed });
@@ -73,7 +71,9 @@ public sealed partial class GameEngine
             _firstMatchCard = true;
             if (Has(JokerId.CheeseTouch)) ChangeCard(IdFor(token), c => c with { Enhancement = EnhancementId.Cursed });
         }
-        OnCardEffects(seat, token);
+        var doubleDown = seat == 0 && !_firstHumanRoundCard && Has(JokerId.DoubleDown);
+        if (seat == 0) _firstHumanRoundCard = true;
+        OnCardEffects(seat, token, doubleDown: doubleDown);
         if (seat == 0 && Has(JokerId.KingMidas) && StateFor(token).Face.Rank == Rank.King && _campaignRandom.NextInt(3) == 0)
             ChangeCard(IdFor(token), c => c with { Enhancement = EnhancementId.Golden });
     }
@@ -90,9 +90,8 @@ public sealed partial class GameEngine
             for (var i = 0; i < count; i++)
             {
                 if (c.Enhancement == EnhancementId.Golden || p.Seat == 0 && Has(JokerId.Millionaire) && MatchesSuit(c, Suit.Diamonds)) Money(winner, 1, "Golden");
-                if (c.Enhancement == EnhancementId.Cursed) Point(winner, winner == 0 && Has(JokerId.CureAll) ? 2 : -1, "Cursed");
+                if (c.Enhancement == EnhancementId.Cursed) Point(winner, team == 0 && Has(JokerId.CureAll) ? 2 : -1, "Cursed");
                 if (c.Enhancement == EnhancementId.Silver) Money(team == 0 ? 1 : 0, 5, "Silver");
-                if (c.Sigil == SigilId.Peacock) Point(winner, plays.Count(x => StateFor(x.Card).Sigil is not null), "Peacock");
                 if (c.Sigil == SigilId.Vulture) GenerateTarot(winner);
             }
             // Eagle comes back to the team that lost the trick; after the last trick there is no hand to return to.
@@ -105,7 +104,7 @@ public sealed partial class GameEngine
         {
             var cards = plays.Select(p => StateFor(p.Card)).ToArray();
             if (Has(JokerId.LoverBoy) && Bidder == 0 && Contract!.Trump == Suit.Hearts) extra += cards.Count(c => MatchesSuit(c, Suit.Hearts));
-            if (Has(JokerId.SnakeEyes) && cards.Count(c => c.Face.Rank == Rank.Ace) >= 2) extra += 5;
+            if (Has(JokerId.SnakeEyes) && cards.Count(c => c.Face.Rank == Rank.Ace) >= 2) extra += 4;
             var us = plays.FirstOrDefault(p => p.Seat == 0); var partner = plays.FirstOrDefault(p => p.Seat == 2);
             if (Has(JokerId.TwinFlame) && us is not null && partner is not null && IsRed(StateFor(us.Card).Face.Suit) != IsRed(StateFor(partner.Card).Face.Suit)) extra++;
             if (Has(JokerId.Clubhouse) && cards.Any(c => MatchesSuit(c, Suit.Clubs))) extra++;
@@ -135,12 +134,12 @@ public sealed partial class GameEngine
         _trickPoints.Clear();
     }
     private static bool IsRed(Suit s) => s is Suit.Hearts or Suit.Diamonds;
-    private int[] SettleCampaignHand(int[] normal)
+    private TeamScoreBreakdown[] SettleCampaignHand(int[] normal)
     {
         var bidderTeam = Bidder!.Value % 2; var success = _tricksByTeam[bidderTeam] >= Contract!.RequiredTricks;
         if (!success && Has(JokerId.ProtectiveBubble) && bidderTeam == 0)
         { normal[0] = 0; _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Where(j => j.Id != JokerId.ProtectiveBubble).ToArray() } }; }
-        else if (!success && _variant == GumballId.Duelist) normal[bidderTeam]--;
+        else if (!success && _variant == GumballId.Duelist) normal[bidderTeam] -= 2;
         if (success && bidderTeam == 0)
         {
             if (Has(JokerId.ThreesCompany) && Contract.Bid == BidLevel.Three) _jokerPoints[0] += 2;
@@ -151,13 +150,20 @@ public sealed partial class GameEngine
         if (Has(JokerId.RollerCoaster) && Contract.Mode is ContractMode.High or ContractMode.Low) _jokerPoints[0] += _rollerValue;
         if (Contract.Bid <= BidLevel.Six) _matchOvertricks[bidderTeam] += Math.Max(0, _tricksByTeam[bidderTeam] - Contract.RequiredTricks);
         var factor = _variant == GumballId.Chaos ? 2 : 1;
+        var opponentBonus = success && bidderTeam == 1 ? _matchOptions.OpponentSuccessfulBidBonus : 0;
+        var gumballBonuses = GumballRewards.SuccessfulBidBonuses(_resources.Inventory, Bidder.Value, success, Contract.Bid, Contract.Mode, _variant);
+        foreach (var reward in gumballBonuses)
+            _events.Add($"{FeatureCatalog.Get(FeatureCategory.Gumball, reward.Id.ToString()).Name} duplicates: +{reward.Points} points for team {reward.Team + 1} after hand multiplier.");
+        var breakdowns = new TeamScoreBreakdown[2];
         for (var team = 0; team < 2; team++)
         {
-            _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}.");
-            normal[team] = (normal[team] + _cardPoints[team] + _jokerPoints[team] + _modifierPoints[team]) * factor;
+            _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}; opponent bid bonus {Signed(team == 1 ? opponentBonus : 0)} after hand multiplier.");
+            // Settlement and its public explanation share the same arithmetic and reward entries.
+            breakdowns[team] = new(team, normal[team], _cardPoints[team], _jokerPoints[team], _modifierPoints[team], factor, team == 1 ? opponentBonus : 0)
+            { GumballBonuses = gumballBonuses.Where(reward => reward.Team == team).ToArray() };
         }
         _resources = _resources with { Inventory = _resources.Inventory with { Jokers = _resources.Inventory.Jokers.Select(j => j.Id == JokerId.DejaVu ? j with { Value = _dejaValue } : j).ToArray() } };
-        return normal;
+        return breakdowns;
     }
     private void ResolveMatchEnd()
     {

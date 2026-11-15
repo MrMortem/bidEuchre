@@ -24,8 +24,87 @@ internal static class CampaignShopTests
         Assert.True(seen.SetEquals(["Lucky", "Golden", "Wild", "Cursed", "Stone", "Silver", "Glass", "Bouncy"]));
     }
 
+    private static void Rerolls()
+    {
+        static string Snapshot(CampaignRun run) => System.Text.Json.JsonSerializer.Serialize(new CampaignSave(2, run));
+        var run = CampaignShop.Open(new CampaignRun(Match: 2, Money: 30, Phase: CampaignPhase.Shop)
+        { Resources = CampaignSnapshot.Create(27) with { Wallets = [30, 0, 0, 0] } });
+        Assert.Equal(2, CampaignShop.RerollPrice(run));
+        var original = Snapshot(run);
+        var first = CampaignShop.Reroll(run, run.Resources.Revision);
+        Assert.Equal(28, first.Money);
+        Assert.Equal(28, first.Resources.Wallets[0]);
+        Assert.Equal(1, first.Shop!.RerollCount);
+        Assert.Equal(3, CampaignShop.RerollPrice(first));
+        Assert.Equal(run.Resources.Revision + 1, first.Resources.Revision);
+        Assert.True(first.Resources.RandomState != run.Resources.RandomState);
+        Assert.Equal(original, Snapshot(run));
+        Assert.Equal(Snapshot(first), Snapshot(CampaignShop.Reroll(run, run.Resources.Revision)));
+        var gumball = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Gumball);
+        Assert.Equal(gumball, first.Shop.Offers.Single(o => o.Category == FeatureCategory.Gumball));
+        var oldOffer = run.Shop.Offers.First(o => o.Category != FeatureCategory.Gumball);
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(first, oldOffer.Id));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Reroll(first, run.Resources.Revision));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(first, gumball.Id, expectedRevision: run.Resources.Revision));
+        var freshTarot = first.Shop.Offers.Single(o => o.Category == FeatureCategory.Tarot);
+        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(first, freshTarot.Id, [], run.Resources.Revision));
+        var second = CampaignShop.Reroll(first);
+        Assert.Equal(25, second.Money);
+        Assert.Equal(2, second.Shop!.RerollCount);
+        Assert.Equal(4, CampaignShop.RerollPrice(second));
+        var nextVisit = CampaignShop.Open(second with { Match = 3 });
+        Assert.Equal(0, nextVisit.Shop!.RerollCount);
+        Assert.Equal(2, CampaignShop.RerollPrice(nextVisit));
+        Assert.Equal(2, CampaignShop.Open(second).Shop!.RerollCount);
+
+        var poor = first with { Money = 2, Resources = first.Resources with { Wallets = [2, 0, 0, 0] } };
+        var poorSnapshot = Snapshot(poor);
+        Assert.Throws<GameRuleException>(() => CampaignShop.Reroll(poor));
+        Assert.Equal(poorSnapshot, Snapshot(poor));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Reroll(run with { Phase = CampaignPhase.Intro }));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Reroll(run with { Shop = null }));
+
+        var bought = CampaignShop.Buy(CampaignShop.Buy(run, gumball.Id), oldOffer.Id);
+        var rerolled = CampaignShop.Reroll(bought);
+        Assert.Equal(bought.Shop!.Offers.Single(o => o.Id == gumball.Id), rerolled.Shop!.Offers.Single(o => o.Id == gumball.Id));
+        Assert.True(rerolled.Shop.Offers.All(o => o.Id != oldOffer.Id));
+        Assert.Equal(4, rerolled.Shop.Offers.Count(o => o.Category != FeatureCategory.Gumball && !o.Sold));
+        foreach (var jokerOffer in rerolled.Shop.Offers.Where(o => o.Category == FeatureCategory.Joker))
+            Assert.True(!rerolled.Resources.Inventory.Has(Enum.Parse<JokerId>(jokerOffer.FeatureId)));
+        var soldOut = run;
+        foreach (var regular in run.Shop.Offers.Where(o => o.Category != FeatureCategory.Gumball)) soldOut = CampaignShop.Buy(soldOut, regular.Id);
+        var replenished = CampaignShop.Reroll(soldOut);
+        Assert.Equal(4, replenished.Shop!.Offers.Count(o => o.Category != FeatureCategory.Gumball && !o.Sold));
+        Assert.True(replenished.Shop.Offers.Where(o => o.Category != FeatureCategory.Gumball).All(o => run.Shop.Offers.All(old => old.Id != o.Id)));
+        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(rerolled, gumball.Id));
+        Assert.Equal(1, rerolled.Shop.Offers.Count(o => o.Category == FeatureCategory.Gumball));
+        Assert.Equal(1, rerolled.Resources.Inventory.Unlocks.Length);
+        Assert.Throws<GameRuleException>(() => CampaignShop.SellJoker(rerolled, rerolled.Resources.Inventory.Jokers[0].Id, bought.Resources.Revision));
+
+        var path = Path.Combine(Path.GetTempPath(), $"reroll-{Guid.NewGuid():N}.json");
+        try
+        {
+            Assert.True(CampaignStore.Save(second, path));
+            var loaded = CampaignStore.Load(path)!;
+            Assert.Equal(Snapshot(second), Snapshot(loaded));
+            Assert.Equal(Snapshot(CampaignShop.Reroll(second)), Snapshot(CampaignShop.Reroll(loaded)));
+            var json = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path))!;
+            json["Run"]!["Shop"]!["RerollCount"] = -1;
+            File.WriteAllText(path, json.ToJsonString());
+            Assert.True(CampaignStore.Load(path) is null);
+            json["Run"]!["Shop"]!["RerollCount"] = int.MaxValue;
+            File.WriteAllText(path, json.ToJsonString());
+            Assert.True(CampaignStore.Load(path) is null);
+            json["Run"]!["Shop"]!.AsObject().Remove("RerollCount");
+            File.WriteAllText(path, json.ToJsonString());
+            Assert.Equal(0, CampaignStore.Load(path)!.Shop!.RerollCount);
+        }
+        finally { File.Delete(path); }
+    }
+
     public static void Purchases()
     {
+        Rerolls();
         var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop);
         run = CampaignShop.Open(run);
         Assert.Equal(5, run.Shop!.Offers.Length);
@@ -45,10 +124,10 @@ internal static class CampaignShopTests
         // Tarots and Sigils share four slots: two of each leave no room for either kind.
         var tarotOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Tarot).Id;
         var sigilOffer = run.Shop.Offers.Single(o => o.Category == FeatureCategory.Sigil).Id;
-        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector], Sigils = [SigilId.Coin] } } };
+        var three = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector], Sigils = [SigilId.Bear] } } };
         Assert.Equal(4, CampaignShop.Buy(three, tarotOffer).Resources.Inventory.ItemCount);
         Assert.Equal(4, CampaignShop.Buy(three, sigilOffer).Resources.Inventory.ItemCount);
-        var full = three with { Resources = three.Resources with { Inventory = three.Resources.Inventory with { Sigils = [SigilId.Coin, SigilId.Bear] } } };
+        var full = three with { Resources = three.Resources with { Inventory = three.Resources.Inventory with { Sigils = [SigilId.Bear, SigilId.Bear] } } };
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, tarotOffer));
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(full, sigilOffer));
         // A full inventory still lets a Sigil be bought and used on the spot.
@@ -88,8 +167,8 @@ internal static class CampaignShopTests
         Assert.True(redrawn[1] != GumballId.Chaos);
 
         var full = Owning(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop), all);
-        Assert.Equal(0, CampaignShop.Open(full).Shop!.Offers.Count(o => o.Category == FeatureCategory.Gumball));
-        Assert.Throws<GameRuleException>(() => CampaignShop.Buy(Owning(run, all), offer.Id));
+        Assert.Equal(1, CampaignShop.Open(full).Shop!.Offers.Count(o => o.Category == FeatureCategory.Gumball));
+        Assert.Equal(1, CampaignShop.Buy(Owning(run, all), offer.Id).Resources.Inventory.GumballExtraCopies.Values.Sum());
 
         var poor = run with { Money = 2 };
         Assert.Throws<GameRuleException>(() => CampaignShop.Buy(poor, offer.Id));
@@ -97,7 +176,7 @@ internal static class CampaignShopTests
     public static void StoredCardsOutsideMatch()
     {
         var run = new CampaignRun(Money: 10, Phase: CampaignPhase.Shop) { Shop = new(0, []) };
-        run = run with { Resources = run.Resources with { Wallets = [10, 0, 0, 0], Inventory = run.Resources.Inventory with { Tarot = [TarotId.Prospector, TarotId.TaxCollector], Sigils = [SigilId.Fish, SigilId.Coin] } } };
+        run = run with { Resources = run.Resources with { Wallets = [10, 0, 0, 0], Inventory = run.Resources.Inventory with { Tarot = [TarotId.Prospector, TarotId.TaxCollector], Sigils = [SigilId.Fish, SigilId.Bear] } } };
         var target = run.Resources.Deck[5].Id;
         // A stored Tarot is played on the shared deck from the shop, at no charge.
         var used = CampaignShop.UseTarot(run, 0, [target], run.Resources.Revision);
@@ -118,7 +197,7 @@ internal static class CampaignShopTests
         Assert.Equal(0, taxed.Resources.Inventory.Tarot.Length);
         var marked = CampaignShop.UseSigil(taxed, 0, target);
         Assert.Equal(SigilId.Fish, marked.Resources.Deck[5].Sigil!.Value);
-        Assert.Equal(SigilId.Coin, marked.Resources.Inventory.Sigils.Single());
+        Assert.Equal(SigilId.Bear, marked.Resources.Inventory.Sigils.Single());
         var emptied = CampaignShop.DiscardSigil(marked, 0, marked.Resources.Revision);
         Assert.Equal(0, emptied.Resources.Inventory.ItemCount);
         Assert.Throws<GameRuleException>(() => CampaignShop.DiscardSigil(emptied, 0));
@@ -136,7 +215,7 @@ internal static class CampaignShopTests
         var start = Stocked(TarotId.Prospector);
         var target = start.Resources.Deck[5].Id;
         // A full Tarot inventory does not block using the card on the spot.
-        var full = start with { Resources = start.Resources with { Inventory = start.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector] } } };
+        var full = start with { Resources = start.Resources with { Inventory = start.Resources.Inventory with { Tarot = [TarotId.Gambler, TarotId.Prospector], Sigils = [SigilId.Bear, SigilId.Fish] } } };
         var used = CampaignShop.BuyAndUse(full, "t", [target]);
         Assert.Equal(27, used.Money);
         Assert.Equal(27, used.Resources.Wallets[0]);
@@ -149,8 +228,8 @@ internal static class CampaignShopTests
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(start, "t", [new CardId(99)]));
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(Stocked(TarotId.Prospector, 2), "t", [target]));
 
-        var hearts = CampaignShop.BuyAndUse(Stocked(TarotId.LovePotion), "t", [start.Resources.Deck.First(c => c.Face.Suit == Suit.Clubs).Id]);
-        Assert.Equal(7, hearts.Resources.Deck.Count(c => c.Face.Suit == Suit.Hearts));
+        var festival = CampaignShop.BuyAndUse(Stocked(TarotId.Chameleon), "t", [target]);
+        Assert.True(festival.Resources.Deck[5].Enhancement == EnhancementId.Wild);
 
         var deal = Stocked(TarotId.DevilishDeal);
         var ids = deal.Resources.Deck.Take(3).Select(c => c.Id).ToArray();
@@ -170,7 +249,7 @@ internal static class CampaignShopTests
         var astronomer = Stocked(TarotId.Astronomer);
         Assert.Equal(1, CampaignShop.BuyAndUse(astronomer, "t", []).Resources.Inventory.Unlocks.Length);
         var all = astronomer with { Resources = astronomer.Resources with { Inventory = astronomer.Resources.Inventory with { Unlocks = Enum.GetValues<GumballId>() } } };
-        Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(all, "t", []));
+        Assert.Equal(1, CampaignShop.BuyAndUse(all, "t", []).Resources.Inventory.GumballExtraCopies.Values.Sum());
 
         var joker = start with { Shop = new(0, [new ShopOffer("j", FeatureCategory.Joker, "Alpha", 4)]) };
         Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(joker, "j", []));
@@ -179,7 +258,7 @@ internal static class CampaignShopTests
     {
         var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
         { Shop = new(0, [new("s", FeatureCategory.Sigil, "Fish", 3)]) };
-        run.Resources.Deck[5] = run.Resources.Deck[5] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Coin };
+        run.Resources.Deck[5] = run.Resources.Deck[5] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Bear };
         var target = run.Resources.Deck[5].Id;
         var used = CampaignShop.BuyAndUse(run, "s", [target]);
         Assert.Equal(27, used.Money);
@@ -187,7 +266,7 @@ internal static class CampaignShopTests
         Assert.Equal(SigilId.Fish, used.Resources.Deck[5].Sigil!.Value);
         Assert.Equal(EnhancementId.Glass, used.Resources.Deck[5].Enhancement!.Value);
         Assert.Equal(1, used.Resources.Deck.Count(c => c.Sigil == SigilId.Fish));
-        Assert.Equal(SigilId.Coin, run.Resources.Deck[5].Sigil!.Value);
+        Assert.Equal(SigilId.Bear, run.Resources.Deck[5].Sigil!.Value);
         Assert.True(used.Shop!.Offers[0].Sold);
         Assert.Equal(run.Resources.Revision + 1, used.Resources.Revision);
         Assert.Equal(run.Resources.RandomState, used.Resources.RandomState);
@@ -207,7 +286,7 @@ internal static class CampaignShopTests
         Assert.True(bought.Resources.Deck.SequenceEqual(run.Resources.Deck));
         Assert.Equal(0, run.Resources.Inventory.Sigils.Length);
         var copy = bought.Resources.Copy();
-        copy.Inventory.Sigils[0] = SigilId.Coin;
+        copy.Inventory.Sigils[0] = SigilId.Bear;
         Assert.Equal(SigilId.Fish, bought.Resources.Inventory.Sigils[0]);
         var path = Path.Combine(Path.GetTempPath(), $"sigil-{Guid.NewGuid():N}.json");
         try
@@ -216,7 +295,7 @@ internal static class CampaignShopTests
             var loaded = CampaignStore.Load(path)!;
             Assert.Equal(SigilId.Fish, loaded.Resources.Inventory.Sigils.Single());
             var target = loaded.Resources.Deck[7].Id;
-            loaded.Resources.Deck[7] = loaded.Resources.Deck[7] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Coin };
+            loaded.Resources.Deck[7] = loaded.Resources.Deck[7] with { Enhancement = EnhancementId.Glass, Sigil = SigilId.Bear };
             var used = CampaignShop.UseSigil(loaded, 0, target, loaded.Resources.Revision);
             Assert.Equal(27, used.Money);
             Assert.Equal(SigilId.Fish, used.Resources.Deck[7].Sigil!.Value);

@@ -9,18 +9,48 @@ using BidEuchre.App;
 using BidEuchre.Core;
 using BidEuchre.Desktop;
 
+using var testDataDirectory = new DesktopTestDataDirectory();
+
 AppBuilder.Configure<Application>()
     .UseSkia()
     .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is null })
     .AfterSetup(builder => builder.Instance!.Styles.Add(new FluentTheme()))
     .SetupWithoutStarting();
 
+if (args.Contains("--resume-only")) { CampaignResumeUiTests.Run(); return; }
+
+if (args.Contains("--table-rendering-only")) { TableRenderingTests.Run(); return; }
+
+if (args.Contains("--score-history-only")) { ScoreHistoryUiTests.Run(); return; }
+
+if (args.Contains("--shop-only")) { CampaignShopUiTests.Run(); return; }
+
+if (args.Contains("--contract-ui-only")) { ContractAnnouncementUiTests.Run(); return; }
+if (args.Contains("--sort-retry-only")) { ContractAnnouncementUiTests.SortRetry(); return; }
+if (args.Contains("--contract-only")) { ContractPresentationTests.Run(); ContractAnnouncementUiTests.Run(); return; }
+
+if (args.Contains("--rematch-hotseat-only")) { RematchHotseatTests.Run(); return; }
+
+if (args.Contains("--engine-setup-only")) { EngineSetupUiTests.Run(); return; }
+
+if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
+
+CampaignShopUiTests.Run();
+ScoreHistoryUiTests.Run();
+EngineSetupUiTests.Run();
+RematchHotseatTests.Run();
+ContractPresentationTests.Run();
+ContractAnnouncementUiTests.Run();
+SessionPauseTests.Run();
+LiveSettingsTests.Run();
 EnhancementBackgroundTests.Run();
+HandReadabilityTests.Run();
 CuratedArtTests.Run();
 CollectionTests.Run();
 TableRenderingTests.Run();
 DesktopBugTests.Run();
 CampaignRecoveryUiTests.Run();
+CampaignResumeUiTests.Run();
 
 var motion = new PixelMotion();
 motion.SetEnabled(false);
@@ -221,7 +251,7 @@ foreach (var animated in new[] { false, true })
     finally { shop.Close(); File.Delete(path); }
 }
 
-foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±28 POINTS"), (16, "ANTE 6", "±44 POINTS") })
+foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±16 POINTS"), (16, "ANTE 6", "±44 POINTS") })
 {
     var path = Path.Combine(Path.GetTempPath(), $"ante-ui-{Guid.NewGuid():N}.json");
     var ante = new Window { Width = 1280, Height = 1100 };
@@ -245,7 +275,7 @@ foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±28 POINTS"), 
         var texts = ante.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToArray();
         string Status(int slot) => ante.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == $"AnteStatus{slot}").Text!;
         var current = (match - 1) % 3 + 1;
-        foreach (var expected in new[] { title, threshold, "8 HANDS", "REWARD $5+", "REWARD $6+", "REWARD $8+", "$14", "YOUR JOKERS 0/5" }
+        foreach (var expected in new[] { title, threshold, "8 HANDS · TIES CONTINUE", "REWARD $5+", "REWARD $6+", "REWARD $8+", "$14", "YOUR JOKERS 0/5" }
             .Concat(match > 9 ? ["LOSE ♥2", "LOSE ♥3"] : ["LOSE ♥1", "LOSE ♥2"]))
             if (!texts.Contains(expected)) throw new Exception($"The Ante screen must show \"{expected}\".");
         if (texts.Count(t => t == threshold) != 3) throw new Exception("Every match panel must show the threshold.");

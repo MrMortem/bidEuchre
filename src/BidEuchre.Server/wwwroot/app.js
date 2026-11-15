@@ -9,6 +9,7 @@ const model = {
   bidAnnouncement: null,
   engines: [],
   sessions: [],
+  closingSessions: new Set(),
   session: null,
   sessionId: null,
   viewerSeat: null,
@@ -40,6 +41,7 @@ function bindNavigation() {
   $('#close-create').addEventListener('click', () => $('#create-panel').classList.add('hidden'));
   $('#back-to-tables').addEventListener('click', () => showView('lobby'));
   $('#start-game').addEventListener('click', startCurrentSession);
+  $('#close-table').addEventListener('click', event => closeSession(event.currentTarget.dataset.id));
   $('#retry-rules').addEventListener('click', loadRules);
   $('#retry-connection').addEventListener('click', () => refreshGame({notify:false}));
   $('#viewer-seat').addEventListener('change', event =>
@@ -51,6 +53,7 @@ function bindForms() {
 }
 
 function showView(name) {
+  if (name === 'campaign') CampaignClient.open(); else CampaignClient.leave();
   if (name !== 'game') { cancelTableMotion(); model.viewGeneration += 1; }
   document.body.classList.toggle('at-table', name === 'game');
   updateSuitBackdrop(name === 'game' ? model.session?.game?.contract : null);
@@ -58,7 +61,7 @@ function showView(name) {
   $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === name));
   if (name !== 'game') stopPolling();
   if (name === 'rules' && !model.rulesLoaded) loadRules();
-  if (name === 'lobby') loadSessions();
+  if (name === 'lobby') return loadSessions();
 }
 
 function buildSeatEditor() {
@@ -145,12 +148,17 @@ async function loadSessions() {
   try {
     model.sessions = await api('/api/sessions');
     renderSessions();
-  } catch (error) { toast(error.message, true); }
+    return true;
+  } catch (error) {
+    toast(error.message, true);
+    return false;
+  }
 }
 
 function renderSessions() {
   const focused = document.activeElement;
-  const focusedId = focused?.classList?.contains('session-open') ? focused.dataset.id : null;
+  const focusedAction = ['session-open', 'session-close'].find(name => focused?.classList?.contains(name));
+  const focusedId = focusedAction ? focused.dataset.id : null;
   const list = $('#session-list');
   if (!model.sessions.length) {
     list.innerHTML = '<div class="empty-state"><div><strong>No tables yet</strong>Create a session and choose who takes each seat.</div></div>';
@@ -161,11 +169,56 @@ function renderSessions() {
       <div class="session-card-top"><h3>${escapeHtml(session.name)}</h3><span class="phase-chip">${splitWords(session.phase)}</span></div>
       <div class="mini-score"><strong>${session.scores[0]}</strong><span>—</span><strong>${session.scores[1]}</strong></div>
       <div class="seat-dots">${session.seats.map(seat => `<span>${seat.kind === 'Bot' ? '⚙' : '●'} ${escapeHtml(seat.name)}</span>`).join('')}</div>
-      <button type="button" class="button quiet session-open" data-id="${escapeHtml(session.id)}" aria-label="Open table: ${escapeHtml(session.name)}">Open table</button>
+      <div class="session-actions"><button type="button" class="button quiet session-open" data-id="${escapeHtml(session.id)}" aria-label="Open table: ${escapeHtml(session.name)}">Open table</button>
+      <button type="button" class="button danger session-close" data-id="${escapeHtml(session.id)}" aria-label="Close table: ${escapeHtml(session.name)}">Close table</button></div>
     </article>`).join('');
   const buttons = $$('.session-open');
   buttons.forEach(button => button.addEventListener('click', () => openSession(button.dataset.id)));
-  if (focusedId) buttons.find(button => button.dataset.id === focusedId)?.focus();
+  $$('.session-close').forEach(button => button.addEventListener('click', () => closeSession(button.dataset.id)));
+  syncCloseButtons();
+  if (focusedId) $$(`.${focusedAction}`).find(button => button.dataset.id === focusedId)?.focus();
+}
+
+function syncCloseButtons() {
+  $$('.session-close, #close-table').forEach(button => {
+    const pending = model.closingSessions.has(button.dataset.id);
+    button.disabled = pending || !button.dataset.id;
+    button.setAttribute('aria-busy', String(pending));
+  });
+}
+
+async function closeSession(id) {
+  if (!id || model.closingSessions.has(id)) return;
+  const atTable = $('#game-view').classList.contains('active');
+  const session = atTable && model.session?.id === id ? model.session : model.sessions.find(session => session.id === id);
+  if (!session) return;
+  const phase = session.game?.phase ?? session.phase;
+  if (session.started && phase !== 'GameComplete' &&
+      !window.confirm(`Close table "${session.name}"? State: ${splitWords(phase)}. This ends the active game for everyone.`)) return;
+  model.closingSessions.add(id);
+  syncCloseButtons();
+  try {
+    await api(`/api/sessions/${id}`, { method: 'DELETE' });
+    model.sessions = model.sessions.filter(session => session.id !== id);
+    renderSessions();
+    let refreshed;
+    if (model.sessionId === id) {
+      model.sessionId = null;
+      model.session = null;
+      model.viewerSeat = null;
+      model.renderMode = null;
+      model.viewLoading = false;
+      refreshed = await showView('lobby');
+    } else refreshed = await loadSessions();
+    toast(refreshed ? `Table "${session.name}" closed.`
+      : `Table "${session.name}" closed, but the table list could not refresh. Return to Tables to retry.`, !refreshed);
+    if ($('#lobby-view').classList.contains('active')) $('#new-table-button').focus();
+  } catch (error) {
+    toast(`Could not close table "${session.name}". ${error.message}`, true);
+  } finally {
+    model.closingSessions.delete(id);
+    syncCloseButtons();
+  }
 }
 
 async function createSession(event) {
@@ -263,6 +316,9 @@ function renderGame() {
   const session = model.session;
   if (!session) return;
   $('#game-name').textContent = session.name;
+  $('#close-table').dataset.id = session.id;
+  $('#close-table').setAttribute('aria-label', `Close table: ${session.name}`);
+  syncCloseButtons();
   const humanSeats = session.seats.filter(seat => seat.kind === 'Human');
   const viewerSelect = $('#viewer-seat');
   const viewerKey = JSON.stringify(humanSeats.map(seat => [seat.seat, seat.name]));
@@ -595,6 +651,10 @@ function syncInputState() {
 function setActionBusy(busy) { model.actionPending = busy; syncInputState(); }
 
 function beginViewChange() {
+  const close = $('#close-table');
+  delete close.dataset.id;
+  close.removeAttribute('aria-label');
+  close.disabled = true;
   cancelTableMotion();
   model.viewGeneration += 1;
   model.viewLoading = true;
@@ -683,9 +743,15 @@ function cardHtml(card, legal) {
   const rank = cardRank(card);
   const code = cardCode(card);
   const label = `${rank} of ${card.suit}`;
+  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}>${cardFaceHtml(card)}</button>`;
+}
+
+// Shared face layer; both freeplay and physical campaign cards use this atlas.
+function cardFaceHtml(card) {
+  const code = cardCode(card);
   const column = '9TJQKA'.indexOf(code[0]);
   const row = 'CDHS'.indexOf(code[1]);
-  return `<button type="button" class="playing-card ${red ? 'red' : ''} ${legal ? 'legal' : ''}" aria-label="${escapeHtml(label)}" data-card="${escapeHtml(code)}" ${legal ? '' : 'disabled'}><span class="card-face-sprite" style="--card-column:${column};--card-row:${row}" aria-hidden="true"></span></button>`;
+  return `<span class="card-face-sprite" style="--card-column:${column};--card-row:${row}" aria-hidden="true"></span>`;
 }
 
 function portraitHtml(seat) {

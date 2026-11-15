@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0720">
   <title>Bid Euchre</title>
-  <link rel="stylesheet" href="/styles.css?v=4">
+  <link rel="stylesheet" href="/styles.css?v=6">
   <link rel="stylesheet" href="/pixel.css?v=9">
+  <link rel="stylesheet" href="/campaign.css?v=1">
 </head>
 <body>
   <div class="table-scenery" aria-hidden="true"><span class="heart"></span><span class="club"></span><span class="spade"></span><span class="diamond"></span></div>
@@ -17,9 +18,10 @@
         <span><strong>Bid Euchre</strong><small>Table & engine room</small></span>
       </button>
       <nav>
-        <button class="nav-item active" data-view="lobby"><span>⌂</span> Tables</button>
-        <button class="nav-item" data-view="engines"><span>⌁</span> Engines</button>
-        <button class="nav-item" data-view="rules"><span>≡</span> Rules</button>
+        <button class="nav-item active" data-view="lobby" aria-label="Tables" title="Tables"><span aria-hidden="true">⌂</span><span class="nav-label">Tables</span></button>
+        <button class="nav-item" data-view="campaign" aria-label="Play campaign" title="Play campaign"><span aria-hidden="true">♠</span><span class="nav-label">Play campaign</span></button>
+        <button class="nav-item" data-view="engines" aria-label="Engines" title="Engines"><span aria-hidden="true">⌁</span><span class="nav-label">Engines</span></button>
+        <button class="nav-item" data-view="rules" aria-label="Rules" title="Rules"><span aria-hidden="true">≡</span><span class="nav-label">Rules</span></button>
       </nav>
       <div class="sidebar-foot">
         <span class="status-dot"></span>
@@ -65,7 +67,10 @@
           <div class="game-title"><p class="eyebrow">Live session</p><h2 id="game-name">Table</h2></div>
           <label class="viewer-select"><span>View hand</span><select id="viewer-seat"></select></label>
           <button id="motion-toggle" class="button quiet" aria-pressed="true">Motion: On</button>
-          <button id="start-game" class="button primary">Start game</button>
+          <div class="game-session-actions">
+            <button id="start-game" class="button primary">Start game</button>
+            <button id="close-table" type="button" class="button danger" disabled>Close table</button>
+          </div>
         </header>
 
         <div id="connection-status" class="connection-status hidden" role="status" aria-live="polite">
@@ -109,6 +114,14 @@
         </div>
       </section>
 
+      <section id="campaign-view" class="view" aria-label="Campaign" aria-busy="false">
+        <div class="campaign-toolbar"><button class="button quiet" data-view="lobby">← Tables</button><button id="campaign-refresh" class="button quiet">Refresh campaign</button></div>
+        <div id="campaign-status" role="status" aria-live="polite" aria-atomic="true"></div>
+        <div id="campaign-save-warning" role="alert" hidden></div>
+        <div id="campaign-content"></div>
+        <footer id="campaign-footer"></footer>
+      </section>
+
       <section id="engines-view" class="view">
         <header class="page-header">
           <div><p class="eyebrow">Bot workshop</p><h1>Engine lab.</h1><p>Load any process that implements the BEUCI text protocol.</p></div>
@@ -133,8 +146,12 @@
     </main>
   </div>
 
-  <div id="toast" class="toast" role="status"></div>
+  <div id="toast" class="toast" role="status" aria-atomic="true"></div>
   <script src="/table-motion.js?v=2" defer></script>
-  <script src="/app.js?v=11" defer></script>
+  <script src="/app.js?v=14" defer></script>
+  <script src="/campaign-cards.js?v=1" defer></script>
+  <script src="/campaign-screens.js?v=1" defer></script>
+  <script src="/campaign-table.js?v=1" defer></script>
+  <script src="/campaign.js?v=1" defer></script>
 </body>
 </html>

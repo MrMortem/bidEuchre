@@ -29,6 +29,7 @@ public sealed partial class GameEngine
         CurrentSeat = null;
         if (IsCampaign) _pendingActor = null;
         GameWinner = winner;
+        CompletionReason = "The match was ended by the developer console.";
         Phase = GamePhase.GameComplete;
         _events.Add($"[dev] Team {winner + 1} won the game.");
         if (IsCampaign) { CampaignMatchEnd(); CommitCampaign(); }
