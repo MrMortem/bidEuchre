@@ -130,6 +130,36 @@ public sealed partial record CampaignMatchSnapshot
             "Choose an opponent for Duelist" => Phase == GamePhase.ChoosingContract && Variant == GumballId.Duelist && PendingActor == Bidder && DuelOpponent is null && DuelistUsedThisMatch,
             _ => false
         })) return false;
+        // A winning variant also implies its pending/resolved fields; checking only
+        // non-null dependent fields would allow omission to skip the required choice.
+        if (!terminal && Variant == GumballId.Duelist)
+        {
+            if (Phase == GamePhase.Bidding)
+            {
+                if (DuelistUsedThisMatch || DuelOpponent is not null) return false;
+            }
+            else if (!DuelistUsedThisMatch || (DuelOpponent is null
+                ? Phase != GamePhase.ChoosingContract || PendingChoice != "Choose an opponent for Duelist" || PendingActor != Bidder
+                : PendingChoice is not null || PendingActor is not null)) return false;
+        }
+        if (!terminal && Variant == GumballId.Telepath)
+        {
+            if (Phase == GamePhase.Bidding)
+            {
+                if (TelepathDone) return false;
+            }
+            else if (!TelepathDone)
+            {
+                if (Phase != GamePhase.ChoosingContract || PendingChoice != "Reveal a partner card" || PendingActor != (Bidder!.Value + 2) % 4) return false;
+            }
+            else
+            {
+                var partner = (Bidder!.Value + 2) % 4;
+                if (PendingChoice is not null || PendingActor is not null || !Reveals.Any(reveal => reveal.Viewer == Bidder
+                    && (Hands[partner].Contains(reveal.Id) || CurrentTrick.Any(play => play.Seat == partner && play.Id == reveal.Id)
+                        || CompletedTricks.Any(trick => trick.Plays.Any(play => play.Seat == partner && play.Id == reveal.Id))))) return false;
+            }
+        }
         if (terminal ? CurrentSeat is not null || PendingActor is not null : CurrentSeat is null || GameWinner is not null) return false;
         if ((Phase == GamePhase.GameComplete) != (GameWinner is not null)) return false;
         if (Phase == GamePhase.Bidding && (Contract is not null || BiddingTurns >= 4 || CompletedTricks.Length != 0 || CurrentTrick.Length != 0)) return false;

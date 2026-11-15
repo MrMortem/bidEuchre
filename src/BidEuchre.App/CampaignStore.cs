@@ -63,7 +63,7 @@ public static class CampaignStore
     private static bool CompleteLiveJson(JsonElement live)
     {
         if (!live.TryGetProperty("Options", out var options) || !Members(options, "TargetScore", "StartingScoreTeam0", "StartingScoreTeam1", "NegativeThreshold", "HandLimit", "OpponentSuccessfulBidBonus")) return false;
-        if (!live.TryGetProperty("Resources", out var resources) || !CompleteResourcesJson(resources)) return false;
+        if (!live.TryGetProperty("Resources", out var resources) || !CompleteResourcesJson(resources) || !CompleteLiveCardValuesJson(live)) return false;
         if (!live.TryGetProperty("HandHistory", out var history) || history.ValueKind != JsonValueKind.Array) return false;
         foreach (var hand in history.EnumerateArray())
         {
@@ -80,11 +80,35 @@ public static class CampaignStore
         var inventory = resources.GetProperty("Inventory");
         if (!Members(inventory, "Jokers", "Tarot", "Unlocks", "Sigils", "GumballExtraCopies")) return false;
         var deck = resources.GetProperty("Deck"); if (deck.ValueKind != JsonValueKind.Array) return false;
-        foreach (var card in deck.EnumerateArray()) if (!Members(card, "Id", "Face", "Enhancement", "Sigil")) return false;
+        foreach (var card in deck.EnumerateArray())
+            if (!Members(card, "Enhancement", "Sigil") || !CompleteCardJson(card)) return false;
         var jokers = inventory.GetProperty("Jokers"); if (jokers.ValueKind != JsonValueKind.Array) return false;
         foreach (var joker in jokers.EnumerateArray()) if (!Members(joker, "Id", "Value")) return false;
         return true;
     }
+
+    // Card and CardId are record structs: constructor-required JSON settings do not
+    // prevent their missing members from becoming zero. Keep this schema-1 inventory
+    // explicit and local to live v3 files so resource-only legacy defaults stay intact.
+    private static bool CompleteIdJson(JsonElement id) => Members(id, "Value");
+    private static bool CompleteFaceJson(JsonElement face) => Members(face, "Suit", "Rank");
+    private static bool CompleteCardJson(JsonElement card) => Members(card, "Id", "Face")
+        && CompleteIdJson(card.GetProperty("Id")) && CompleteFaceJson(card.GetProperty("Face"));
+    private static bool CompleteIdMemberJson(JsonElement owner, string member) => Members(owner, member) && CompleteIdJson(owner.GetProperty(member));
+    private static bool CompleteNullableIdJson(JsonElement owner, string member) => Members(owner, member)
+        && (owner.GetProperty(member).ValueKind == JsonValueKind.Null || CompleteIdJson(owner.GetProperty(member)));
+    private static bool EveryJson(JsonElement array, Func<JsonElement, bool> valid) => array.ValueKind == JsonValueKind.Array && array.EnumerateArray().All(valid);
+    private static bool EveryMemberJson(JsonElement owner, string member, Func<JsonElement, bool> valid) => Members(owner, member) && EveryJson(owner.GetProperty(member), valid);
+    private static bool CompleteLiveCardValuesJson(JsonElement live) =>
+        EveryMemberJson(live, "Hands", hand => EveryJson(hand, CompleteIdJson))
+        && EveryMemberJson(live, "CurrentTrick", play => CompleteIdMemberJson(play, "Id"))
+        && EveryMemberJson(live, "CompletedTricks", trick => EveryMemberJson(trick, "Plays", play => CompleteIdMemberJson(play, "Id")))
+        && EveryMemberJson(live, "Overlays", CompleteCardJson)
+        && EveryMemberJson(live, "WildSuits", wild => CompleteIdMemberJson(wild, "Id"))
+        && EveryMemberJson(live, "Reveals", reveal => CompleteIdMemberJson(reveal, "Id"))
+        && EveryMemberJson(live, "TrickHistory", trick => EveryMemberJson(trick, "Plays", play => Members(play, "Card") && CompleteCardJson(play.GetProperty("Card"))))
+        && CompleteNullableIdJson(live, "PendingExchangeCard")
+        && CompleteNullableIdJson(live, "LastMatchCard");
 
     private static CampaignLoadResult Corrupt() => new(CampaignLoadStatus.Corrupt, Error: "The campaign save is unreadable or invalid. It has not been changed.");
 
