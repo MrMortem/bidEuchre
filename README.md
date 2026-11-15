@@ -261,7 +261,7 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 **Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
-the other. The campaign includes 8 enhancements, 31 Jokers, 9 Gumball bidding
+the other. The campaign includes 8 enhancements, 32 Jokers, 9 Gumball bidding
 unlocks, 8 Sigils, and 9 Tarot consumables. The active Sigils are Bear, Eagle,
 Fish, Spider, Frog, Duck, Vulture, and Chameleon. The nine Tarot Cards are
 Festival (Wild), Stone mason (Stone), Prospector (Golden), Devilish Deal,
