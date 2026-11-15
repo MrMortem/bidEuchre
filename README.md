@@ -277,10 +277,12 @@ Losing or forfeiting a match costs one life (two for the boss) in Antes 1 to 3,
 and two lives (three for the boss) from Ante 4 onward. The run moves on to the
 next match while any lives remain.
 
-Both teams start each match at zero. Matches end after a fully scored hand
-reaches either ±24 points in Ante 1, increasing by four per Ante, or after eight
-hands. Ties continue. Contract success counts tricks only; effect bonuses remain
-even after a failed bid.
+Both teams start each match at zero. Antes 1–5 use targets of ±12, ±16, ±24,
+±32, and ±42 points. Matches end after a fully scored hand reaches a target
+or after eight full rounds; a tie continues for additional full rounds until
+broken. Successful opponent contracts add +0/+1/+2/+3/+4 fixed points in
+Antes 1–5, after hand multipliers. Contract success counts tricks only; effect
+bonuses remain even after a failed bid.
 
 Between matches the shop offers two $4 Jokers, a $3 Tarot, a $3 Sigil, and a
 gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
@@ -292,8 +294,11 @@ Planet card. Each extra copy awards +1 fixed point after hand multipliers when
 you successfully make its matching bid; matching types such as Alone and High/Low
 stack once each. Failed, unrelated and partner-made bids earn no duplicate bonus.
 Panic Button has no successful contract, so its extra copies award no success
-points. Unique unlocks and duplicate counts persist for the run. Partners Best,
-Alone, and the High and Low contracts start locked for you. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
+points. Unique unlocks and duplicate counts persist for the run. A shop reroll
+costs $2, then $1 more per reroll that visit, and refills all four regular offers,
+including sold slots. It preserves the gumball offer and whether its one paid
+pull has been used. Partners Best,
+Alone, and the High and Low contracts start locked for every seat. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
 shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
 it is yours to act: in the shop and on the screen before a match it is aimed at
 the shared deck, and during a match it is played on cards in your hand on any of
