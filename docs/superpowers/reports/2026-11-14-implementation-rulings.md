@@ -16,3 +16,14 @@ These rulings were made while implementing the settled issues. They supplement t
 | Start browser implementation while the score-explanation review waits for a free reviewer slot. | Implementation can proceed independently; unreviewed work is not published as complete. | A late score-model finding could require browser rework. |
 
 No finding has been silently waived by these scheduling rulings. Each task still requires an independent review, and the full branch requires integrated validation and a final review.
+
+## Final review boundaries
+
+The controller checked the final reviewer's declined-to-judge list against the issue snapshot and scope. These additional rulings preserve those boundaries explicitly.
+
+- Keep #70 excluded until a concrete partner-passivity policy is supplied. The issue explicitly requires a design choice; partner behavior remains unchanged if a policy was expected now.
+- Keep #94 aggression and statistical balance tuning deferred. The user explicitly deferred aggression; the new balance has behavioral tests but no target win-rate claim.
+- Keep #23, #26, #56-60 and #65-66 excluded pending their listed product decisions. No missing design is invented; those features and payout changes remain unimplemented.
+- Do not add optional shop locks/discounts/rarity or bot-generated-Tarot rules under #27. Locks/discounts/rarity are explicitly optional, and bot Tarot behavior needs a separate rule choice; those observations remain outside the delivered reroll/availability/sell-value behavior.
+- Resolve #24 with the built-in heuristic alternative; do not invent difficulty tiers or claim measured superiority. The issue offers alternative improvement paths; the legal/partner-aware heuristic is delivered, but difficulty tiers and benchmarked playing strength remain future work.
+- Keep arbitrary external-engine bundling and account/cross-device campaign sync outside this branch. The plan requires bounded discovery and per-browser saves; users still need their own external engines and a browser-specific save context.
