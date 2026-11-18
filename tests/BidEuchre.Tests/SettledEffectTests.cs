@@ -1,5 +1,6 @@
 using BidEuchre.Core;
 using BidEuchre.App;
+using System.Text.Json.Nodes;
 
 internal static class SettledEffectTests
 {
@@ -107,6 +108,88 @@ internal static class SettledEffectTests
             previous = difference; g.StartNextHand(); plain.StartNextHand();
         }
     }
+
+    public static void DejaVuAwardsOnePerWonTrickOnConsecutiveMatchingRounds()
+    {
+        var game = Fixture(Resources(17, JokerId.DejaVu));
+        var sawFailedBidWithTricks = false;
+        foreach (var (trump, repeats) in new[]
+        {
+            (Suit.Clubs, false), (Suit.Clubs, true), (Suit.Clubs, true),
+            (Suit.Hearts, false), (Suit.Hearts, true), (Suit.Clubs, false)
+        })
+        {
+            Auction(game, trump: trump);
+            Finish(game);
+            var result = game.HandHistory[^1];
+            Assert.Equal(repeats ? game.TricksByTeam[0] : 0, result.ScoreBreakdowns[0].JokerPoints);
+            Assert.Equal(0, result.ScoreBreakdowns[1].JokerPoints);
+            sawFailedBidWithTricks |= repeats && !result.MadeContract && game.TricksByTeam[0] > 0;
+            game.StartNextHand();
+        }
+        Assert.True(sawFailedBidWithTricks, "A failed bid must still earn the bonus on team tricks won.");
+    }
+
+    public static void DejaVuResumesLegacyRoundsWithStoredStreaks()
+    {
+        foreach (var repeats in new[] { false, true })
+        {
+            var resources = Resources(17) with
+            {
+                Inventory = new([new(JokerId.DejaVu, 4)], [], []),
+                PreviousContract = new(ContractMode.Trump, repeats ? Suit.Clubs : Suit.Hearts)
+            };
+            var game = Fixture(resources);
+            Auction(game);
+            while (game.CompletedTricks.Count == 0) Play(game);
+            var checkpoint = game.ExportCampaignMatchSnapshot();
+            var run = new CampaignRun(Phase: CampaignPhase.InMatch).WithCheckpoint(new(checkpoint));
+            var path = Path.Combine(Path.GetTempPath(), $"deja-vu-{Guid.NewGuid()}.json");
+            try
+            {
+                Assert.True(CampaignStore.Save(run, path));
+                var current = CampaignStore.Load(path)!.LiveMatch!;
+                var json = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+                var live = json["Run"]!["LiveMatch"]!.AsObject();
+                live.Remove("RepeatsPreviousTrump");
+                live["DejaValue"] = repeats ? 5 : 4;
+                File.WriteAllText(path, json.ToJsonString());
+                var legacy = CampaignStore.Load(path)!.LiveMatch!;
+                foreach (var saved in new[] { current, legacy })
+                {
+                    var restored = GameEngine.RestoreCampaignMatch(saved);
+                    Finish(restored);
+                    Assert.Equal(5, restored.TricksByTeam[0]);
+                    Assert.Equal(repeats ? 5 : 0, restored.HandHistory[^1].ScoreBreakdowns[0].JokerPoints);
+                }
+            }
+            finally { File.Delete(path); }
+        }
+    }
+
+    public static void DejaVuDoesNotBridgePokerRounds()
+    {
+        var resources = Resources(17) with
+        {
+            Inventory = new([new(JokerId.DejaVu)], [], [GumballId.Poker]),
+            PreviousContract = new(ContractMode.Trump, Suit.Clubs)
+        };
+        var game = Fixture(resources);
+        while (game.Phase == GamePhase.Bidding)
+        {
+            var seat = game.CurrentSeat!.Value;
+            game.ExecuteCampaignAction(seat, seat == 0
+                ? new CampaignCommand.Bid(BidLevel.Four, GumballId.Poker)
+                : new CampaignCommand.Pass());
+        }
+        Assert.Equal(GamePhase.PokerReveal, game.Phase);
+        game.ExecuteCampaignAction(0, new CampaignCommand.CompletePoker());
+        Auction(game);
+        Finish(game);
+        Assert.True(game.TricksByTeam[0] > 0);
+        Assert.Equal(0, game.HandHistory[^1].ScoreBreakdowns[0].JokerPoints);
+    }
+
     public static void DoubleDownFirstHumanPlayAndRoundReset()
     {
         var r = Resources(17, DoubleDown, JokerId.LastLaugh); r = r with { Deck = r.Deck.Select(c => c with { Enhancement = EnhancementId.Stone }).ToArray() };
@@ -153,6 +236,7 @@ internal static class SettledEffectTests
         Assert.Equal("DoubleDown", Enum.GetName(DoubleDown)!);
         var definition = FeatureCatalog.Get(FeatureCategory.Joker, "DoubleDown");
         Assert.Equal("joker:double-down", definition.Id);
+        Assert.Equal("Boomerang Joker", definition.Name);
         var seen = false;
         for (ulong seed = 1; seed <= 128 && !seen; seed++)
         {

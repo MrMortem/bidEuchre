@@ -29,7 +29,7 @@ public sealed partial class GameEngine
     private CardId? _lastMatchCard;
     private readonly Dictionary<int, CampaignTrickPlay[]> _campaignTrickHistory = [];
     private int _rollerValue;
-    private int _dejaValue;
+    private bool _repeatsPreviousTrump;
     private int[] _handWalletStart = new int[4];
     public int? CampaignActor => _pendingActor ?? CurrentSeat;
     public bool IsCampaign => _campaign is not null;
@@ -68,7 +68,7 @@ public sealed partial class GameEngine
     {
         _variant = null; _pendingBidVariant = null; _pendingChoice = null; _pendingActor = null; _duelOpponent = null;
         _campaignTrickHistory.Clear(); _trickPoints.Clear();
-        _rollerValue = 0; _firstHumanRoundCard = false;
+        _rollerValue = 0; _repeatsPreviousTrump = false; _firstHumanRoundCard = false;
         _pokerRevealed = false; _pokerResult = null; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
         Array.Clear(_cardPoints); Array.Clear(_jokerPoints); Array.Clear(_modifierPoints);
         _handWalletStart = _resources.Wallets.ToArray();
@@ -285,7 +285,7 @@ public sealed partial class GameEngine
     private void RecordContract()
     {
         var key = new ContractKey(Contract!.Mode, Contract.Trump);
-        if (_resources.PreviousContract == key) _dejaValue++;
+        _repeatsPreviousTrump = _resources.PreviousContract == key;
         _resources = _resources with { PreviousContract = key };
     }
     private void RollChaos() { Contract = Contract! with { Mode = ContractMode.Trump, Trump = (Suit)_campaignRandom.NextInt(4) }; _events.Add($"Chaos trump: {Contract.Trump}."); }
@@ -329,6 +329,7 @@ public sealed partial class GameEngine
 
     private void RevealPoker(PokerSettlement poker)
     {
+        _resources = _resources with { PreviousContract = null };
         _pokerResult = poker.Result;
         foreach (var winner in poker.Result.Winners)
             _events.Add($"Poker: {_playerNames[winner.Seat]} revealed {winner.Category}.");

@@ -268,9 +268,10 @@ internal static class CampaignShopScreen
         foreach (var joker in inventory.Jokers)
         {
             var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
+            var value = joker.DisplayValue();
             var face = OwnedJokerFace(definition, true);
             ownedJokers.Add(Selectable(face, Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name + ", sell for $2", () => Detail(
-                "YOUR JOKER", Gold, definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}", null,
+                "YOUR JOKER", Gold, definition.Name, value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {value}", null,
                 MenuParts.Button("Sell +$2", false, motion, $"Sell{joker.Id}", () => actions.Sell(joker.Id), true, 264))));
         }
         // The ordinary shelf only offers discard; inventory tickets become usable inside a purchase's six-card menu.

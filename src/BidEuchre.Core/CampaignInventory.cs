@@ -78,7 +78,10 @@ public static class Tarot
         else enhance(targets[0], EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot."));
     }
 }
-public sealed record JokerState(JokerId Id, int Value = 0);
+public sealed record JokerState(JokerId Id, int Value = 0)
+{
+    public int DisplayValue() => Id == JokerId.DejaVu ? 0 : Value;
+}
 public sealed record CampaignInventory(JokerState[] Jokers, TarotId[] Tarot, GumballId[] Unlocks)
 {
     /// <summary>Tarots and Sigils are held together and share these slots.</summary>

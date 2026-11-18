@@ -75,12 +75,11 @@ public sealed partial class GameEngine
 
         if (success && bidderTeam == 0)
         {
-            if (Has(JokerId.ThreesCompany) && Contract.Bid == BidLevel.Three) _jokerPoints[0] += 2;
+            if (Has(JokerId.ThreesCompany) && Contract.Bid == BidLevel.Three) _jokerPoints[0]++;
             if (Has(JokerId.HighRoller) && Contract.Bid >= BidLevel.Five) _jokerPoints[0] += 3;
         }
 
-        if (bidderTeam == 0 && !success) _dejaValue = 0;
-        if (Has(JokerId.DejaVu)) _jokerPoints[0] += _dejaValue;
+        if (_repeatsPreviousTrump && Has(JokerId.DejaVu)) _jokerPoints[0] += _tricksByTeam[0];
         if (Has(JokerId.RollerCoaster) && Contract.Mode is ContractMode.High or ContractMode.Low) _jokerPoints[0] += _rollerValue;
         if (Contract.Bid <= BidLevel.Six) _matchOvertricks[bidderTeam] += Math.Max(0, _tricksByTeam[bidderTeam] - Contract.RequiredTricks);
 
@@ -97,10 +96,6 @@ public sealed partial class GameEngine
             breakdowns[team] = new(team, normal[team], _cardPoints[team], _jokerPoints[team], _modifierPoints[team], factor, team == 1 ? opponentBonus : 0)
             { GumballBonuses = gumballBonuses.Where(reward => reward.Team == team).ToArray() };
         }
-        var jokers = _resources.Inventory.Jokers
-            .Select(joker => joker.Id == JokerId.DejaVu ? joker with { Value = _dejaValue } : joker)
-            .ToArray();
-        _resources = _resources with { Inventory = _resources.Inventory with { Jokers = jokers } };
         return breakdowns;
     }
 

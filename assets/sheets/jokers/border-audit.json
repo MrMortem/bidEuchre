@@ -503,7 +503,7 @@
     },
     {
       "id": "joker:double-down",
-      "name": "Double Down",
+      "name": "Boomerang Joker",
       "sourceExterior": "opaque-matte",
       "removedExteriorPixels": 7684,
       "preservedInteriorScene": true,

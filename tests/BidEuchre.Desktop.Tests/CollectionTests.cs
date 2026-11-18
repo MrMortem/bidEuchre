@@ -22,14 +22,14 @@ internal static class CollectionTests
 
     public static void Run()
     {
-        AllCatalogIconsAndDoubleDownShopRender();
+        AllCatalogIconsAndBoomerangShopRender();
         MainMenuOpensCollectionAndBackReturns(new Size(1280, 1100));
         foreach (var size in new[] { new Size(1280, 900), new Size(653, 453) })
             AllCategoriesRemainReadableAndReachable(size);
         MainMenuOpensCollectionAndBackReturns(new Size(653, 453));
     }
 
-    private static void AllCatalogIconsAndDoubleDownShopRender()
+    private static void AllCatalogIconsAndBoomerangShopRender()
     {
         // Gumballs without sprites use the drawn ball checked by CheckFeatures below.
         foreach (var feature in FeatureCatalog.All.Where(feature => feature.Category != FeatureCategory.Gumball))
@@ -43,11 +43,11 @@ internal static class CollectionTests
         try
         {
             window.Show(); Flush();
-            Require(window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.Contains("Double Down") == true),
-                "Double Down must appear by name in the shop.");
+            Require(window.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.Contains("Boomerang Joker") == true),
+                "Boomerang Joker must appear by name in the shop.");
             Require(window.GetVisualDescendants().OfType<Image>().Any(image => image.Source is { Size.Width: > 0, Size.Height: > 0 } && image.Bounds.Width > 0),
-                "The Double Down shop card must render artwork.");
-            Console.WriteLine("PASS  Catalog card icons and the Double Down shop card render without missing artwork failures");
+                "The Boomerang Joker shop card must render artwork.");
+            Console.WriteLine("PASS  Catalog card icons and the Boomerang Joker shop card render without missing artwork failures");
         }
         finally { window.Close(); }
     }

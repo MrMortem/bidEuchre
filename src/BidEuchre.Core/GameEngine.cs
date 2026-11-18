@@ -46,7 +46,6 @@ public sealed partial class GameEngine
         if (campaign is not null)
         {
             _resources = campaign.Snapshot(); _campaignRandom = new(_resources.RandomState);
-            _dejaValue = _resources.Inventory.Jokers.FirstOrDefault(j => j.Id == JokerId.DejaVu)?.Value ?? 0;
         }
         _targetScore = options.TargetScore;
         _scores = [options.StartingScoreTeam0, options.StartingScoreTeam1];

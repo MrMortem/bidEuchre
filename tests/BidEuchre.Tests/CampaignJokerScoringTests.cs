@@ -21,7 +21,9 @@ internal static class CampaignJokerScoringTests
     public static void LiteralScoring()
     {
         Assert.Equal(6, Sweep([]).Scores[0]);
-        Assert.Equal(8, Sweep([JokerId.ThreesCompany]).Scores[0]);
+        Assert.Equal(7, Sweep([JokerId.ThreesCompany]).Scores[0]);
+        Assert.Equal(6, Sweep([JokerId.ThreesCompany], BidLevel.Four).Scores[0]);
+        Assert.Equal(6, Sweep([JokerId.ThreesCompany], bidder: 1).Scores[0]);
         Assert.Equal(9, Sweep([JokerId.HighRoller], BidLevel.Five).Scores[0]);
         Assert.Equal(10, Sweep([JokerId.SnakeEyes]).Scores[0]);
         Assert.Equal(12, Sweep([JokerId.TwinFlame]).Scores[0]);

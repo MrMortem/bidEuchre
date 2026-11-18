@@ -37,7 +37,8 @@ internal static class CampaignTableControls
     public static Control Joker(JokerState joker)
     {
         var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
-        return Named(CardFace(definition), definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}");
+        var value = joker.DisplayValue();
+        return Named(CardFace(definition), definition.Name, value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {value}");
     }
 
     internal static Control StoredItem(FeatureDefinition definition) =>
