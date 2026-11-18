@@ -80,8 +80,7 @@ internal static class CampaignScreens
         [
             Line("You beat the Ante 5 boss.", Ink),
             Line($"MATCHES WON {run.MatchesWon}", Green),
-            Line($"♥ {run.Lives}   ${run.Money}", Ink, 20),
-            .. JokerLine(run)
+            Line($"♥ {run.Lives}   ${run.Money}", Ink, 20)
         ];
         var scene = (Grid)Frame(motion, "CAMPAIGN WON", lines,
             Buttons(motion, lines.Count, ScreenButton(motion, "Continue Endless", continueEndless, primary: true, stay: true), ScreenButton(motion, "Main Menu", menu, stay: true)),
@@ -97,8 +96,7 @@ internal static class CampaignScreens
         [
             Line($"REACHED ANTE {run.Ante} · MATCH {run.MatchInAnte}", Danger),
             Line($"MATCHES WON {run.MatchesWon}", Ink),
-            Line($"${run.Money}", Ink, 20),
-            .. JokerLine(run)
+            Line($"${run.Money}", Ink, 20)
         ];
         var scene = (Grid)Frame(motion, "RUN OVER", lines,
             Buttons(motion, lines.Count, ScreenButton(motion, "Main Menu", menu, primary: true)), null, titleMilliseconds: 900);
@@ -106,13 +104,6 @@ internal static class CampaignScreens
         var dusk = new Border { Background = Brush.Parse("#B8050310"), IsHitTestVisible = false, Name = "CampaignRunOverDusk" };
         scene.Children.Insert(2, motion.Enter(dusk, 0, 0, 0, duration: 900));
         return scene;
-    }
-
-    private static IEnumerable<Control> JokerLine(CampaignRun run)
-    {
-        var jokers = run.Resources.Inventory.Jokers;
-        if (jokers.Length == 0) yield break;
-        yield return Line("JOKERS · " + string.Join(" · ", jokers.Select(joker => FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString()).Name)), Muted);
     }
 
     private static readonly IBrush[] SuitInks = [Brush.Parse("#FFF5DC"), Brush.Parse("#FF617B"), Brush.Parse("#FFDB62"), Brush.Parse("#55BCFF")];

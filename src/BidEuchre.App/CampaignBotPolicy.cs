@@ -33,6 +33,13 @@ public static class CampaignBotPolicy
             return game.Phase is GamePhase.ExchangingPartnerCard ? exchanges.MaxBy(Worth)! : exchanges.MinBy(Worth)!;
         }
 
+        const int humanSeat = 0;
+        var pass = legal.OfType<CampaignCommand.Pass>().FirstOrDefault();
+        // Give the human control of the auction until they pass. A forced dealer has no legal pass.
+        if (pass is not null && seat == GameRules.PartnerOf(humanSeat) &&
+            !game.Auction.Any(action => action.Seat == humanSeat && action.IsPass))
+            return pass;
+
         var bids = legal.OfType<CampaignCommand.Bid>().Where(b => b.Variant is null).OrderBy(b => (int)b.Level).ToArray();
         if (bids.Length > 0)
         {
@@ -40,11 +47,11 @@ public static class CampaignBotPolicy
             var worth = (int)Math.Floor(Enum.GetValues<Suit>().Max(suit => TrumpTricks(hand, suit)) + PartnerTricks);
             var affordable = bids.LastOrDefault(b => b.Level <= BidLevel.Six && (int)b.Level <= worth);
             if (affordable is not null) return affordable;
-            return legal.OfType<CampaignCommand.Pass>().FirstOrDefault() as CampaignCommand ?? bids[0];
+            return (CampaignCommand?)pass ?? bids[0];
         }
 
         // A pending choice, or a pass with nothing to bid.
-        return legal.OfType<CampaignCommand.Pass>().FirstOrDefault() as CampaignCommand ?? legal[0];
+        return pass ?? legal[0];
     }
 
     private static CampaignCommand ChoosePlay(CampaignCommand.Play[] plays, IReadOnlyList<CampaignCardView> hand,

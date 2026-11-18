@@ -12,7 +12,7 @@ Rebuild the runtime import from the repository root:
 
 ```sh
 dotnet run --project tools/CuratedCardArtBuilder
-node --test tests/web/enhancement-asset-sheet.test.cjs tests/web/curated-campaign-art.test.cjs tests/web/arcade-art.test.cjs
+node --test tests/assets/enhancement-asset-sheet.test.cjs tests/assets/curated-campaign-art.test.cjs tests/assets/arcade-art.test.cjs
 ```
 
 Desktop embeds these same PNGs and the server copies them into its `/pixel/` assets. Enhanced-card rendering uses transparent backing so the approved silhouettes and Glass alpha remain visible; ranks, suits, Sigils and selection cues remain separate layers.

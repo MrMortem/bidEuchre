@@ -48,6 +48,35 @@ internal static class TableRenderingTests
             try { action(); Console.WriteLine("PASS  " + name); }
             catch (Exception error) { failures.Add(name + ": " + error.Message); Console.WriteLine("FAIL  " + failures[^1]); }
         }
+        Test("Owned inventory cards float above fixed shadows and respect motion settings", () =>
+        {
+            var motion = new PixelMotion();
+            var row = CampaignInventoryScreen.Row();
+            var face = new Border();
+            CampaignTableControls.Fill(row, 2, motion, 0, [face]);
+            var window = new Window { Width = 240, Height = 120, Content = row };
+            try
+            {
+                window.Show(); Flush();
+                var slot = (Grid)row.Children[0];
+                var shadow = (Border)slot.Children[0];
+                var outline = (Border)row.Children[1];
+                var anchor = Bounds(shadow, window);
+                var initial = face.TranslatePoint(default, window);
+                CampaignShopUiTests.WaitFor(() => face.TranslatePoint(default, window) != initial);
+                Require(Bounds(shadow, window) == anchor && shadow.BoxShadow.Count > 0 && !shadow.IsHitTestVisible,
+                    "The card should move independently above a stationary shadow.");
+                Require(outline.RenderTransform is null && outline.BoxShadow.Count == 0, "Empty slots should remain flat.");
+                motion.SetReduced(true);
+                var still = face.TranslatePoint(default, window);
+                Require(slot.Children[1].RenderTransform!.Value.IsIdentity, "Reduced motion should settle the artwork.");
+                motion.SetReduced(false);
+                motion.SetEnabled(false);
+                Require(face.TranslatePoint(default, window) == still && shadow.BoxShadow.Count > 0,
+                    "Turning motion off should retain the static shadow.");
+            }
+            finally { window.Close(); }
+        });
         var id = new CardId(20);
         var campaign = new CampaignGameView(0, 1, 0,
             [new(0, 1, [new(id, new Card(Suit.Spades, Rank.Ten), EnhancementId.Wild, null)], false)],
@@ -127,14 +156,12 @@ internal static class TableRenderingTests
                 Require(hands.All(card => !panel.Intersects(card)), $"Choices must not cover any hand ({panel} vs {hands.FirstOrDefault(c => panel.Intersects(c))}).");
                 Require(panel.Bottom <= window.Bounds.Height + 1 && panel.Right <= window.Bounds.Width + 1, "Choices must fit in the viewport.");
                 var visible = window.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsEffectivelyVisible).ToArray();
-                Require(visible.Any(t => t.Text is "JOKERS" or "CARDS") == inCampaign, "Only campaigns must show inventory shelves.");
+                Require(visible.Any(t => t.Text is "JOKERS" or "TAROTS / SIGILS") == inCampaign, "Only campaigns must show inventory shelves.");
                 if (inCampaign)
                 {
                     var status = Field<TextBlock>(window, "_campaignStrip");
                     Require(status.TextLayout.Width <= status.Bounds.Width + 1 && status.TextLayout.Height <= status.Bounds.Height + 1,
                         "The full boss status must fit without clipping.");
-                    var inventory = window.GetVisualDescendants().OfType<ScrollViewer>().Single(c => c.Name == "TableInventory");
-                    Require(inventory.Bounds.Width > 600, "Inventory must have a readable viewport.");
                 }
                 var contract = Field<TextBlock>(window, "_contractText");
                 Require(contract.TextLayout.Width <= contract.Bounds.Width + 1, "The contract must fit without clipping.");
@@ -179,6 +206,23 @@ internal static class TableRenderingTests
                 Call(window, "ShowCenter", false); Flush();
                 Require(Bounds(Field<ContentControl>(window, "_tableHost"), window) == table, "Hiding choices must not move or resize the table.");
                 Require(!Field<Border>(window, "_centerPanel").IsVisible, "Hidden choices must not take clicks.");
+                if (inCampaign)
+                {
+                    var strip = window.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "CampaignInventoryStrip");
+                    var jokers = Field<StackPanel>(window, "_jokerRow");
+                    var items = Field<StackPanel>(window, "_tarotRow");
+                    Require(Bounds(strip, window).Contains(Bounds(items, window)) && Bounds(jokers, window).Right < Bounds(items, window).Left,
+                        $"Both card groups must fit in the pinned inventory ({Bounds(strip, window)}, {Bounds(jokers, window)}, {Bounds(items, window)}).");
+                    var anchor = Bounds(items, window).TopLeft;
+                    var upgraded = campaign.Inventory with { Sodas = [SodaId.CosmicCola, SodaId.GalaxAde] };
+                    Call(window, "RenderInventory", campaign with { Inventory = upgraded }); Flush();
+                    Require(Bounds(items, window).TopLeft == anchor && Bounds(strip, window).Contains(Bounds(items, window)),
+                        "Additional slots must preserve the Tarot anchor and fit the viewport.");
+                    var ante = CampaignAnteScreen.Build(new CampaignRun(), () => { }, () => { }, null, new PixelMotion());
+                    Field<ContentControl>(window, "_screenHost").Content = ante; Flush();
+                    var label = ante.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == "TAROTS / SIGILS");
+                    Require(Math.Abs(Bounds(label, window).Left - anchor.X) < 1, "Ante and match inventory columns must align.");
+                }
             }
             finally { window.Close(); }
         });

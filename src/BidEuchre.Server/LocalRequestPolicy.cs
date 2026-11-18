@@ -2,7 +2,6 @@ using System.Net;
 
 namespace BidEuchre.Server;
 
-// The browser client is a local hot-seat interface, not a network multiplayer service.
 public static class LocalRequestPolicy
 {
     public static async Task InvokeAsync(HttpContext context, RequestDelegate next)
@@ -12,7 +11,7 @@ public static class LocalRequestPolicy
         if (peer is null || !IPAddress.IsLoopback(peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer)
             || !IsLoopbackHost(request.Host.Host))
         {
-            await RejectAsync(context, 403, "The web interface is available only on this computer.");
+            await RejectAsync(context, 403, "The API is available only on this computer.");
             return;
         }
 
@@ -21,7 +20,7 @@ public static class LocalRequestPolicy
         if ((fetchSite.Length > 0 && fetchSite is not ("same-origin" or "none"))
             || (origin.Count > 0 && (origin.Count != 1 || !IsSameOrigin(origin[0], request))))
         {
-            await RejectAsync(context, 403, "Requests must come from this web interface's origin.");
+            await RejectAsync(context, 403, "Requests must come from the API server's origin.");
             return;
         }
 

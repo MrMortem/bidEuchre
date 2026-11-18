@@ -5,7 +5,22 @@ namespace BidEuchre.App;
 /// <summary>Authoritative paid Arcade outcomes. Clients animate these saved results; they never submit scores.</summary>
 public static class CampaignArcade
 {
-    public const int Price = 3, PlinkoLaneCount = 8, PlinkoSteps = 14, RoulettePocketCount = 12, PackSize = 3, LegendaryOdds = 50, JokerSlots = 5;
+    public const int Price = 12, PlinkoLaneCount = 8, PlinkoSteps = 14, RoulettePocketCount = 12, PackSize = 3, LegendaryOdds = 50, JokerSlots = 5;
+    internal static int RollAvailability(ulong state)
+    {
+        // Use a separate deterministic stream so the cadence draw does not change the visit's prizes.
+        const ulong arcadeStream = 0x415243414445UL;
+        return new CampaignRandom(state ^ arcadeStream).NextInt(6);
+    }
+
+    private static bool Available(ShopState shop, CampaignInventory inventory) =>
+        shop.Arcade is not null && (shop.ArcadeRoll ?? 0) < (inventory.Has(SodaId.TwilightTangerine) ? 6
+            : inventory.Has(SodaId.MidnightGrape) ? 3 : 2);
+
+    public static bool Available(CampaignRun run) => run.Shop is { } shop && Available(shop, run.Resources.Inventory);
+    // A saved play includes entry, including visits already started under the old per-game pricing.
+    public static int EntryPrice(CampaignRun run) => run.Shop?.Arcade is { PlinkoPlayed: true } or { RoulettePlayed: true }
+        ? 0 : CampaignShop.Discount(run, Price);
     public const string LegendaryKey = "Legendary";
     public static bool IsPack(ArcadeResult result) => result.PrizeCategory == FeatureCategory.Sigil && result.PackCards is not null;
     public static IReadOnlyList<int> PlinkoScores { get; } = Array.AsReadOnly(new[] { 6, 5, 4, 3, 2, 1, 2, 3, 4, 5, 6 });
@@ -45,11 +60,11 @@ public static class CampaignArcade
     {
         CampaignShop.RequireCurrentShop(run, expectedRevision);
         CampaignShop.RequireNoPrintedTickets(run);
-        if (run.IsOver || run.Shop!.MatchJustFinished != run.Match - 1) throw new GameRuleException("The Arcade is closed.");
+        if (run.IsOver || !Available(run) || run.Shop!.MatchJustFinished != run.Match - 1) throw new GameRuleException("The Arcade is closed.");
         var arcade = run.Shop.Arcade ?? throw new GameRuleException("Open the shop before playing the Arcade.");
         if (game == ArcadeGame.Plinko ? arcade.PlinkoPlayed : arcade.RoulettePlayed)
             throw new GameRuleException("You have already played this game during this shop visit.");
-        if (run.Money < Price) throw new GameRuleException("Not enough money.");
+        if (run.Money < EntryPrice(run)) throw new GameRuleException("Not enough money for Arcade entry.");
         return arcade;
     }
 
@@ -96,9 +111,9 @@ public static class CampaignArcade
             if (targets.Length != CampaignShop.ShopTargetCount) throw new GameRuleException("The Arcade needs six eligible deck cards for a prize.");
         }
         var result = new ArcadeResult(PlayId(run.Shop!.MatchJustFinished, game), game, choice, landing, score, path, category, feature, targets)
-        { PackCards = pack };
+        { PackCards = pack, AwaitingOpen = pack is not null };
         var resources = run.Resources.Copy();
-        resources.Wallets[0] = run.Money - Price;
+        resources.Wallets[0] = run.Money - EntryPrice(run);
         return run with
         {
             Money = resources.Wallets[0],
@@ -111,9 +126,9 @@ public static class CampaignArcade
     private static string[] DrawPack(CampaignRun run, CampaignRandom random)
     {
         var sigils = Enum.GetNames<SigilId>().ToList();
-        var canLegendary = run.Resources.Inventory.Jokers.Length < JokerSlots;
-        var pack = new string[PackSize];
-        for (var slot = 0; slot < PackSize; slot++)
+        var canLegendary = run.Resources.Inventory.Jokers.Length < run.Resources.Inventory.JokerCapacity;
+        var pack = new string[run.Resources.Inventory.Has(SodaId.PeachPlus) ? PackSize + 1 : PackSize];
+        for (var slot = 0; slot < pack.Length; slot++)
         {
             if (canLegendary && !pack.Contains(LegendaryKey) && random.NextInt(LegendaryOdds) == 0) { pack[slot] = LegendaryKey; continue; }
             var index = random.NextInt(sigils.Count);
@@ -124,13 +139,13 @@ public static class CampaignArcade
 
     private static void RequireNotPack(ArcadeResult result)
     {
-        if (IsPack(result)) throw new GameRuleException("Open your Collector's Pack and choose a card.");
+        if (IsPack(result)) throw new GameRuleException("Open your Spectral Pack and choose a card.");
     }
 
     private static ArcadeResult RequireResult(CampaignRun run, string playId, long? expectedRevision)
     {
         CampaignShop.RequireCurrentShop(run, expectedRevision, allowArcadeResult: true);
-        if (run.IsOver || run.Shop!.MatchJustFinished != run.Match - 1 || run.Shop.Arcade?.Pending is not { } pending
+        if (run.IsOver || !Available(run) || run.Shop!.MatchJustFinished != run.Match - 1 || run.Shop.Arcade?.Pending is not { } pending
             || pending.PlayId != playId) throw new GameRuleException("Choose the current Arcade result.");
         return pending;
     }
@@ -162,22 +177,35 @@ public static class CampaignArcade
         return StartPrizeUse(run, prize, category, prize.FeatureId!);
     }
 
-    /// <summary>Open a Collector's Pack: a Sigil must be applied to one of the six cards; the Legendary fills free Joker slots.</summary>
+    public static CampaignRun TearSpectralPack(CampaignRun run, string playId, long? expectedRevision = null)
+    {
+        var prize = RequireResult(run, playId, expectedRevision);
+        if (!IsPack(prize) || !prize.AwaitingOpen)
+            throw new GameRuleException("There is no sealed Spectral Pack.");
+        return run with
+        {
+            Shop = run.Shop! with { Arcade = run.Shop.Arcade! with { Pending = prize with { AwaitingOpen = false } } },
+            Resources = run.Resources with { Revision = run.Resources.Revision + 1 }
+        };
+    }
+
+    /// <summary>Choose a spectral card: a Sigil must be applied to one of the six cards; the Legendary fills free Joker slots.</summary>
     public static CampaignRun PickPackCard(CampaignRun run, string playId, int index, long? expectedRevision = null)
     {
         var prize = RequireResult(run, playId, expectedRevision);
-        if (!IsPack(prize)) throw new GameRuleException("This Arcade result is not a Collector's Pack.");
-        if (index < 0 || index >= prize.PackCards!.Length) throw new GameRuleException("Choose one of the three cards.");
+        if (!IsPack(prize)) throw new GameRuleException("This Arcade result is not a Spectral Pack.");
+        if (prize.AwaitingOpen) throw new GameRuleException("Tear open the Spectral Pack first.");
+        if (index < 0 || index >= prize.PackCards!.Length) throw new GameRuleException("Choose a card in this pack.");
         var card = prize.PackCards[index];
         if (card != LegendaryKey) return StartPrizeUse(run, prize, FeatureCategory.Sigil, card);
-        if (run.Resources.Inventory.Jokers.Length >= JokerSlots) throw new GameRuleException("Your Joker slots are full. Choose a Sigil card instead.");
+        if (run.Resources.Inventory.Jokers.Length >= run.Resources.Inventory.JokerCapacity) throw new GameRuleException("Your Joker slots are full. Choose a Sigil card instead.");
         var resources = run.Resources.Copy();
         var random = new CampaignRandom(resources.RandomState);
         var inventory = resources.Inventory;
         var pool = FeatureCatalog.All.Where(f => f.Category == FeatureCategory.Joker)
             .Select(f => Enum.Parse<JokerId>(f.Key)).Where(id => !inventory.Has(id)).ToList();
         var granted = new List<JokerState>();
-        for (var free = JokerSlots - inventory.Jokers.Length; free > 0 && pool.Count > 0; free--)
+        for (var free = inventory.JokerCapacity - inventory.Jokers.Length; free > 0 && pool.Count > 0; free--)
         {
             var pick = random.NextInt(pool.Count);
             granted.Add(new JokerState(pool[pick])); pool.RemoveAt(pick);
@@ -211,23 +239,34 @@ public static class CampaignArcade
         };
     }
 
+    public static CampaignRun SkipSpectralPack(CampaignRun run, string playId, long? expectedRevision = null)
+    {
+        var result = RequireResult(run, playId, expectedRevision);
+        if (!IsPack(result) || result.AwaitingOpen) throw new GameRuleException("Open the Spectral Pack before skipping.");
+        return ClearPending(run);
+    }
+
     public static CampaignRun DismissArcadeLoss(CampaignRun run, string playId, long? expectedRevision = null)
     {
         var result = RequireResult(run, playId, expectedRevision);
         if (result.PrizeCategory is not null) throw new GameRuleException("Keep or use your Arcade prize first.");
-        return run with
-        {
-            Resources = run.Resources with { Revision = run.Resources.Revision + 1 },
-            Shop = run.Shop! with { Arcade = run.Shop.Arcade! with { Pending = null } }
-        };
+        return ClearPending(run);
     }
 
-    private static bool ValidPack(string[] pack) => pack.Length == PackSize && pack.Distinct().Count() == PackSize
+    private static CampaignRun ClearPending(CampaignRun run) => run with
+    {
+        Resources = run.Resources with { Revision = run.Resources.Revision + 1 },
+        Shop = run.Shop! with { Arcade = run.Shop.Arcade! with { Pending = null } }
+    };
+
+    private static bool ValidPack(string[] pack, CampaignInventory inventory) => pack.Length == (inventory.Has(SodaId.PeachPlus) ? PackSize + 1 : PackSize) && pack.Distinct().Count() == pack.Length
         && pack.All(k => k == LegendaryKey || Enum.GetNames<SigilId>().Contains(k));
 
-    internal static bool IsValid(ShopState shop, CardState[] deck)
+    internal static bool IsValid(ShopState shop, CardState[] deck, CampaignInventory inventory)
     {
+        if (shop.ArcadeRoll is < 0 or >= 6) return false;
         if (shop.Arcade is not { } arcade) return shop.Offers.All(o => !o.IsArcadePrize);
+        if ((arcade.PlinkoPlayed || arcade.RoulettePlayed) && !Available(shop, inventory)) return false;
         foreach (var offer in shop.Offers.Where(o => o.IsArcadePrize))
         {
             if (!offer.Sold || offer.Price != 0 || offer.Printed is not null || offer.TargetCards is null
@@ -251,10 +290,10 @@ public static class CampaignArcade
         else if (!arcade.RoulettePlayed || pending.Choice is < 1 or > RoulettePocketCount || pending.Landing is < 1 or > RoulettePocketCount
             || pending.Path.Length != 0 || pending.Score != RouletteScore(pending.Choice, pending.Landing)) return false;
         var expected = PrizeCategory(pending.Game, pending.Score);
-        if (pending.PrizeCategory != expected) return false;
+        if (pending.PrizeCategory != expected || pending.AwaitingOpen && !IsPack(pending)) return false;
         if (expected is null) return pending.FeatureId is null && pending.PackCards is null && pending.TargetCards.Length == 0;
         var prizeShape = pending.PackCards is { } pack
-            ? expected == FeatureCategory.Sigil && pending.FeatureId is null && ValidPack(pack)
+            ? expected == FeatureCategory.Sigil && pending.FeatureId is null && ValidPack(pack, inventory)
             : FeatureCatalog.All.Any(f => f.Category == expected && f.Key == pending.FeatureId);
         return prizeShape
             && pending.TargetCards.Length == CampaignShop.ShopTargetCount && pending.TargetCards.Distinct().Count() == pending.TargetCards.Length

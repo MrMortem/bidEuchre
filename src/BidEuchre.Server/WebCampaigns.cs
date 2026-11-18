@@ -117,16 +117,17 @@ public sealed class WebCampaigns : IAsyncDisposable
     }
     private static void Commit(Entry entry, CampaignRun run)
     { entry.Run = run; Advance(entry); Save(entry); }
-    // Arcade results are revealed only after the complete transaction is durable.
+    // Random prizes are revealed only after the complete transaction is durable.
     // A failed write must not expose a roll, grant a prize, or consume a use session.
-    private static bool NeedsDurableArcadeCommit(CampaignRun before, string action)
-        => action.StartsWith("shop/arcade/", StringComparison.Ordinal) || before.Shop?.Arcade?.Pending is not null
+    private static bool NeedsDurableShopCommit(CampaignRun before, string action)
+        => action == "shop/soda" || action.StartsWith("shop/booster/", StringComparison.Ordinal) || action.StartsWith("shop/arcade/", StringComparison.Ordinal)
+            || before.Shop?.PendingBooster is not null || before.Shop?.Arcade?.Pending is not null
             || before.Shop?.UseSession is { } session && before.Shop.Offers.Any(o => o.Id == session.OfferId && o.IsArcadePrize);
-    private static void CommitArcade(Entry entry, CampaignRun candidate)
+    private static void CommitShopAction(Entry entry, CampaignRun candidate)
     {
         var metadata = entry.Metadata with { StateRevision = checked(entry.Metadata.StateRevision + 1) };
         if (!CampaignStore.Save(new CampaignSave(3, candidate) { Metadata = metadata }, entry.Path))
-            throw new CampaignApiException(503, "save_unavailable", "Could not save the Arcade action. Nothing was charged or changed. Try again once saving is available.");
+            throw new CampaignApiException(503, "save_unavailable", "Could not save this shop action. Nothing was charged or changed. Try again once saving is available.");
         entry.Run = candidate; entry.Metadata = metadata; entry.Dirty = false;
     }
     private static bool Checkpoint(Entry entry, int generation, CampaignCheckpoint checkpoint)
@@ -174,12 +175,14 @@ public sealed class WebCampaigns : IAsyncDisposable
             "next-hand" => ["expectedRevision", "expectedDealSerial"],
             "arrange-hand" => ["expectedRevision", "expectedDealSerial", "orderedCardIds"],
             "shop/arcade/plinko" => ["lane"], "shop/arcade/roulette" => ["pocket"],
-            "shop/arcade/keep" or "shop/arcade/use" or "shop/arcade/dismiss" => ["playId"],
+            "shop/arcade/tear" or "shop/arcade/keep" or "shop/arcade/use" or "shop/arcade/dismiss" => ["playId"],
             "shop/arcade/pick" => ["playId", "index"],
             "shop/begin-sigil-use" => ["offerId"], "shop/begin-ticket-use" => ["offerId", "ticketId"], "shop/use-purchased" => ["targetIds"],
             "shop/buy" or "shop/pull" => ["offerId"], "shop/buy-use" => ["offerId", "targetIds"],
             "shop/print" => ["offerId", "count"], "shop/keep-ticket" => ["offerId", "ticketId"], "shop/use-ticket" => ["offerId", "ticketId", "targetIds"],
-            "shop/sell" => ["jokerId"], "items/use" => ["category", "slot", "targetIds"], "items/discard" => ["category", "slot"],
+            "shop/booster/open" => ["packIndex"],
+            "shop/soda" or "shop/booster/tear" or "shop/booster/skip" => [],
+            "shop/booster/pick" or "shop/sell" => ["jokerId"], "items/use" => ["category", "slot", "targetIds"], "items/discard" => ["category", "slot"],
             "new" or "continue" or "delete" or "start-match" or "forfeit" or "shop/finish-use" or "shop/reroll" or "shop/leave" or "result/continue" or "victory/continue" => [],
             _ => throw CampaignApiException.Invalid("Unknown campaign action.")
         };
@@ -227,7 +230,7 @@ public sealed class WebCampaigns : IAsyncDisposable
                         if (entry.Metadata.LastResult is not null || before.IsOver) throw CampaignApiException.Phase();
                         var after = BetweenMatches(before, action, body);
                         feedback = CampaignProjection.Feedback(before.Resources.Inventory, after.Resources.Inventory, "Campaign updated.");
-                        if (NeedsDurableArcadeCommit(before, action)) CommitArcade(entry, after);
+                        if (NeedsDurableShopCommit(before, action)) CommitShopAction(entry, after);
                         else Commit(entry, after);
                     }
                 }
@@ -241,8 +244,13 @@ public sealed class WebCampaigns : IAsyncDisposable
     private static CampaignRun BetweenMatches(CampaignRun run, string action, JsonElement body)
     {
         string Offer() => CampaignWire.Text(body, "offerId");
+        string Ticket()
+        {
+            var id = CampaignWire.Text(body, "ticketId");
+            return CampaignShop.PrintedCard(id) is not null ? id : throw CampaignApiException.Invalid("Unknown Fortune Teller card.");
+        }
         CardId[] Targets() => CampaignWire.Cards(body, "targetIds");
-        int Slot() => (int)CampaignWire.Number(body, "slot", 0, CampaignInventory.ItemSlots - 1);
+        int Slot() => (int)CampaignWire.Number(body, "slot", 0, run.Resources.Inventory.ItemCapacity - 1);
         FeatureCategory Category()
         {
             var category = CampaignWire.EnumValue<FeatureCategory>(body, "category");
@@ -250,14 +258,20 @@ public sealed class WebCampaigns : IAsyncDisposable
         }
         switch (action)
         {
+            case "shop/soda": return CampaignShop.BuySoda(run);
+            case "shop/booster/open": return CampaignShop.OpenBooster(run, packIndex: body.TryGetProperty("packIndex", out _) ? (int)CampaignWire.Number(body, "packIndex", 0, 1) : 0);
+            case "shop/booster/tear": return CampaignShop.TearBooster(run);
+            case "shop/booster/pick": return CampaignShop.ResolveBooster(run, CampaignWire.EnumValue<JokerId>(body, "jokerId"));
+            case "shop/booster/skip": return CampaignShop.ResolveBooster(run, null);
             case "shop/arcade/plinko": return CampaignArcade.PlayPlinko(run, (int)CampaignWire.Number(body, "lane", 0, CampaignArcade.PlinkoLaneCount - 1));
             case "shop/arcade/roulette": return CampaignArcade.PlayRoulette(run, (int)CampaignWire.Number(body, "pocket", 1, CampaignArcade.RoulettePocketCount));
             case "shop/arcade/keep": return CampaignArcade.KeepArcadePrize(run, CampaignWire.Text(body, "playId"));
             case "shop/arcade/use": return CampaignArcade.BeginArcadePrizeUse(run, CampaignWire.Text(body, "playId"));
-            case "shop/arcade/pick": return CampaignArcade.PickPackCard(run, CampaignWire.Text(body, "playId"), (int)CampaignWire.Number(body, "index", 0, CampaignArcade.PackSize - 1));
+            case "shop/arcade/tear": return CampaignArcade.TearSpectralPack(run, CampaignWire.Text(body, "playId"));
+            case "shop/arcade/pick": return CampaignArcade.PickPackCard(run, CampaignWire.Text(body, "playId"), (int)CampaignWire.Number(body, "index", 0, (run.Shop?.Arcade?.Pending?.PackCards?.Length ?? CampaignArcade.PackSize) - 1));
             case "shop/arcade/dismiss": return CampaignArcade.DismissArcadeLoss(run, CampaignWire.Text(body, "playId"));
             case "shop/begin-sigil-use": return CampaignShop.BeginSigilUse(run, Offer());
-            case "shop/begin-ticket-use": return CampaignShop.BeginTicketUse(run, Offer(), CampaignWire.EnumValue<TarotId>(body, "ticketId"));
+            case "shop/begin-ticket-use": return CampaignShop.BeginTicketUse(run, Offer(), Ticket());
             case "shop/use-purchased": return CampaignShop.UsePurchased(run, Targets());
             case "shop/finish-use": return CampaignShop.Open(CampaignShop.FinishUse(run));
             case "shop/buy": return CampaignShop.Buy(run, Offer());
@@ -266,8 +280,8 @@ public sealed class WebCampaigns : IAsyncDisposable
                 return CampaignShop.Buy(run, Offer());
             case "shop/buy-use": return CampaignShop.BuyAndUse(run, Offer(), Targets());
             case "shop/print": return CampaignShop.PrintTickets(run, Offer(), (int)CampaignWire.Number(body, "count", 1, CampaignShop.TicketSpread));
-            case "shop/keep-ticket": return CampaignShop.KeepTicket(run, Offer(), CampaignWire.EnumValue<TarotId>(body, "ticketId"));
-            case "shop/use-ticket": return CampaignShop.UseTicket(run, Offer(), CampaignWire.EnumValue<TarotId>(body, "ticketId"), Targets());
+            case "shop/keep-ticket": return CampaignShop.KeepTicket(run, Offer(), Ticket());
+            case "shop/use-ticket": return CampaignShop.UseTicket(run, Offer(), Ticket(), Targets());
             case "shop/sell": return CampaignShop.SellJoker(run, CampaignWire.EnumValue<JokerId>(body, "jokerId"));
             case "shop/reroll": return CampaignShop.Reroll(run);
             case "items/use":

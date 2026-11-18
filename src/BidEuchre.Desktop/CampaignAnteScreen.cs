@@ -27,29 +27,11 @@ internal static class CampaignAnteScreen
             Children = { MenuParts.Title(motion, $"ANTE {run.Ante}", 38), Centered($"♥ {run.Lives}", Danger, 26), Centered($"${run.Money}", Gold, 26) }
         };
 
-        var jokers = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
-        var owned = run.Resources.Inventory.Jokers;
-        foreach (var joker in owned)
-        {
-            var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
-            var card = CampaignShopScreen.Small(definition, Gold);
-            ToolTip.SetTip(card, $"{definition.Name}: {definition.Description}");
-            jokers.Children.Add(card);
-        }
-        while (jokers.Children.Count < CampaignTableControls.JokerSlots)
-        {
-            var slot = CampaignShopScreen.EmptySlot();
-            slot.Margin = default;
-            jokers.Children.Add(slot);
-        }
-        var shelfTitle = Centered($"YOUR JOKERS {owned.Length}/{CampaignTableControls.JokerSlots}", Muted, 11);
-
-        // Stored Tarots and Sigils can be inspected or discarded while waiting for the match.
         var inventory = run.Resources.Inventory;
-        var items = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
+        // Stored Tarots and Sigils can be inspected or discarded while waiting for the match.
+        var items = new List<Control>();
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
-            var ink = CampaignShopScreen.Ink(category);
             var flyout = new Flyout { Placement = PlacementMode.Bottom };
             var description = CampaignShopScreen.Label(definition.Description, Ink, 12);
             description.FontFamily = FontFamily.Default;
@@ -63,7 +45,7 @@ internal static class CampaignAnteScreen
                     MenuParts.Button("Discard", false, motion, $"AnteDiscard{category}{slot}", () => { flyout.Hide(); discardItem?.Invoke(category, slot); }, true, ButtonWidth)
                 }
             };
-            var face = CampaignShopScreen.Small(definition, ink);
+            var face = CampaignTableControls.CardFace(definition);
             var card = new Button
             {
                 Name = $"AnteItem{category}{slot}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand), Flyout = flyout
@@ -71,16 +53,8 @@ internal static class CampaignAnteScreen
             CampaignCardFocus.Apply(card, face);
             Avalonia.Automation.AutomationProperties.SetName(card, $"Your {category}: {definition.Name}");
             ToolTip.SetTip(card, $"{definition.Name}: {definition.Description}");
-            items.Children.Add(card);
+            items.Add(card);
         }
-        while (items.Children.Count < CampaignTableControls.ItemSlots)
-        {
-            var slot = CampaignShopScreen.EmptySlot();
-            slot.Margin = default;
-            items.Children.Add(slot);
-        }
-        var itemsTitle = Centered($"YOUR CARDS {inventory.ItemCount}/{CampaignTableControls.ItemSlots}", Muted, 11);
-
         var matches = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18, HorizontalAlignment = HorizontalAlignment.Center };
         var options = run.NextMatch();
         for (var slot = 1; slot <= CampaignRun.MatchesPerAnte; slot++)
@@ -129,11 +103,7 @@ internal static class CampaignAnteScreen
             line.Name = "CampaignNote";
             content.Children.Add(line);
         }
-        content.Children.Add(new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Spacing = 28, HorizontalAlignment = HorizontalAlignment.Center,
-            Children = { new StackPanel { Spacing = 6, Children = { shelfTitle, jokers } }, new StackPanel { Spacing = 6, Children = { itemsTitle, items } } }
-        });
+        if (inventory.Sodas.Length > 0) content.Children.Add(SodaArtwork.Shelf(inventory));
         content.Children.Add(matches);
         var page = new Grid
         {
@@ -152,7 +122,7 @@ internal static class CampaignAnteScreen
                 }, row: 1)
             }
         };
-        return MenuParts.Scene(motion, page);
+        return CampaignInventoryScreen.Build(MenuParts.Scene(motion, page), inventory, motion, itemCards: items);
     }
 
     private static TextBlock Centered(string text, IBrush brush, double size)

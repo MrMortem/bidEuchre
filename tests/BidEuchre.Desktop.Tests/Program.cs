@@ -51,6 +51,10 @@ if (args.Contains("--ante-only"))
     return;
 }
 
+if (args.Contains("--booster-only")) { CampaignShopUiTests.BoosterAndResume(); return; }
+
+if (args.Contains("--soda-only")) { CampaignShopUiTests.BuySoda(); return; }
+
 if (args.Contains("--shop-only")) { CampaignShopUiTests.Run(); return; }
 
 if (args.Contains("--arcade-only")) { CampaignArcadeUiTests.Run(); return; }
@@ -223,7 +227,7 @@ static void TestAntePreview(PixelMotion motion, int match, string title, string 
         var texts = ante.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToArray();
         string Status(int slot) => ante.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == $"AnteStatus{slot}").Text!;
         var current = (match - 1) % 3 + 1;
-        foreach (var expected in new[] { title, threshold, "8 HANDS · TIES CONTINUE", "$14", "YOUR JOKERS 0/5" }
+        foreach (var expected in new[] { title, threshold, "8 HANDS · TIES CONTINUE", "$14", "JOKERS", "TAROTS / SIGILS" }
             .Concat(match > 9 ? ["LOSE ♥2", "LOSE ♥3"] : ["LOSE ♥1", "LOSE ♥2"]))
             if (!texts.Contains(expected)) throw new Exception($"The Ante screen must show \"{expected}\".");
         for (var slot = 1; slot <= 3; slot++)

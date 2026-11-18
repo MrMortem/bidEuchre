@@ -77,7 +77,7 @@ public sealed class DeveloperConsole(IDeveloperHost host)
         new("inv", "inv", "Show held Jokers, Tarot, Sigils and unlocked bids.", _ => Task.FromResult(Inventory()), "inventory"),
         new("money", "money <n> | money +n | money -n", "Set, add or remove money.", Money, "cash", "$"),
         new("lives", "lives <n> | lives +n | lives -n", "Set, add or remove lives (between matches).", Lives, "hp"),
-        new("joker", "joker add|remove <name> | joker value <name> <n> | joker clear | joker list", "Manage Jokers (5 slots).", Joker, "j"),
+        new("joker", "joker add|remove <name> | joker value <name> <n> | joker clear | joker list", "Manage Jokers.", Joker, "j"),
         new("tarot", "tarot add <name> [count] | tarot remove <name|slot#> | tarot clear | tarot list", "Manage Tarot cards (share 4 item slots with Sigils).", Tarot, "t"),
         new("sigil", "sigil add <name> [count] | sigil remove <name|slot#> | sigil clear | sigil list", "Manage held Sigil cards.", Sigil),
         new("gumball", "gumball unlock|lock <name|all> | gumball list", "Unlock or lock bidding options.", Gumball, "bid"),
@@ -131,8 +131,8 @@ public sealed class DeveloperConsole(IDeveloperHost host)
         string Joined(IEnumerable<string> names) => names.Any() ? string.Join(", ", names) : "—";
         return
         [
-            new($"jokers  [{inventory.Jokers.Length}/5]  {Joined(inventory.Jokers.Select(j => Name(FeatureCategory.Joker, j.Id.ToString()) + (j.Value != 0 ? $" ({j.Value:+0;-0})" : "")))}"),
-            new($"tarot   [{inventory.ItemCount}/{CampaignInventory.ItemSlots}]  {Joined(inventory.Tarot.Select((t, i) => $"#{i + 1} {Name(FeatureCategory.Tarot, t.ToString())}"))}"),
+            new($"jokers  [{inventory.Jokers.Length}/{inventory.JokerCapacity}]  {Joined(inventory.Jokers.Select(j => Name(FeatureCategory.Joker, j.Id.ToString()) + (j.Value != 0 ? $" ({j.Value:+0;-0})" : "")))}"),
+            new($"tarot   [{inventory.ItemCount}/{inventory.ItemCapacity}]  {Joined(inventory.Tarot.Select((t, i) => $"#{i + 1} {Name(FeatureCategory.Tarot, t.ToString())}"))}"),
             new($"sigils          {Joined(inventory.Sigils.Select((s, i) => $"#{inventory.Tarot.Length + i + 1} {Name(FeatureCategory.Sigil, s.ToString())}"))}"),
             new($"bids    [{inventory.Unlocks.Length}/{CampaignInventory.GumballCount}]  {Joined(inventory.Unlocks.Select(g => Name(FeatureCategory.Gumball, g.ToString())))}"),
         ];
@@ -203,7 +203,7 @@ public sealed class DeveloperConsole(IDeveloperHost host)
                 await Inventory(i =>
                 {
                     if (i.Has(id)) throw new DeveloperCommandException($"{Name(FeatureCategory.Joker, id.ToString())} is already held.");
-                    if (i.Jokers.Length >= 5) throw new DeveloperCommandException("All 5 Joker slots are full. Remove one first.");
+                    if (i.Jokers.Length >= i.JokerCapacity) throw new DeveloperCommandException($"All {i.JokerCapacity} Joker slots are full. Remove one first.");
                     return i with { Jokers = [.. i.Jokers, new(id)] };
                 });
                 return [Ok($"Added {Name(FeatureCategory.Joker, id.ToString())}.")];
@@ -249,8 +249,8 @@ public sealed class DeveloperConsole(IDeveloperHost host)
                 var key = ResolveKey(category, string.Join(' ', nameArgs));
                 await Inventory(i =>
                 {
-                    if (i.ItemCount + count > CampaignInventory.ItemSlots)
-                        throw new DeveloperCommandException($"Only {CampaignInventory.ItemSlots - i.ItemCount} of {CampaignInventory.ItemSlots} item slots are free.");
+                    if (i.ItemCount + count > i.ItemCapacity)
+                        throw new DeveloperCommandException($"Only {i.ItemCapacity - i.ItemCount} of {i.ItemCapacity} item slots are free.");
                     return category == FeatureCategory.Tarot
                         ? i with { Tarot = [.. i.Tarot, .. Enumerable.Repeat(Enum.Parse<TarotId>(key), count)] }
                         : i with { Sigils = [.. i.Sigils, .. Enumerable.Repeat(Enum.Parse<SigilId>(key), count)] };

@@ -16,7 +16,7 @@ namespace BidEuchre.Desktop;
 /// <param name="Use">Plays the newly printed ticket at once, using its six offered cards when it changes cards.</param>
 /// <param name="Back">Returns to the shop; printed tickets keep waiting.</param>
 /// <param name="Refresh">Redraws this menu, for when a print was refused.</param>
-internal sealed record TellerActions(Func<int, TarotId[]?> Print, Action<TarotId> Keep, Action<TarotId> Use, Action Back, Action Refresh);
+internal sealed record TellerActions(Func<int, string[]?> Print, Action<string> Keep, Action<string> Use, Action Back, Action Refresh);
 
 /// <summary>The Fortune Teller's own menu. She prints one blind ticket for $3, or three for $6 to keep the one you like.
 /// Printing charges and saves at once; the booth then glows, the tickets print face up out of its slot as one strip and are torn apart.</summary>
@@ -36,6 +36,8 @@ internal static class FortuneTellerScreen
     public static Control Build(CampaignRun run, ShopOffer offer, TellerActions actions, PixelMotion motion, string? note = null)
     {
         var money = run.Money;
+        var singlePrice = CampaignShop.PrintPrice(run, 1);
+        var spreadPrice = CampaignShop.PrintPrice(run, CampaignShop.TicketSpread);
         var stop = new CancellationTokenSource();
         var stage = new Canvas { Width = StageWidth, Height = StageHeight, ClipToBounds = false };
         void Add(Control control, double x, double y) { Canvas.SetLeft(control, x); Canvas.SetTop(control, y); stage.Children.Add(control); }
@@ -60,12 +62,14 @@ internal static class FortuneTellerScreen
             Width = 300, MinHeight = 300, Padding = new Thickness(16), VerticalAlignment = VerticalAlignment.Top,
             Background = Brush.Parse("#CC100B28"), BorderBrush = MainWindow.Line, BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(2)
         };
+        string[] wrappers = ["space", "cinema", "deco", "rune", "diamond"];
+        var wrapper = "ticket-pack-" + wrappers[Math.Max(0, run.Shop!.MatchJustFinished) % wrappers.Length];
         var moneyLabel = CampaignShopScreen.Label($"${money}", Gold, 26);
         moneyLabel.Name = "TellerMoney"; moneyLabel.VerticalAlignment = VerticalAlignment.Center;
         var header = new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 22, HorizontalAlignment = HorizontalAlignment.Center,
-            Children = { MenuParts.Title(motion, "FORTUNE TELLER", 34), moneyLabel }
+            Children = { PixelArt.Machine(wrapper, 40, 62), MenuParts.Title(motion, "FORTUNE TELLER", 34), moneyLabel }
         };
         var back = MenuParts.Button("Back to Shop", false, motion, "TellerBack", actions.Back, false, 260);
         var panel = new StackPanel { Spacing = 14, Margin = new Thickness(24, 16), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -81,8 +85,8 @@ internal static class FortuneTellerScreen
         panel.DetachedFromVisualTree += (_, _) => stop.Cancel();
 
         // The printed tickets, once they lie in the row and can be chosen.
-        var tickets = new List<(TarotId Id, Button Button, Border Frame)>();
-        void Choose(TarotId? chosen)
+        var tickets = new List<(string Id, Button Button, Border Frame)>();
+        void Choose(string? chosen)
         {
             foreach (var (id, button, frame) in tickets)
             {
@@ -93,26 +97,27 @@ internal static class FortuneTellerScreen
         }
         Control PickDetail() => Detail("YOUR TICKETS", TicketInk, "Pick one",
             "Press a ticket to read it. Keep one for a match, or use it now on six offered cards. Use Now commits that ticket; apply it before leaving. The other printed tickets are lost.", null);
-        Control TicketDetail(TarotId ticket)
+        Control TicketDetail(string ticket)
         {
-            var definition = FeatureCatalog.Get(FeatureCategory.Tarot, ticket.ToString());
+            var definition = CampaignShop.PrintedCard(ticket)!;
             var room = run.Resources.Inventory.HasItemRoom;
             var keep = MenuParts.Button("Keep", false, motion, "TellerKeep", () => actions.Keep(ticket), true, 264);
             keep.IsEnabled = room;
             var use = MenuParts.Button("Use Now", true, motion, "TellerUse", () => actions.Use(ticket), true, 264);
-            return Detail("TICKET", TicketInk, definition.Name, definition.Description,
+            return Detail(definition.Category == FeatureCategory.Sigil ? "SPECTRAL" : "TICKET", TicketInk, definition.Name, definition.Description,
                 room ? "Use Now opens six offered cards and commits this ticket. Apply it before leaving; inventory tickets can share the same cards." : "Your card slots are full. Use Now needs no slot and commits this ticket: apply it before leaving. Inventory tickets can share its six cards.",
                 [keep, use], !room);
         }
-        Button TicketButton(TarotId id, Border face)
+        Button TicketButton(string id, Border face)
         {
             var button = new Button
             {
-                Name = $"Ticket{id}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand),
+                Name = $"Ticket{id.Replace(":", "")}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand),
                 RenderTransform = new TranslateTransform()
             };
             CampaignCardFocus.Apply(button, face);
-            AutomationProperties.SetName(button, $"Ticket: {FeatureCatalog.Get(FeatureCategory.Tarot, id.ToString()).Name}");
+            var card = CampaignShop.PrintedCard(id)!;
+            AutomationProperties.SetName(button, card.Category == FeatureCategory.Sigil ? $"Spectral: {card.Name} Sigil" : $"Ticket: {card.Name}");
             button.Click += (_, _) => Choose(id);
             tickets.Add((id, button, face));
             return button;
@@ -120,7 +125,7 @@ internal static class FortuneTellerScreen
         static double RowX(int index, int count) => (StageWidth - (count * TicketWidth + (count - 1) * Gap)) / 2 + index * (TicketWidth + Gap);
 
         // Tickets already printed (after going back to the shop, or reloading) wait face up in the row.
-        void Lay(TarotId[] printed)
+        void Lay(string[] printed)
         {
             for (var i = 0; i < printed.Length; i++)
             {
@@ -132,16 +137,18 @@ internal static class FortuneTellerScreen
 
         Control PrintDetail()
         {
-            var one = MenuParts.Button($"Print 1 · ${CampaignShop.TicketPrice}", false, motion, "TellerPrintOne", () => Print(1), true, 264);
-            var three = MenuParts.Button($"Print 3 · ${CampaignShop.TicketSpreadPrice}", true, motion, "TellerPrintThree", () => Print(CampaignShop.TicketSpread), true, 264);
-            one.IsEnabled = money >= CampaignShop.TicketPrice;
-            three.IsEnabled = money >= CampaignShop.TicketSpreadPrice;
-            var hint = money < CampaignShop.TicketPrice ? $"You need ${CampaignShop.TicketPrice - money} more."
-                : money < CampaignShop.TicketSpreadPrice ? $"Three tickets need ${CampaignShop.TicketSpreadPrice - money} more."
+            var one = MenuParts.Button($"Print 1 · ${singlePrice}", false, motion, "TellerPrintOne", () => Print(1), true, 264);
+            var three = MenuParts.Button($"Print 3 · ${spreadPrice}", true, motion, "TellerPrintThree", () => Print(CampaignShop.TicketSpread), true, 264);
+            one.IsEnabled = money >= singlePrice;
+            three.IsEnabled = money >= spreadPrice;
+            var hint = money < singlePrice ? $"You need ${singlePrice - money} more."
+                : money < spreadPrice ? $"Three tickets need ${spreadPrice - money} more."
                 : "She prints once a visit. A reroll brings her back.";
+            if (run.Resources.Inventory.Has(SodaId.SpectralSprite))
+                hint += " Spectral Sprite gives each ticket a 1 in 4 chance to print a Sigil.";
             return Detail("FORTUNE TELLER", TicketInk, "Blind tickets",
-                $"Print one mystery ticket for ${CampaignShop.TicketPrice}, or print {CampaignShop.TicketSpread} different tickets for ${CampaignShop.TicketSpreadPrice} and keep the one you want.",
-                hint, [one, three], money < CampaignShop.TicketPrice);
+                $"Print one mystery ticket for ${singlePrice}, or print {CampaignShop.TicketSpread} different tickets for ${spreadPrice} and keep the one you want.",
+                hint, [one, three], money < singlePrice);
         }
 
         var printing = false;
@@ -150,7 +157,7 @@ internal static class FortuneTellerScreen
             if (printing) return;
             printing = true;
             if (actions.Print(count) is not { } printed) { actions.Refresh(); return; }
-            money -= CampaignShop.PrintPrice(count);
+            money -= CampaignShop.PrintPrice(run, count);
             moneyLabel.Text = $"${money}";
             detail.Child = Detail("FORTUNE TELLER", TicketInk, "Printing…", "The crystal ball is choosing your fortune.", null);
             if (!motion.Enabled) { Lay(printed); return; }
@@ -163,7 +170,7 @@ internal static class FortuneTellerScreen
         }
 
         // The crystal ball wakes and the booth rattles, then the tickets print and are torn off one by one into the row.
-        async Task Perform(TarotId[] printed)
+        async Task Perform(string[] printed)
         {
             var token = stop.Token;
             await Tween.Run(1300, token, t =>
@@ -191,7 +198,7 @@ internal static class FortuneTellerScreen
             var n = printed.Length;
             double pw = (TicketWidth + 6) * Feed, ph = (TicketHeight + 6) * Feed;
             // Piece k hangs k pieces below the slot; the bottom piece came out first and goes to the first place in the row.
-            TarotId Piece(int k) => printed[n - 1 - k];
+            string Piece(int k) => printed[n - 1 - k];
             var strip = new Canvas { Width = pw, Height = ph * n };
             for (var k = 0; k < n; k++)
             {
@@ -306,15 +313,18 @@ internal static class FortuneTellerScreen
             }
         }
 
-        if (offer.Printed is { } waiting) Lay(waiting.Select(Enum.Parse<TarotId>).ToArray());
+        if (offer.Printed is { } waiting) Lay(waiting);
         else detail.Child = PrintDetail();
         return MenuParts.Scene(motion, panel, new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
     }
 
     /// <summary>A printed ticket, face up, in its frame.</summary>
-    private static Border Front(TarotId id)
+    private static Border Front(string id)
     {
-        var art = PixelArt.CampaignIcon(FeatureCatalog.Get(FeatureCategory.Tarot, id.ToString()), TicketHeight - 8);
+        var card = CampaignShop.PrintedCard(id)!;
+        Control art = card.Category == FeatureCategory.Sigil
+            ? PixelArt.Machine(PixelArt.CollectorImageName(card.Key), TicketWidth, TicketHeight)
+            : PixelArt.CampaignIcon(card, TicketHeight - 8);
         return new Border
         {
             Width = TicketWidth + 6, Height = TicketHeight + 6, Background = MainWindow.Panel, BorderBrush = TicketInk, BorderThickness = new Thickness(3),

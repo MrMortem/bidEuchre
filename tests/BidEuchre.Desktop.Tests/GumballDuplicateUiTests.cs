@@ -39,6 +39,7 @@ internal static class GumballDuplicateUiTests
             Require(CampaignStore.Save(initial, path), "Prepare duplicate shop save.");
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
+            CampaignShopUiTests.WaitFor(() => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "ShopReroll"));
             if (which == "Retired")
             {
                 Require(Text(window).Contains("SOLD"), "A migrated retired gumball purchase must remain sold.");

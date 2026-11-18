@@ -1,7 +1,9 @@
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Interactivity;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -12,10 +14,15 @@ using BidEuchre.Desktop;
 internal static class CampaignArcadeUiTests
 {
     private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
-    private static Button Find(Window window, string name) => window.GetVisualDescendants().OfType<Button>().SingleOrDefault(b => b.Name == name)
-        ?? throw new Exception($"Missing Arcade control {name}.");
+    private static Button Find(Window window, string name)
+    {
+        Button? Locate() => window.GetVisualDescendants().OfType<Button>().SingleOrDefault(b => b.Name == name);
+        if (Locate() is { } present) return present;
+        Await(() => Locate() is not null);
+        return Locate() ?? throw new Exception($"Missing Arcade control {name}.");
+    }
     private static void Click(Button button) { button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); Dispatcher.UIThread.RunJobs(); }
-    private static bool Claimable(Window window) => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name is "ArcadeKeep" or "CollectorCard0");
+    private static bool Claimable(Window window) => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "ArcadeKeep" || b.Name == "CollectorCard0" && b.IsEffectivelyEnabled);
     private static int SigilCard(ArcadeResult result) => Array.FindIndex(result.PackCards!, k => k != CampaignArcade.LegendaryKey);
     private static PixelMotion Still() { var motion = new PixelMotion(); motion.SetEnabled(false); return motion; }
 
@@ -25,7 +32,7 @@ internal static class CampaignArcadeUiTests
         {
             var run = CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
             { Resources = CampaignSnapshot.Create(seed) with { Wallets = [30, 0, 0, 0], Inventory = inventory ?? CampaignSnapshot.Create(seed).Inventory } });
-            if (CampaignArcade.PlayPlinko(run, 4).Shop!.Arcade!.Pending!.Score == score) return run;
+            if (CampaignArcade.Available(run) && CampaignArcade.PlayPlinko(run, 4).Shop!.Arcade!.Pending!.Score == score) return run;
         }
         throw new Exception("Could not find deterministic Plinko fixture.");
     }
@@ -56,8 +63,7 @@ internal static class CampaignArcadeUiTests
         var window = new Window { Width = 1100, Height = 800 };
         try
         {
-            var initial = CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
-            { Resources = CampaignSnapshot.Create(41) with { Wallets = [30, 0, 0, 0] } });
+            var initial = PlinkoFixture(3);
             Require(CampaignStore.Save(initial, path), "The Arcade fixture must save.");
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
@@ -100,7 +106,7 @@ internal static class CampaignArcadeUiTests
             var play = Find(window, "ArcadePlay"); Click(play);
             var saved = CampaignStore.Load(path)!;
             var result = saved.Shop!.Arcade!.Pending!;
-            Require(saved.Money == 27 && saved.Resources.Wallets[0] == 27 && result.Score == score, "The reduced-motion play must save one charge and its reward before revealing it.");
+            Require(saved.Money == 18 && saved.Resources.Wallets[0] == 18 && result.Score == score, "The reduced-motion play must save one charge and its reward before revealing it.");
             Require(!Find(window, "ArcadeBack").IsEnabled && !Find(window, "ArcadeRoulette").IsEnabled, "A pending prize must require a claim before leaving or playing again.");
             var exactSave = File.ReadAllText(path); Click(play);
             Require(File.ReadAllText(path) == exactSave, "Replaying an old paid control must not charge or draw again.");
@@ -114,7 +120,7 @@ internal static class CampaignArcadeUiTests
                 "Continue must restore the saved prize directly, without another play.");
             Require(File.ReadAllText(path) == exactSave, "Restoring a pending result must preserve its exact state.");
             var keep = Find(window, "ArcadeKeep"); Click(keep);
-            Require(flow.Run!.Money == 27 && flow.Run.Resources.Inventory.ItemCount == initial.Resources.Inventory.ItemCount + 1,
+            Require(flow.Run!.Money == 18 && flow.Run.Resources.Inventory.ItemCount == initial.Resources.Inventory.ItemCount + 1,
                 "Keep must grant exactly one prize without charging again.");
             Require(flow.Run.Shop!.Arcade!.Pending is null && !Find(window, "ArcadePlay").IsEnabled, "Plinko must remain spent for the visit after claiming its prize.");
             var keptSave = File.ReadAllText(path); Click(keep);
@@ -141,20 +147,21 @@ internal static class CampaignArcadeUiTests
             Require(!Find(window, "ArcadeBack").IsEnabled && Find(window, "ArcadeDone").IsEnabled, "A no-prize result must be acknowledged before leaving.");
             Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name is "ArcadeKeep" or "ArcadeUse"), "A loss must not offer an item reward.");
             Click(Find(window, "ArcadeDone"));
-            Require(flow.Run!.Resources.Inventory.ItemCount == initial.Resources.Inventory.ItemCount && flow.Run.Money == 27, "A loss charges once and gives no item.");
+            Require(flow.Run!.Resources.Inventory.ItemCount == initial.Resources.Inventory.ItemCount && flow.Run.Money == 18, "A loss charges once and gives no item.");
             var landing = CampaignArcade.PlayRoulette(flow.Run, 1).Shop!.Arcade!.Pending!.Landing;
             Click(Find(window, "ArcadeRoulette"));
             Click(Find(window, $"RoulettePocket{landing}")); Capture(window, "arcade-roulette-ready");
             Click(Find(window, "ArcadePlay"));
             var result = flow.Run.Shop!.Arcade!.Pending!;
-            Require(result.Landing == landing && result.Score == 100 && flow.Run.Money == 24 && CampaignArcade.IsPack(result), "The chosen exact pocket must pay for one spin and win a Collector's Pack.");
+            Require(result.Landing == landing && result.Score == 100 && flow.Run.Money == 18 && CampaignArcade.IsPack(result), "The included spin must win a Spectral Pack without charging again.");
             var wheel = window.GetVisualDescendants().OfType<Canvas>().Single(c => c.Name == "RouletteWheel");
             var angle = ((RotateTransform)wheel.RenderTransform!).Angle;
             Require(Math.Abs((angle + (landing - 1) * 30) % 360) < .01, "The wheel's winning pocket must stop beneath the fixed pointer.");
             Capture(window, "arcade-roulette-sigil");
             var index = SigilCard(result);
+            Click(Find(window, "TearSpectral"));
             Click(Find(window, $"CollectorCard{index}"));
-            Require(flow.Run.Money == 24 && CampaignShop.UseSessionCards(flow.Run).Select(c => c.Id).SequenceEqual(result.TargetCards), "Picking a pack card must open the saved six-card set without another charge.");
+            Require(flow.Run.Money == 18 && CampaignShop.UseSessionCards(flow.Run).Select(c => c.Id).SequenceEqual(result.TargetCards), "Picking a pack card must open the saved six-card set without another charge.");
             Require(!Find(window, "FinishShopUse").IsEnabled, "The Arcade prize must be applied before its six-card menu can be left.");
             Click(Find(window, $"DeckCard{result.TargetCards[0].Value}")); Click(Find(window, "ConfirmDeckChoice")); Click(Find(window, "FinishShopUse"));
             Require(flow.Run.Resources.Deck.Single(c => c.Id == result.TargetCards[0]).Sigil == Enum.Parse<SigilId>(result.PackCards![index]), "The picked Sigil must land on the exact chosen card.");
@@ -181,7 +188,7 @@ internal static class CampaignArcadeUiTests
             {
                 window.Content = ArcadeScreen.Build(current, actions, motion); window.Show(); Dispatcher.UIThread.RunJobs();
                 Click(Find(window, "ArcadePlay"));
-                Require(current.Money == 27 && plays == 1, "Animation must start after its authoritative payment.");
+                Require(current.Money == 18 && plays == 1, "Animation must start after its authoritative payment.");
                 Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "ArcadeKeep"), "The prize must wait for the animated result.");
                 if (detach)
                 {
@@ -226,6 +233,7 @@ internal static class CampaignArcadeUiTests
             Require(CampaignStore.Save(initial, path), "The full-inventory prize must save.");
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
+            Await(() => Claimable(window));
             var expander = window.GetVisualDescendants().OfType<Expander>().SingleOrDefault(e => e.Name == "ArcadeFreeSlot");
             Require(expander is not null, "A full inventory must expose stored-card discard choices while claiming a prize.");
             expander!.IsExpanded = true; Dispatcher.UIThread.RunJobs();
@@ -245,11 +253,12 @@ internal static class CampaignArcadeUiTests
 
     private static void AnimationsReachSavedResults()
     {
-        foreach (var game in new[] { ArcadeGame.Plinko, ArcadeGame.Roulette })
+        foreach (var (game, reduced) in new[] { (ArcadeGame.Plinko, false), (ArcadeGame.Roulette, false), (ArcadeGame.Plinko, true) })
         {
             var run = PlinkoFixture(5);
             var plays = 0;
             var motion = new PixelMotion();
+            motion.SetReduced(reduced);
             var window = new Window { Width = 1100, Height = 800 };
             try
             {
@@ -258,20 +267,60 @@ internal static class CampaignArcadeUiTests
                     plays++;
                     run = chosen == ArcadeGame.Plinko ? CampaignArcade.PlayPlinko(run, choice) : CampaignArcade.PlayRoulette(run, choice);
                     return run.Shop!.Arcade!.Pending;
-                }, _ => { }, _ => { }, _ => { }, () => { }, () => { });
+                }, _ => { }, _ => { }, _ => { }, () => { }, () => { })
+                { Tear = id => { run = CampaignArcade.TearSpectralPack(run, id); return true; } };
                 window.Content = ArcadeScreen.Build(run, actions, motion); window.Show(); Dispatcher.UIThread.RunJobs();
                 if (game == ArcadeGame.Roulette)
                 {
                     var landing = CampaignArcade.PlayRoulette(run, 1).Shop!.Arcade!.Pending!.Landing;
                     Click(Find(window, "ArcadeRoulette")); Click(Find(window, $"RoulettePocket{landing}"));
                 }
+                else window.GetVisualDescendants().OfType<PlinkoControl>().Single().Choose(4);
                 var started = System.Diagnostics.Stopwatch.StartNew();
                 Click(Find(window, "ArcadePlay"));
                 Await(() => started.ElapsedMilliseconds >= 900);
                 Require(!Claimable(window), "Motion-enabled play must show the saved path or spin before its prize.");
                 Capture(window, game == ArcadeGame.Plinko ? "arcade-plinko-in-motion" : "arcade-roulette-in-motion");
+                var result = run.Shop!.Arcade!.Pending!;
+                Require(CampaignArcade.IsPack(result), "The saved result must contain the three spectral cards.");
+                Image? Strip() => window.GetVisualDescendants().OfType<Image>().SingleOrDefault(i => i.Name == "SpectralWrapperTop");
+                Require(Strip() is null, "The pack must wait until the machine has landed.");
+                var seal = Find(window, "TearSpectral");
+                Require(result.AwaitingOpen && Strip() is null && !Claimable(window), "Only a sealed wrapper should be available after the spin or drop.");
+                Capture(window, $"arcade-{game}-spectral-sealed");
+                seal.Focus();
+                window.KeyPress(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+                window.KeyRelease(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+                Dispatcher.UIThread.RunJobs();
+                Require(!run.Shop!.Arcade!.Pending!.AwaitingOpen, "Keyboard activation must open the saved spectral pack.");
+                if (reduced)
+                    Require(Strip() is null && Claimable(window), "Reduced motion must go straight to the three choices.");
+                else
+                {
+                    var strip = Strip()!;
+                    var body = window.GetVisualDescendants().OfType<Image>().Single(i => i.Name == "SpectralWrapperBody");
+                    Require(strip.Clip is not null && body.Clip is not null && ReferenceEquals(strip.Source, PixelArt.CollectorImage("Pack"))
+                        && ReferenceEquals(strip.Source, body.Source), "The wrapper pieces must come from the Spectral Pack artwork.");
+                    Await(() => strip.Opacity is > 0.15 and < 0.65 && Canvas.GetTop(strip) < Canvas.GetTop(body));
+                    Capture(window, $"arcade-{game}-spectral-tear");
+                    var portraits = Enumerable.Range(0, 3).Select(i => window.GetVisualDescendants().OfType<Image>().Single(image => image.Name == $"SpectralReveal{i}")).ToArray();
+                    Require(portraits.Select((image, i) => ReferenceEquals(image.Source, PixelArt.CollectorImage(result.PackCards![i]))).All(same => same),
+                        "Every emerging portrait must match its saved card in order.");
+                    Await(() => portraits[0].Opacity > 0 && portraits[1].Opacity == 0);
+                    Await(() => portraits[1].Opacity == 1 && portraits[2].Opacity == 0);
+                    Await(() => portraits[2].Opacity == 1);
+                    Require(!Claimable(window), "The three choices must wait until the reveal finishes.");
+                    Capture(window, $"arcade-{game}-spectral-reveal");
+                    var picker = window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "CollectorPack");
+                    Await(() => picker.Opacity is > .2 and < .8);
+                    Require(!Claimable(window), "Choices must stay locked during the landing crossfade.");
+                    Capture(window, $"arcade-{game}-spectral-landing");
+                }
                 Await(() => Claimable(window));
-                Require(plays == 1 && run.Money == 27 && started.ElapsedMilliseconds >= 2200,
+                Capture(window, $"arcade-{game}-spectral-picker");
+                Require(Strip() is null && Enumerable.Range(0, 3).All(i => Find(window, $"CollectorCard{i}").IsEnabled),
+                    "All three choices must become available together.");
+                Require(plays == 1 && run.Money == 18 && started.ElapsedMilliseconds >= 2200,
                     "A completed animation must reveal exactly one already-paid reward.");
                 if (game == ArcadeGame.Plinko)
                 {
@@ -313,8 +362,9 @@ internal static class CampaignArcadeUiTests
             Fail("ArcadePlay");
             Require(Find(window, "ArcadePlay").IsEnabled && flow.Run!.Money == 30, "A failed play must stay available without a charge.");
             Click(Find(window, "ArcadePlay"));
-            Require(flow.Run!.Money == 27 && flow.Run.Shop!.Arcade!.Pending!.Score == 5, "Retry after saving recovers must produce one paid deterministic result.");
+            Require(flow.Run!.Money == 18 && flow.Run.Shop!.Arcade!.Pending!.Score == 5, "Retry after saving recovers must produce one paid deterministic result.");
             var card = $"CollectorCard{SigilCard(flow.Run.Shop!.Arcade!.Pending!)}";
+            Fail("TearSpectral"); Click(Find(window, "TearSpectral"));
             Fail(card); Require(flow.Run.Shop!.UseSession is null && Find(window, card).IsEnabled, "A pack pick must not commit until its session is saved.");
             Click(Find(window, card));
             var target = CampaignShop.UseSessionCards(flow.Run)[0].Id;
@@ -323,7 +373,7 @@ internal static class CampaignArcadeUiTests
             Click(Find(window, $"DeckCard{target.Value}")); Click(Find(window, "ConfirmDeckChoice"));
             Fail("FinishShopUse"); Require(Find(window, "FinishShopUse").IsEnabled, "An unsaved finish must preserve the saved six-card opportunity.");
             Click(Find(window, "FinishShopUse"));
-            Require(flow.Run.Money == 27 && CampaignStore.Load(path)!.Shop!.UseSession is null, "Durable retries must finish with exactly one charge and one applied prize.");
+            Require(flow.Run.Money == 18 && CampaignStore.Load(path)!.Shop!.UseSession is null, "Durable retries must finish with exactly one charge and one applied prize.");
             Console.WriteLine("PASS  Arcade save failures preserve prior payment, claim and card effects until a durable retry succeeds");
         }
         finally { window.Close(); if (Directory.Exists(path)) Directory.Delete(path); File.Delete(path); }
@@ -340,24 +390,41 @@ internal static class CampaignArcadeUiTests
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
             Click(Find(window, "ShopArcade")); Click(Find(window, "ArcadePlay"));
             var result = flow.Run!.Shop!.Arcade!.Pending!;
-            Require(CampaignArcade.IsPack(result) && flow.Run.Money == 27, "A 5-point drop must pay once and save a Collector's Pack.");
-            Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name is "ArcadeKeep" or "ArcadeUse"), "A Collector's Pack can never be kept.");
+            Require(CampaignArcade.IsPack(result) && flow.Run.Money == 18, "A 5-point drop must pay once and save a Spectral Pack.");
+            Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name is "ArcadeKeep" or "ArcadeUse"), "A Spectral Pack can never be kept.");
+            Require(Find(window, "TearSpectral").IsEnabled && !Claimable(window), "Motion off still requires the player to open their pack.");
+            flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
+            flow.Open(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
+            Click(Find(window, "TearSpectral"));
+            Require(!CampaignStore.Load(path)!.Shop!.Arcade!.Pending!.AwaitingOpen, "Opening a restored seal must persist before picking.");
             for (var i = 0; i < 3; i++)
             {
                 var key = result.PackCards![i];
-                var expected = key == CampaignArcade.LegendaryKey ? $"Legendary — fills {5 - flow.Run.Resources.Inventory.Jokers.Length} empty Joker slots"
+                var expected = key == CampaignArcade.LegendaryKey ? $"Legendary — fills {5 - flow.Run!.Resources.Inventory.Jokers.Length} empty Joker slots"
                     : $"{FeatureCatalog.CollectorTitle(Enum.Parse<SigilId>(key))} — {key} Sigil";
                 var button = Find(window, $"CollectorCard{i}");
                 Require(button.IsEnabled && AutomationProperties.GetName(button) == expected, $"Pack card {i} must be a named, reduced-motion-ready choice: {expected}.");
             }
-            Capture(window, "arcade-collector-pack");
+            Require(window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "SPECTRAL PACK!")
+                && window.GetVisualDescendants().OfType<Image>().Any(i => ReferenceEquals(i.Source, PixelArt.CollectorImage("Pack"))),
+                "Arcade pack wins must show the Spectral Pack name and its fixed artwork.");
+            Capture(window, "arcade-spectral-pack");
             var exactSave = File.ReadAllText(path);
             flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
-            Require(Find(window, "CollectorCard0").IsEnabled && File.ReadAllText(path) == exactSave, "Continue must restore the same unopened pack.");
+            Require(Find(window, "CollectorCard0").IsEnabled && File.ReadAllText(path) == exactSave, "Continue must restore the same opened pack without another tear.");
             var index = SigilCard(result);
             var stale = Find(window, $"CollectorCard{index}");
-            Click(stale);
+            var art = (Image)stale.Content!;
+            var point = art.TranslatePoint(new Point(art.Bounds.Width / 2, art.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(point);
+            Await(() => art.TranslatePoint(new Point(art.Bounds.Width / 2, art.Bounds.Height / 2), window)!.Value.Y < point.Y - 5);
+            var effect = FeatureCatalog.Get(FeatureCategory.Sigil, result.PackCards![index]).Description;
+            Require(art.Width >= 136 && window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Name == "SpectralEffect" && t.Text?.Contains(effect) == true),
+                "Hovering the enlarged Spectral card must show its Sigil effect.");
+            window.MouseDown(point, MouseButton.Left);
+            window.MouseUp(point, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
             Require(flow.Run!.Shop!.UseSession!.FeatureId == result.PackCards![index], "The picked Sigil must open its six-card menu.");
             Require(!Find(window, "FinishShopUse").IsEnabled, "The picked Sigil must be applied before its menu can be left.");
             var committed = File.ReadAllText(path); Click(stale);
@@ -365,7 +432,14 @@ internal static class CampaignArcadeUiTests
             Click(Find(window, $"DeckCard{result.TargetCards[1].Value}")); Click(Find(window, "ConfirmDeckChoice")); Click(Find(window, "FinishShopUse"));
             Require(flow.Run.Resources.Deck.Single(c => c.Id == result.TargetCards[1]).Sigil == Enum.Parse<SigilId>(result.PackCards[index])
                 && flow.Run.Resources.Inventory.Sigils.Length == 0, "The Sigil must land on the chosen card and never enter inventory.");
-            Console.WriteLine("PASS  Collector's Pack shows three named cards, restores unopened, and forces the picked Sigil onto one of six cards");
+            File.WriteAllText(path, exactSave);
+            flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
+            flow.Open(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
+            Click(Find(window, "SkipSpectral"));
+            var skipped = CampaignStore.Load(path)!;
+            Require(skipped.Shop!.Arcade is { Pending: null, PlinkoPlayed: true } && skipped.Shop.UseSession is null && skipped.Money == 18,
+                "Skipping must clear the pack and preserve the paid play.");
+            Console.WriteLine("PASS  Spectral Pack restores sealed or open, shows three named cards, and applies the picked Sigil to one of six cards");
         }
         finally { window.Close(); File.Delete(path); }
     }
@@ -381,13 +455,15 @@ internal static class CampaignArcadeUiTests
             {
                 var run = CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
                 { Resources = CampaignSnapshot.Create(seed) with { Wallets = [30, 0, 0, 0] } });
-                if (CampaignArcade.PlayPlinko(run, 4).Shop!.Arcade!.Pending!.PackCards?.Contains(CampaignArcade.LegendaryKey) is true) fixture = run;
+                if (CampaignArcade.Available(run) && CampaignArcade.PlayPlinko(run, 4).Shop!.Arcade!.Pending!.PackCards?.Contains(CampaignArcade.LegendaryKey) is true) fixture = run;
             }
             Require(fixture is not null && CampaignStore.Save(fixture!, path), "A Legendary fixture must exist and save.");
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
             Click(Find(window, "ShopArcade")); Click(Find(window, "ArcadePlay"));
+            Require(!window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains("Legendary:") == true), "The sealed pack must not disclose a Legendary.");
             var before = flow.Run!.Resources.Inventory.Jokers.Select(j => j.Id).ToArray();
+            Click(Find(window, "TearSpectral"));
             var index = Array.IndexOf(flow.Run.Shop!.Arcade!.Pending!.PackCards!, CampaignArcade.LegendaryKey);
             Click(Find(window, $"CollectorCard{index}"));
             var granted = flow.Run.Resources.Inventory.Jokers.Select(j => j.Id).Except(before).ToArray();
@@ -410,11 +486,13 @@ internal static class CampaignArcadeUiTests
         try
         {
             var pending = CampaignArcade.PlayPlinko(PlinkoFixture(5), 4);
+            pending = CampaignArcade.TearSpectralPack(pending, pending.Shop!.Arcade!.Pending!.PlayId);
             window.Content = ArcadeScreen.Build(pending, new ArcadeActions((_, _) => null, _ => { }, _ => { }, _ => { }, () => { }, () => { }), motion);
             window.Show(); Dispatcher.UIThread.RunJobs();
-            Await(() => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "CollectorCard2" && b.IsEnabled));
+            Require(Find(window, "CollectorCard2").IsEnabled && !window.GetVisualDescendants().OfType<Image>().Any(i => i.Name == "SpectralWrapperTop"),
+                "Restoring a pending pack with motion enabled must immediately expose the saved choices.");
             window.Content = new Border(); Dispatcher.UIThread.RunJobs();
-            Console.WriteLine("PASS  A finished collector pack reveal can be left without error");
+            Console.WriteLine("PASS  A finished Spectral Pack reveal can be left without error");
         }
         finally { window.Close(); motion.SetEnabled(false); }
     }

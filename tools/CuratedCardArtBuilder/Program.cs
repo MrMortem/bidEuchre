@@ -13,7 +13,7 @@ if (args.FirstOrDefault() == "--enhancements")
     return;
 }
 
-var sourceRoot = Path.GetFullPath(args.ElementAtOrDefault(0) ?? "assets/curated-source/2026-11-16-euchatro-enhancements");
+var sourceRoot = Path.GetFullPath(args.ElementAtOrDefault(0) ?? "assets/curated-source/2026-11-18-shop-sheets");
 var outputRoot = Path.GetFullPath(args.ElementAtOrDefault(1) ?? "assets/pixel");
 var manifestPath = Path.Combine(sourceRoot, "manifest.json");
 using var manifest = JsonDocument.Parse(File.ReadAllText(manifestPath));
@@ -51,13 +51,22 @@ for (var index = 0; index < entries.Length; index++)
     var sourceHash = Hash(sourcePath);
     if (Text(entry, "sha256") is { } expectedHash && !sourceHash.Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
         throw new InvalidDataException($"Source checksum mismatch: {sourceName}");
-    using var source = SKBitmap.Decode(sourcePath) ?? throw new InvalidDataException($"Cannot decode {sourceName}");
+    using var sheet = SKBitmap.Decode(sourcePath) ?? throw new InvalidDataException($"Cannot decode {sourceName}");
+    using var source = new SKBitmap();
+    var sourceBounds = new SKRectI(0, 0, sheet.Width, sheet.Height);
+    if (entry.TryGetProperty("frame", out var frame))
+    {
+        var edges = frame.EnumerateArray().Select(v => v.GetInt32()).ToArray();
+        sourceBounds = new SKRectI(edges[0], edges[1], edges[2], edges[3]);
+    }
+    if (!sheet.ExtractSubset(source, sourceBounds)) throw new InvalidDataException($"Invalid frame for {sourceEntryId}");
     var (width, height) = category switch
     {
-        "tarot" or "collector" => (256, 384),
+        "tarot" or "collector" or "pack" => (256, 384),
         "joker" => (280, 392),
         "machines" => FitDimensions(source, 768),
         "enhancement" => (124, 176),
+        "soda" => FitDimensions(source, 256),
         "gumball" or "sigil" => (128, 128),
         "arena" or "arcade" => (source.Width, source.Height),
         _ => throw new InvalidDataException($"Unsupported artwork category: {category}")
@@ -135,7 +144,7 @@ for (var index = 0; index < entries.Length; index++)
     exported.Add(new
     {
         id = displayId, runtimeId, sourceEntryId, category, resource, file, width, height,
-        usage = runtimeId is not null ? "catalog-item" : category is "arena" or "machines" or "arcade" ? "scene-artwork" : "art-only",
+        usage = runtimeId is not null ? "catalog-item" : category is "arena" or "machines" or "arcade" or "pack" ? "scene-artwork" : "art-only",
         source = sourceName,
         originalSource = Text(entry, "source"),
         sourceName = Text(entry, "sourceName") ?? Text(entry, "source"),

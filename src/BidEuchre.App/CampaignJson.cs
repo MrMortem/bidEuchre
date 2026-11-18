@@ -13,6 +13,7 @@ internal static class CampaignJson
         options.Converters.Add(new FeatureConverter<SigilId>(FeatureCategory.Sigil));
         options.Converters.Add(new FeatureConverter<JokerId>(FeatureCategory.Joker));
         options.Converters.Add(new FeatureConverter<GumballId>(FeatureCategory.Gumball));
+        options.Converters.Add(new JsonStringEnumConverter<SodaId>(JsonNamingPolicy.KebabCaseLower, allowIntegerValues: false));
         options.Converters.Add(new FeatureConverter<TarotId>(FeatureCategory.Tarot));
         return options;
     }

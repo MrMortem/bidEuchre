@@ -73,6 +73,7 @@ public sealed partial class MainWindow : Window
     private string? _bidStepKey;
     private GameView? _actionView;
     private readonly StackPanel _jokerRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+    private readonly StackPanel _sodaRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly StackPanel _tarotRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private string? _inventoryKey;
     // A stored Tarot or Sigil whose targets are being chosen by pressing cards in hand.
@@ -85,7 +86,6 @@ public sealed partial class MainWindow : Window
         Padding = new Thickness(10, 6), Margin = new Thickness(12), IsHitTestVisible = false,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Top
     };
-    private const double StripHeight = 104;
     // Holds the table, or the Engines or Rules page opened from the main menu.
     private readonly ContentControl _pageHost = new();
     private readonly Control _enginePage;
@@ -326,7 +326,7 @@ public sealed partial class MainWindow : Window
         // These controls survive sessions; detached pages still own their logical children.
         // Release each immediate parent before constructing the next table page.
         foreach (var control in new Control[]{_startButton,_viewerSeat,_contractText,_dealerText,
-            _scoreEyebrow,ScoreTally(0).Host,ScoreTally(1).Host,_actionTitle,_sessionError,_centerPanel,_jokerRow,_tarotRow,_tableHost,_publicLogPanel})
+            _scoreEyebrow,ScoreTally(0).Host,ScoreTally(1).Host,_actionTitle,_sessionError,_centerPanel,_jokerRow,_tarotRow,_sodaRow,_tableHost,_publicLogPanel})
         {
             switch (control.Parent)
             {
@@ -355,11 +355,6 @@ public sealed partial class MainWindow : Window
         _inventoryKey = null;
         RenderInventory(null);
 
-        static Control Slots(string label, Control row) => new StackPanel
-        {
-            Spacing = 3, VerticalAlignment = VerticalAlignment.Center, Children = { Eyebrow(label), row }
-        };
-        // Status and scores keep their font size; the inventory has its own horizontal viewport.
         var status = new StackPanel
         {
             Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
@@ -383,12 +378,6 @@ public sealed partial class MainWindow : Window
                 }
             }
         };
-        var inventory = new StackPanel
-        {
-            Orientation = Orientation.Horizontal, Spacing = 14,
-            Children = { Slots("JOKERS", _jokerRow), Slots("CARDS", _tarotRow) }
-        };
-        inventory.IsVisible = campaign;
         var summary = new Grid
         {
             ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"), ColumnSpacing = 12,
@@ -396,22 +385,13 @@ public sealed partial class MainWindow : Window
             Children = { status, Place(new Border { Width = 128, Child = bidDock }, column: 1), Place(score, column: 2) }
         };
         if (!campaign && _viewerSeat.ItemCount > 1) status.Children.Add(_viewerSeat);
-        var strip = new StackPanel
-        {
-            Name = "TableStrip", Spacing = 4,
-            Children =
+        if (campaign)
+            status.Children.Add(new ScrollViewer
             {
-                summary,
-                new ScrollViewer
-                {
-                    Name = "TableInventory", IsVisible = campaign, Height = StripHeight,
-                    HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-                    VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-                    Content = inventory
-                }
-            }
-        };
-
+                HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+                Content = _sodaRow
+            });
         // Keep a finite viewport: the board scales to the window, and takes all of it below the strip.
         var page = new Grid
         {
@@ -420,14 +400,16 @@ public sealed partial class MainWindow : Window
             RowSpacing = 6,
             Children =
             {
-                strip,
+                summary,
                 Place(new Grid
                 {
                     Children = { _tableHost, _centerPanel, _sessionError }
                 }, row: 1)
             }
         };
-        return new Grid { Children = { page, bidOverlay, PublicLogButton(), PublicLogPanel() } };
+        var board = new Grid { Children = { page, bidOverlay, PublicLogPanel() } };
+        Control surface = campaign ? new CampaignInventoryScreen(board, _jokerRow, _tarotRow) : board;
+        return new Grid { Children = { surface, PublicLogButton() } };
     }
 
     // Illustrated campaign cards retain their names and rules on hover.
@@ -440,13 +422,15 @@ public sealed partial class MainWindow : Window
             + $":{_targeting?.Category}{_targeting?.Slot}";
         if (key == _inventoryKey) return;
         _inventoryKey = key;
-        CampaignTableControls.Fill(_jokerRow, CampaignTableControls.JokerSlots,
-            campaign?.Inventory.Jokers.Select((joker, slot) => _motion.Float(CampaignTableControls.Joker(joker), 40 + slot)) ?? []);
-        CampaignTableControls.Fill(_tarotRow, CampaignTableControls.ItemSlots,
-            campaign is null ? [] : CampaignTableControls.Items(campaign.Inventory).Select((item, index) => _motion.Float(
+        _sodaRow.Children.Clear();
+        foreach (var soda in campaign?.Inventory.Sodas ?? []) _sodaRow.Children.Add(SodaArtwork.Can(soda, 38));
+        CampaignTableControls.Fill(_jokerRow, campaign?.Inventory.JokerCapacity ?? CampaignTableControls.JokerSlots, _motion, 0,
+            campaign?.Inventory.Jokers.Select(CampaignTableControls.Joker) ?? []);
+        CampaignTableControls.Fill(_tarotRow, campaign?.Inventory.ItemCapacity ?? CampaignTableControls.ItemSlots, _motion, 7,
+            campaign is null ? [] : CampaignTableControls.Items(campaign.Inventory).Select(item =>
                 CampaignTableControls.Item(campaign, item.Category, item.Slot, usable,
                     _targeting is { } active && active.Category == item.Category && active.Slot == item.Slot,
-                    () => ToggleTargeting(campaign, item.Category, item.Slot)), 50 + index)));
+                    () => ToggleTargeting(campaign, item.Category, item.Slot))));
     }
 
     private static bool TargetingValid(CampaignGameView campaign, ItemTargeting targeting)
@@ -879,7 +863,7 @@ public sealed partial class MainWindow : Window
             _startButton.IsVisible = false;
             if (view.Campaign is not null && _campaignStrip is not null) _campaignStrip.Text = _campaign.Strip;
             ShowScores(view, motionEnabled);
-            _scoreEyebrow.Text = view.Campaign is null ? $"TEAMS · TO {view.TargetScore}" : $"TEAMS · ±{view.TargetScore} · 8 HANDS";
+            _scoreEyebrow.Text = view.Campaign is null ? $"TEAMS · TO {view.TargetScore}" : $"TEAMS · ±{view.TargetScore}" + (view.Campaign.HandLimit is { } limit ? $" · {limit} HANDS" : "");
             _contractText.Text = ContractName(view);
             _dealerText.Text = view.Phase == GamePhase.PokerReveal
                 ? $"HAND {view.HandNumber} · POKER"

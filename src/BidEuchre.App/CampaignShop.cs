@@ -1,7 +1,7 @@
 using BidEuchre.Core;
 namespace BidEuchre.App;
 
-public static class CampaignShop
+public static partial class CampaignShop
 {
     public const int GumballPrice = 3;
     public const int ShopTargetCount = 6;
@@ -11,16 +11,54 @@ public static class CampaignShop
     {
         1 => TicketPrice, TicketSpread => TicketSpreadPrice, _ => throw new GameRuleException($"The Fortune Teller prints 1 or {TicketSpread} tickets.")
     };
+    public static int PrintPrice(CampaignRun run, int count) => Discount(run, PrintPrice(count));
+
+    // Keep historical Ticket keys. A Sigil uses its catalog ID because both families have a Chameleon.
+    public static FeatureDefinition? PrintedCard(string id) => FeatureCatalog.All.FirstOrDefault(card =>
+        card.Category == FeatureCategory.Tarot && card.Key == id || card.Category == FeatureCategory.Sigil && card.Id == id);
+
     public const int JokerSellValue = 2;
     private const string Full = "Your card slots are full. Discard a stored card first, or use the new purchase now.";
     private const string PrintFirst = "Tickets are printed at the Fortune Teller.";
-    public static int RerollPrice(CampaignRun run) => checked(2 + (run.Shop?.RerollCount ?? 0));
+    public static int Discount(CampaignRun run, int price) => run.Resources.Inventory.Has(SodaId.CitrusSale) ? Math.Max(0, price - 1) : price;
+    public static int SodaPrice(CampaignRun run) => Discount(run, 8);
+    public static int RerollPrice(CampaignRun run) => run.Shop?.RerollCount == 0 && run.Resources.Inventory.Has(SodaId.RerollRaspberry)
+        ? 0 : Discount(run, checked(2 + (run.Shop?.RerollCount ?? 0)));
+    public static SodaId[] EligibleSodas(CampaignInventory inventory) => Enum.GetValues<SodaId>()
+        .Where(s => !inventory.Has(s) && (SodaRules.Prerequisite(s) is not { } required || inventory.Has(required))).ToArray();
 
-    internal static void RequireCurrentShop(CampaignRun run, long? expectedRevision, bool allowUseSession = false, bool allowArcadeResult = false)
+    public static int OfferPrice(CampaignRun run, ShopOffer offer) => Discount(run, offer.Category == FeatureCategory.Gumball
+        && run.Resources.Inventory.Has(SodaId.RainbowStripes) ? checked(offer.Price + (run.Shop?.GumballPulls ?? 0)) : offer.Price);
+
+    public static CampaignRun BuySoda(CampaignRun run, long? expectedRevision = null)
+    {
+        RequireCurrentShop(run, expectedRevision);
+        RequireNoPrintedTickets(run);
+        var shop = run.Shop!;
+        var eligible = EligibleSodas(run.Resources.Inventory);
+        if (run.IsOver || shop.SodaPurchased || eligible.Length == 0) throw new GameRuleException("The vending machine is sold out.");
+        var price = SodaPrice(run);
+        if (run.Money < price) throw new GameRuleException("Not enough money.");
+        var random = new CampaignRandom(run.Resources.RandomState);
+        var soda = eligible[random.NextInt(eligible.Length)];
+        var resources = run.Resources.Copy();
+        resources.Wallets[0] = run.Money - price;
+        var inventory = resources.Inventory with { Sodas = [.. resources.Inventory.Sodas, soda] };
+        // A Rainbow Stripes purchase reopens even a machine already used earlier this visit.
+        if (soda == SodaId.RainbowStripes && shop.Offers.Any(o => o.Category == FeatureCategory.Gumball && o.Sold))
+            shop = shop with { GumballPulls = Math.Max(1, shop.GumballPulls), Offers = shop.Offers.Select(o =>
+                o.Category == FeatureCategory.Gumball ? o with { Sold = false } : o).ToArray() };
+        shop = WithBonusBooster(shop, inventory, random);
+        return run with { Shop = shop with { SodaPurchased = true }, Money = resources.Wallets[0],
+            Resources = resources with { Inventory = inventory, RandomState = random.State, Revision = resources.Revision + 1 } };
+    }
+
+    internal static void RequireCurrentShop(CampaignRun run, long? expectedRevision, bool allowUseSession = false, bool allowArcadeResult = false, bool allowBoosterChoice = false)
     {
         if (run.Phase != CampaignPhase.Shop || run.Shop is null) throw new GameRuleException("The shop is closed.");
         if (expectedRevision is { } revision && revision != run.Resources.Revision)
             throw new GameRuleException("The shop changed. Choose again.");
+        if (!allowBoosterChoice) RequireNoBoosterChoice(run);
         if (!allowUseSession) RequireNoUseSession(run);
         if (!allowArcadeResult) CampaignArcade.RequireNoPendingResult(run);
     }
@@ -39,7 +77,7 @@ public static class CampaignShop
             var upgradedOffers = run.Shop.Offers;
             // Direct Sigil stock is replaced by the Arcade. A committed old purchase
             // returns above and retains its backing offer until it has been used.
-            if (upgradedOffers.Any(o => o.Category == FeatureCategory.Sigil && !o.Sold && !o.IsArcadePrize))
+            if (!run.Resources.Inventory.Has(SodaId.GhostlyGuava) && upgradedOffers.Any(o => o.Category == FeatureCategory.Sigil && !o.Sold && !o.IsArcadePrize))
                 upgradedOffers = upgradedOffers.Where(o => o.Category != FeatureCategory.Sigil || o.Sold || o.IsArcadePrize).ToArray();
             // Completed collections in older saves omitted the machine for this visit entirely.
             // Add that missing pull once without replenishing or rerolling any existing stock.
@@ -54,9 +92,14 @@ public static class CampaignShop
             // preserving purchases and paid tickets; subsequent visits to this screen do no work.
             var upgradeRandom = new CampaignRandom(run.Resources.RandomState);
             if (upgradedOffers.Any(NeedsTargets)) upgradedOffers = upgradedOffers.Select(o => NeedsTargets(o) ? o with { TargetCards = DrawTargets(run, upgradeRandom) } : o).ToArray();
-            return ReferenceEquals(upgradedOffers, run.Shop.Offers) && run.Shop.Arcade is not null ? run : run with
+            if (ReferenceEquals(upgradedOffers, run.Shop.Offers) && run.Shop.Arcade is not null && run.Shop.Booster is not null
+                && (!run.Resources.Inventory.Has(SodaId.PackAPunch) || run.Shop.BonusBooster is not null))
+                return run;
+            // Adding a cosmetic wrapper to a saved visit must preserve its next gameplay draw.
+            var visitBooster = run.Shop.Booster ?? RollBooster(new CampaignRandom(upgradeRandom.State));
+            return run with
             {
-                Shop = run.Shop with { Offers = upgradedOffers, Arcade = run.Shop.Arcade ?? new() },
+                Shop = WithBonusBooster(run.Shop with { Offers = upgradedOffers, Arcade = run.Shop.Arcade ?? new(), ArcadeRoll = run.Shop.Arcade is null ? null : run.Shop.ArcadeRoll, Booster = visitBooster }, run.Resources.Inventory, upgradeRandom),
                 Resources = run.Resources with { RandomState = upgradeRandom.State, Revision = run.Resources.Revision + 1 }
             };
         }
@@ -64,7 +107,8 @@ public static class CampaignShop
         // A gumball is a blind pull: which bid comes out is only drawn when it is paid for.
         var gumball = new ShopOffer($"{run.Match - 1}:2", FeatureCategory.Gumball, "", GumballPrice);
         var offers = Stock(run, random, run.Match - 1, 0, gumball);
-        return run with { Shop = new(run.Match - 1, offers) { Arcade = new() }, Resources = run.Resources with { RandomState = random.State, Revision = run.Resources.Revision + 1, Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
+        var booster = RollBooster(random);
+        return run with { Shop = WithBonusBooster(new(run.Match - 1, offers) { Arcade = new(), ArcadeRoll = CampaignArcade.RollAvailability(random.State), Booster = booster }, run.Resources.Inventory, random), Resources = run.Resources with { RandomState = random.State, Revision = run.Resources.Revision + 1, Wallets = new[] { run.Money, run.Resources.Wallets[1], run.Resources.Wallets[2], run.Resources.Wallets[3] } } };
     }
 
     private static bool NeedsTargets(ShopOffer offer) => !offer.Sold && offer.TargetCards is null
@@ -111,9 +155,10 @@ public static class CampaignShop
         if (offer is null || offer.Sold || offer.Category != FeatureCategory.Sigil) throw new GameRuleException("Choose an available Sigil.");
         RequireActiveOffer(offer);
         RequireTargets(run, offer, []);
-        if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
+        var price = OfferPrice(run, offer);
+        if (run.Money < price) throw new GameRuleException("Not enough money.");
         var resources = run.Resources.Copy();
-        resources.Wallets[0] = run.Money - offer.Price;
+        resources.Wallets[0] = run.Money - price;
         return run with
         {
             Money = resources.Wallets[0],
@@ -128,14 +173,17 @@ public static class CampaignShop
 
     /// <summary>Commits one already-paid printed ticket to its six cards, losing the other tickets without charging again.</summary>
     public static CampaignRun BeginTicketUse(CampaignRun run, string offerId, TarotId ticket, long? expectedRevision = null)
+        => BeginTicketUse(run, offerId, ticket.ToString(), expectedRevision);
+
+    public static CampaignRun BeginTicketUse(CampaignRun run, string offerId, string ticket, long? expectedRevision = null)
     {
         RequireCurrentShop(run, expectedRevision);
-        var offer = Chosen(run, offerId, ticket);
+        var (offer, card) = Chosen(run, offerId, ticket);
         RequireTargets(run, offer, []);
         var resources = run.Resources.Copy();
         resources.Wallets[0] = run.Money;
-        var committed = Took(run, offer, ticket, resources);
-        return committed with { Shop = committed.Shop! with { UseSession = new(offerId, FeatureCategory.Tarot, ticket.ToString(), false) } };
+        var committed = Took(run, offer, card, resources);
+        return committed with { Shop = committed.Shop! with { UseSession = new(offerId, card.Category, card.Key, false) } };
     }
 
     private static ShopUseSession RequireUseSession(CampaignRun run, long? expectedRevision)
@@ -202,7 +250,7 @@ public static class CampaignShop
             throw new GameRuleException("Choose from the six cards offered for this purchase.");
     }
 
-    /// <summary>Replenishes regular stock, including purchased slots, while retaining this visit's gumball pull.</summary>
+    /// <summary>Replenishes regular stock, including purchased slots, while retaining this visit's gumball pull and Joker booster.</summary>
     public static CampaignRun Reroll(CampaignRun run, long? expectedRevision = null)
     {
         RequireCurrentShop(run, expectedRevision);
@@ -245,6 +293,8 @@ public static class CampaignShop
         if (gumball is not null) offers.Add(gumball);
         // The Fortune Teller's tickets are blind: which ones come out is drawn when they are printed.
         offers.Add(new(generation == 0 ? $"{visit}:{offers.Count}" : $"{visit}:r{generation}:{offers.Count}", FeatureCategory.Tarot, "", TicketPrice));
+        if (inventory.Has(SodaId.GhostlyGuava) && random.NextInt(4) == 0)
+            Roll(FeatureCategory.Sigil, 1);
         return offers.ToArray();
     }
     public static CampaignRun Buy(CampaignRun run, string offerId, CardId? sigilTarget = null, long? expectedRevision = null)
@@ -253,20 +303,28 @@ public static class CampaignShop
         var offer = run.Shop!.Offers.SingleOrDefault(o => o.Id == offerId);
         if (offer is null || offer.Sold) throw new GameRuleException("That item is sold out.");
         RequireActiveOffer(offer);
-        if (run.Money < offer.Price) throw new GameRuleException("Not enough money.");
+        var price = OfferPrice(run, offer);
+        if (run.Money < price) throw new GameRuleException("Not enough money.");
         var resources = run.Resources.Copy(); var inventory = resources.Inventory;
         string? pulled = null;
         switch (offer.Category)
         {
             case FeatureCategory.Joker:
                 var joker = Enum.Parse<JokerId>(offer.FeatureId);
-                if (inventory.Jokers.Length >= 5 || inventory.Has(joker)) throw new GameRuleException("Five Joker slots; no duplicates.");
+                if (inventory.Jokers.Length >= inventory.JokerCapacity || inventory.Has(joker)) throw new GameRuleException("A free Joker slot and an unowned Joker are required.");
                 inventory = inventory with { Jokers = [.. inventory.Jokers, new(joker)] }; break;
             case FeatureCategory.Gumball:
                 // Draw at purchase time: locked bids first, then repeat acquisitions.
                 var grant = GumballGrants.Pull(inventory, resources.RandomState);
                 resources = resources with { RandomState = grant.RandomState };
-                inventory = grant.Inventory; pulled = grant.Id.ToString(); break;
+                inventory = grant.Inventory; pulled = grant.Id.ToString();
+                if (inventory.Has(SodaId.DoubleBubble) && run.Shop.GumballPulls == 0)
+                {
+                    var bonus = GumballGrants.Pull(inventory, resources.RandomState);
+                    inventory = bonus.Inventory;
+                    resources = resources with { RandomState = bonus.RandomState };
+                }
+                break;
             case FeatureCategory.Tarot: throw new GameRuleException(PrintFirst);
             case FeatureCategory.Sigil:
                 var sigil = Enum.Parse<SigilId>(offer.FeatureId);
@@ -280,8 +338,13 @@ public static class CampaignShop
                 break;
             default: throw new GameRuleException("This item cannot be purchased.");
         }
-        resources.Wallets[0] = run.Money - offer.Price;
-        return run with { Money = resources.Wallets[0], Resources = resources with { Inventory = inventory, Revision = resources.Revision + 1 }, Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with { Sold = true, FeatureId = pulled ?? o.FeatureId } : o).ToArray() } };
+        resources.Wallets[0] = run.Money - price;
+        return run with { Money = resources.Wallets[0], Resources = resources with { Inventory = inventory, Revision = resources.Revision + 1 }, Shop = run.Shop with
+        {
+            GumballPulls = run.Shop.GumballPulls + (pulled is null ? 0 : 1),
+            Offers = run.Shop.Offers.Select(o => o.Id == offerId ? o with
+            { Sold = pulled is null || !inventory.Has(SodaId.RainbowStripes), FeatureId = pulled ?? o.FeatureId } : o).ToArray()
+        } };
     }
     private static void RequireActiveOffer(ShopOffer offer)
     {
@@ -314,12 +377,19 @@ public static class CampaignShop
         RequireCurrentShop(run, expectedRevision);
         var offer = Teller(run, offerId);
         if (offer.Printed is not null) throw new GameRuleException("Choose one of your printed tickets first.");
-        var price = PrintPrice(count);
+        var price = PrintPrice(run, count);
         if (run.Money < price) throw new GameRuleException("Not enough money.");
         var random = new CampaignRandom(run.Resources.RandomState);
-        var pool = Enum.GetValues<TarotId>().ToList();
+        var tickets = Enum.GetNames<TarotId>().ToList();
+        var sigils = FeatureCatalog.All.Where(card => card.Category == FeatureCategory.Sigil).Select(card => card.Id).ToList();
         var printed = new string[count];
-        for (var i = 0; i < count; i++) { var pick = pool[random.NextInt(pool.Count)]; pool.Remove(pick); printed[i] = pick.ToString(); }
+        for (var i = 0; i < count; i++)
+        {
+            var pool = run.Resources.Inventory.Has(SodaId.SpectralSprite) && random.NextInt(4) == 0 ? sigils : tickets;
+            var pick = random.NextInt(pool.Count);
+            printed[i] = pool[pick];
+            pool.RemoveAt(pick);
+        }
         var targets = DrawTargets(run, random);
         var resources = run.Resources.Copy();
         resources.Wallets[0] = run.Money - price;
@@ -333,27 +403,43 @@ public static class CampaignShop
 
     /// <summary>Keeps one printed ticket in a free card slot.</summary>
     public static CampaignRun KeepTicket(CampaignRun run, string offerId, TarotId ticket, long? expectedRevision = null)
+        => KeepTicket(run, offerId, ticket.ToString(), expectedRevision);
+
+    public static CampaignRun KeepTicket(CampaignRun run, string offerId, string ticket, long? expectedRevision = null)
     {
         RequireCurrentShop(run, expectedRevision);
-        var offer = Chosen(run, offerId, ticket);
+        var (offer, card) = Chosen(run, offerId, ticket);
         if (!run.Resources.Inventory.HasItemRoom) throw new GameRuleException(Full);
         var resources = run.Resources.Copy();
-        return Took(run, offer, ticket, resources with { Inventory = resources.Inventory with { Tarot = [.. resources.Inventory.Tarot, ticket] } });
+        var inventory = resources.Inventory;
+        inventory = card.Category == FeatureCategory.Sigil
+            ? inventory with { Sigils = [.. inventory.Sigils, Enum.Parse<SigilId>(card.Key)] }
+            : inventory with { Tarot = [.. inventory.Tarot, Enum.Parse<TarotId>(card.Key)] };
+        resources.Wallets[0] = run.Money;
+        return Took(run, offer, card, resources with { Inventory = inventory });
     }
 
     /// <summary>Plays one printed ticket on its saved six-card opportunity, so it needs no slot.</summary>
     public static CampaignRun UseTicket(CampaignRun run, string offerId, TarotId ticket, IReadOnlyList<CardId> targets, long? expectedRevision = null)
+        => UseTicket(run, offerId, ticket.ToString(), targets, expectedRevision);
+
+    public static CampaignRun UseTicket(CampaignRun run, string offerId, string ticket, IReadOnlyList<CardId> targets, long? expectedRevision = null)
     {
         RequireCurrentShop(run, expectedRevision);
-        var offer = Chosen(run, offerId, ticket);
+        var (offer, card) = Chosen(run, offerId, ticket);
         RequireTargets(run, offer, targets);
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money;
-        return Took(run, offer, ticket, ApplyTarot(resources, ticket, targets));
+        if (card.Category == FeatureCategory.Sigil && targets.Count != 1)
+            throw new GameRuleException("Choose one of the six offered cards.");
+        return Took(run, offer, card, card.Category == FeatureCategory.Sigil
+            ? ApplySigil(resources, Enum.Parse<SigilId>(card.Key), targets[0])
+            : ApplyTarot(resources, Enum.Parse<TarotId>(card.Key), targets));
     }
 
     /// <summary>Printed tickets are paid for, so the shop cannot be left or restocked until one is taken.</summary>
     public static void RequireNoPrintedTickets(CampaignRun run)
     {
+        RequireNoBoosterChoice(run);
         RequireNoUseSession(run);
         CampaignArcade.RequireNoPendingResult(run);
         if (run.Shop?.Offers.Any(o => o.Printed is not null) is true) throw new GameRuleException("Choose one of your printed tickets first.");
@@ -367,18 +453,18 @@ public static class CampaignShop
         return offer;
     }
 
-    private static ShopOffer Chosen(CampaignRun run, string offerId, TarotId ticket)
+    private static (ShopOffer, FeatureDefinition) Chosen(CampaignRun run, string offerId, string ticket)
     {
         var offer = Teller(run, offerId);
-        if (offer.Printed is null || !offer.Printed.Contains(ticket.ToString())) throw new GameRuleException("Choose one of the printed tickets.");
-        return offer;
+        if (offer.Printed is null || !offer.Printed.Contains(ticket) || PrintedCard(ticket) is not { } card) throw new GameRuleException("Choose one of the printed tickets.");
+        return (offer, card);
     }
 
-    private static CampaignRun Took(CampaignRun run, ShopOffer offer, TarotId ticket, CampaignSnapshot resources) => run with
+    private static CampaignRun Took(CampaignRun run, ShopOffer offer, FeatureDefinition card, CampaignSnapshot resources) => run with
     {
         Money = resources.Wallets[0],
         Resources = resources with { Revision = resources.Revision + 1 },
-        Shop = run.Shop! with { Offers = run.Shop.Offers.Select(o => o.Id == offer.Id ? o with { Sold = true, FeatureId = ticket.ToString(), Printed = null } : o).ToArray() }
+        Shop = run.Shop! with { Offers = run.Shop.Offers.Select(o => o.Id == offer.Id ? o with { Sold = true, Category = card.Category, FeatureId = card.Key, IsTellerSigil = card.Category == FeatureCategory.Sigil, Printed = null } : o).ToArray() }
     };
     // Plays a purchased Tarot on its offered cards. Takes a copy it may change, with the human's wallet already up to date.
     private static CampaignSnapshot ApplyTarot(CampaignSnapshot resources, TarotId tarot, IReadOnlyList<CardId> targets)
@@ -413,7 +499,7 @@ public static class CampaignShop
     }
     public static CampaignRun SellJoker(CampaignRun run, JokerId id, long? expectedRevision = null)
     {
-        RequireCurrentShop(run, expectedRevision);
+        RequireCurrentShop(run, expectedRevision, allowBoosterChoice: run.Shop?.PendingBooster?.AwaitingOpen == false && run.Resources.Inventory.Jokers.Length == run.Resources.Inventory.JokerCapacity);
         if (!run.Resources.Inventory.Has(id)) throw new GameRuleException("That Joker cannot be sold now.");
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money + JokerSellValue;
         return run with { Money = run.Money + JokerSellValue, Resources = resources with { Revision = resources.Revision + 1, Inventory = resources.Inventory with { Jokers = resources.Inventory.Jokers.Where(j => j.Id != id).ToArray() } } };
@@ -426,6 +512,7 @@ public static class CampaignShop
     /// <summary>Stored cards can be discarded in the shop and on the screen before a match.</summary>
     private static CampaignSnapshot Held(CampaignRun run, int slot, int count, string kind, long? expectedRevision)
     {
+        RequireNoBoosterChoice(run);
         RequireNoUseSession(run);
         if (expectedRevision is { } revision && revision != run.Resources.Revision) throw new GameRuleException($"Your cards changed. Choose a {kind} again.");
         if (run.Phase is not (CampaignPhase.Shop or CampaignPhase.Intro) || slot < 0 || slot >= count) throw new GameRuleException($"No {kind} in that slot.");

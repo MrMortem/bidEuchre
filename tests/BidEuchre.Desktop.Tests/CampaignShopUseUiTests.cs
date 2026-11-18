@@ -39,6 +39,7 @@ internal static class CampaignShopUseUiTests
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
             Click(Find(window, "ShopArcade")); Click(Find(window, "ArcadePlay"));
+            Click(Find(window, "TearSpectral"));
             var sigilCard = Array.FindIndex(prize.PackCards!, k => k != CampaignArcade.LegendaryKey);
             Click(Find(window, $"CollectorCard{sigilCard}"));
             Require(CampaignStore.Load(path)!.Money == 30 - CampaignArcade.Price, "Opening the six cards must retain the saved Arcade payment without another charge.");
@@ -85,7 +86,7 @@ internal static class CampaignShopUseUiTests
             Click(Find(window, "ShopHeldTarot0"));
             Require(Find(window, "ConfirmDeckChoice").IsEnabled && Cards(window).Length == 6, "A zero-target inventory Tarot must be usable while all six cards remain visible.");
             Click(Find(window, "ConfirmDeckChoice"));
-            Require(flow.Run.Money == 30 - CampaignArcade.Price + 20, "Tax Collector must use the paid current balance.");
+            Require(flow.Run.Money == 36, "Tax Collector must use the paid current balance.");
             Require(flow.Run.Resources.Inventory.Tarot.Length == 0 && flow.Run.Resources.Inventory.Sigils.Length == 1, "All used Tarots are consumed and the held Sigil is preserved.");
             Capture(window, "committed-shop-complete");
 

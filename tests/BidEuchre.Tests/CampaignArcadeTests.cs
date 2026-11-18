@@ -5,9 +5,16 @@ using BidEuchre.Core;
 
 internal static class CampaignArcadeTests
 {
+    private static CampaignRun Tear(CampaignRun run) =>
+        CampaignArcade.TearSpectralPack(run, run.Shop!.Arcade!.Pending!.PlayId, run.Resources.Revision);
     private static string Snapshot(CampaignRun run) => JsonSerializer.Serialize(run);
-    private static CampaignRun Shop(ulong seed = 41) => CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
+    private static CampaignRun GeneratedShop(ulong seed) => CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
     { Resources = CampaignSnapshot.Create(seed) with { Wallets = [30, 0, 0, 0] } });
+    private static CampaignRun Shop(ulong seed = 41)
+    {
+        var run = GeneratedShop(seed);
+        return run with { Shop = run.Shop! with { ArcadeRoll = 0 } };
+    }
     private static CampaignRun Outcome(ArcadeGame game, int score)
     {
         for (ulong seed = 1; seed < 1000; seed++)
@@ -20,7 +27,7 @@ internal static class CampaignArcadeTests
     }
     // An older save's pending Sigil prize: one drawn Sigil and no pack.
     private static CampaignRun Legacy(CampaignRun run, string sigil = "Fish") => run with { Shop = run.Shop! with
-    { Arcade = run.Shop.Arcade! with { Pending = run.Shop.Arcade.Pending! with { FeatureId = sigil, PackCards = null } } } };
+    { Arcade = run.Shop.Arcade! with { Pending = run.Shop.Arcade.Pending! with { FeatureId = sigil, PackCards = null, AwaitingOpen = false } } } };
     private static IEnumerable<CampaignRun> Packs(int seeds, Func<CampaignRun, CampaignRun>? prepare = null)
     {
         for (ulong seed = 1; seed <= (ulong)seeds; seed++)
@@ -48,6 +55,85 @@ internal static class CampaignArcadeTests
             return loaded.Save.Run;
         }
         finally { File.Delete(path); }
+    }
+
+    public static void SodaArcadeCadence()
+    {
+        var open = 0;
+        var halfOpen = 0;
+        var alwaysOpen = 0;
+        for (ulong seed = 1; seed <= 600; seed++)
+        {
+            var run = GeneratedShop(seed);
+            var midnight = WithSodas(run, SodaId.MidnightGrape);
+            var twilight = WithSodas(run, SodaId.MidnightGrape, SodaId.TwilightTangerine);
+            if (CampaignArcade.Available(midnight)) halfOpen++;
+            if (CampaignArcade.Available(twilight)) alwaysOpen++;
+            Assert.Equal(CampaignArcade.Available(run), CampaignArcade.Available(CampaignShop.Reroll(run)));
+            try { CampaignArcade.PlayRoulette(run, 1); open++; }
+            catch (GameRuleException error) when (error.Message.Contains("closed")) { }
+        }
+        Assert.True(halfOpen is > 250 and < 350);
+        Assert.Equal(600, alwaysOpen);
+        Assert.True(open is > 150 and < 250, $"Expected about a third of shops to open the Arcade, got {open}/600.");
+    }
+
+    private static CampaignRun WithSodas(CampaignRun run, params SodaId[] sodas) => run with
+    { Resources = run.Resources with { Inventory = run.Resources.Inventory with { Sodas = sodas } } };
+
+    public static void SodaSpectralRewards()
+    {
+        var single = 0;
+        var stocked = 0;
+        CampaignRun? printed = null;
+        CampaignRun? direct = null;
+        for (ulong seed = 1; seed <= 300; seed++)
+        {
+            var source = WithSodas(Shop(seed), SodaId.SpectralSprite, SodaId.GhostlyGuava, SodaId.RerollRaspberry, SodaId.CitrusSale);
+            var run = CampaignShop.Open(source with { Shop = null });
+            var teller = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Tarot);
+            var stock = run.Shop.Offers.SingleOrDefault(o => o.Category == FeatureCategory.Sigil);
+            if (stock is not null) { stocked++; direct ??= run; }
+            var result = CampaignShop.PrintTickets(run, teller.Id, 1);
+            Assert.Equal(28, result.Money);
+            if (CampaignShop.PrintedCard(result.Shop!.Offers.Single(o => o.Id == teller.Id).Printed![0])!.Category == FeatureCategory.Sigil)
+                single++;
+            var spread = CampaignShop.PrintTickets(run, teller.Id, 3);
+            Assert.Equal(25, spread.Money);
+            var choices = spread.Shop!.Offers.Single(o => o.Id == teller.Id).Printed!;
+            Assert.Equal(3, choices.Distinct().Count());
+            if (choices.Any(key => CampaignShop.PrintedCard(key)!.Category == FeatureCategory.Sigil)
+                && choices.Any(key => CampaignShop.PrintedCard(key)!.Category == FeatureCategory.Tarot))
+                printed ??= spread;
+        }
+        Assert.True(single is > 40 and < 110 && stocked is > 40 and < 110);
+        var paid = RoundTrip(printed!);
+        var offer = paid.Shop!.Offers.Single(o => o.Printed is not null);
+        var choice = offer.Printed!.First(key => CampaignShop.PrintedCard(key)!.Category == FeatureCategory.Sigil);
+        var sigil = Enum.Parse<SigilId>(CampaignShop.PrintedCard(choice)!.Key);
+        var kept = RoundTrip(CampaignShop.KeepTicket(paid, offer.Id, choice));
+        Assert.True(kept.Resources.Inventory.Sigils.Contains(sigil));
+        Assert.Equal(paid.Money, kept.Money);
+        Reject(kept, () => CampaignShop.KeepTicket(kept, offer.Id, choice));
+        var target = offer.TargetCards![0];
+        var begun = RoundTrip(CampaignShop.BeginTicketUse(paid, offer.Id, choice));
+        var applied = CampaignShop.UsePurchased(begun, [target]);
+        Assert.Equal(sigil, applied.Resources.Deck.Single(c => c.Id == target).Sigil!.Value);
+        var instant = CampaignShop.UseTicket(paid, offer.Id, choice, [target]);
+        Assert.Equal(sigil, instant.Resources.Deck.Single(c => c.Id == target).Sigil!.Value);
+        Assert.Equal(paid.Money, instant.Money);
+        var restored = CampaignShop.Open(RoundTrip(direct!));
+        var shelf = restored.Shop!.Offers.Single(o => o.Category == FeatureCategory.Sigil);
+        Assert.Equal(6, CampaignShop.TargetCards(restored, shelf.Id).Length);
+        Assert.Equal(28, CampaignShop.BeginSigilUse(restored, shelf.Id).Money);
+
+        var jackpots = Packs(150, run => WithSodas(run, SodaId.PackAPunch, SodaId.PeachPlus, SodaId.RerollRaspberry, SodaId.CitrusSale));
+        var jackpot = RoundTrip(jackpots.First());
+        Assert.Equal(19, jackpot.Money);
+        Assert.Equal(4, jackpot.Shop!.Arcade!.Pending!.PackCards!.Distinct().Count());
+        var torn = Tear(jackpot);
+        var selected = CampaignArcade.PickPackCard(torn, torn.Shop!.Arcade!.Pending!.PlayId, 3);
+        Assert.Equal(torn.Money, selected.Money);
     }
 
     public static void StockAndLegacyMigration()
@@ -91,8 +177,8 @@ internal static class CampaignArcadeTests
         {
             var run = Outcome(game, score);
             var result = run.Shop!.Arcade!.Pending!;
-            Assert.Equal(27, run.Money);
-            Assert.Equal(27, run.Resources.Wallets[0]);
+            Assert.Equal(18, run.Money);
+            Assert.Equal(18, run.Resources.Wallets[0]);
             Assert.Equal(2L, run.Resources.Revision);
             Assert.Equal(0, run.Resources.Inventory.ItemCount);
             Assert.Equal(game == ArcadeGame.Plinko, run.Shop.Arcade.PlinkoPlayed);
@@ -123,6 +209,29 @@ internal static class CampaignArcadeTests
         }
     }
 
+    public static void EntryCoversBothGamesThroughReload()
+    {
+        var open = Shop();
+        var poor = open with { Money = 11, Resources = open.Resources with { Wallets = [11, 0, 0, 0] } };
+        Reject(poor, () => CampaignArcade.PlayPlinko(poor, 4));
+        var discounted = poor with { Resources = poor.Resources with
+        { Inventory = poor.Resources.Inventory with { Sodas = [SodaId.RerollRaspberry, SodaId.CitrusSale] } } };
+        Assert.Equal(0, CampaignArcade.PlayPlinko(discounted, 4).Money);
+
+        foreach (var first in new[] { ArcadeGame.Plinko, ArcadeGame.Roulette })
+        {
+            var paidLoss = Outcome(first, first == ArcadeGame.Plinko ? 1 : 0);
+            var pending = paidLoss.Shop!.Arcade!.Pending!;
+            // The played flags also cover older saves that paid the historical per-game fee.
+            var paid = paidLoss with { Money = 0, Resources = paidLoss.Resources with { Wallets = [0, 0, 0, 0] } };
+            var resumed = RoundTrip(CampaignArcade.DismissArcadeLoss(RoundTrip(paid), pending.PlayId));
+            var second = first == ArcadeGame.Plinko ? CampaignArcade.PlayRoulette(resumed, 7) : CampaignArcade.PlayPlinko(resumed, 4);
+            Assert.Equal(0, second.Money);
+            Assert.Equal(0, second.Resources.Wallets[0]);
+            Assert.True(second.Shop!.Arcade is { PlinkoPlayed: true, RoulettePlayed: true });
+        }
+    }
+
     public static void PrizesKeepOrUseWithoutExtraPayment()
     {
         foreach (var game in new[] { ArcadeGame.Plinko, ArcadeGame.Roulette })
@@ -134,7 +243,7 @@ internal static class CampaignArcadeTests
             Reject(won, () => CampaignArcade.KeepArcadePrize(won, "other"));
             Reject(won, () => CampaignArcade.KeepArcadePrize(won, prize.PlayId, won.Resources.Revision - 1));
             var kept = CampaignArcade.KeepArcadePrize(RoundTrip(won), prize.PlayId, won.Resources.Revision);
-            Assert.Equal(27, kept.Money); Assert.Equal(1, kept.Resources.Inventory.ItemCount);
+            Assert.Equal(18, kept.Money); Assert.Equal(1, kept.Resources.Inventory.ItemCount);
             Assert.Equal(prize.PrizeCategory == FeatureCategory.Sigil ? 1 : 0, kept.Resources.Inventory.Sigils.Length);
             Assert.Equal(prize.PrizeCategory == FeatureCategory.Tarot ? 1 : 0, kept.Resources.Inventory.Tarot.Length);
             Assert.Equal(won.Resources.RandomState, kept.Resources.RandomState);
@@ -157,7 +266,7 @@ internal static class CampaignArcadeTests
         var discarded = CampaignShop.DiscardSigil(full, 0, full.Resources.Revision);
         Assert.Equal(4, CampaignArcade.KeepArcadePrize(discarded, pending.PlayId).Resources.Inventory.ItemCount);
         var session = CampaignArcade.BeginArcadePrizeUse(full, pending.PlayId, full.Resources.Revision);
-        Assert.Equal(27, session.Money); Assert.Equal(4, session.Resources.Inventory.ItemCount);
+        Assert.Equal(18, session.Money); Assert.Equal(4, session.Resources.Inventory.ItemCount);
         Assert.Equal(full.Resources.RandomState, session.Resources.RandomState);
         Assert.True(session.Shop!.Arcade!.Pending is null);
         Assert.True(session.Shop.Offers.Single(o => o.Id == session.Shop.UseSession!.OfferId) is { IsArcadePrize: true, Sold: true, Price: 0 });
@@ -170,7 +279,7 @@ internal static class CampaignArcadeTests
         session = CampaignShop.UsePurchased(session, [pending.TargetCards[0]], session.Resources.Revision);
         session = CampaignShop.UseHeldTarot(session, 0, [pending.TargetCards[2]], session.Resources.Revision);
         session = CampaignShop.FinishUse(RoundTrip(session), session.Resources.Revision);
-        Assert.Equal(27, session.Money);
+        Assert.Equal(18, session.Money);
         Assert.Equal(2, session.Resources.Inventory.ItemCount);
         Assert.Equal(Enum.Parse<SigilId>(pending.FeatureId!), session.Resources.Deck.Single(c => c.Id == pending.TargetCards[0]).Sigil!.Value);
         Assert.Equal(CampaignPhase.Intro, RoundTrip(session).LeaveShop().Phase);
@@ -208,7 +317,9 @@ internal static class CampaignArcadeTests
         Assert.True(CampaignArcade.PlayRoulette(rerolled, 7).Shop!.Arcade!.RoulettePlayed);
         var next = CampaignShop.Open(rerolled with { Match = 2 });
         Assert.Equal(new ArcadeState(), next.Shop!.Arcade!);
-        Assert.True(CampaignArcade.PlayPlinko(next, 4).Shop!.Arcade!.PlinkoPlayed);
+        if (CampaignArcade.Available(next))
+            Assert.Equal(next.Money - 12, CampaignArcade.PlayPlinko(next, 4).Money);
+        else Reject(next, () => CampaignArcade.PlayPlinko(next, 4));
     }
 
     public static void StrictPersistence()
@@ -282,8 +393,21 @@ internal static class CampaignArcadeTests
             Assert.True(result.PackCards.All(k => sigils.Contains(k) || k == CampaignArcade.LegendaryKey));
             Assert.Equal(6, result.TargetCards.Length);
             Assert.True(CampaignArcade.IsPack(result));
-            Assert.Equal(27, run.Money);
-            RoundTrip(run);
+            Assert.Equal(18, run.Money);
+            Assert.True(result.AwaitingOpen);
+            var loaded = RoundTrip(run);
+            Reject(loaded, () => CampaignArcade.PickPackCard(loaded, result.PlayId, 0));
+            Reject(loaded, () => CampaignArcade.TearSpectralPack(loaded, "wrong-play"));
+            Reject(loaded, () => CampaignArcade.TearSpectralPack(loaded, result.PlayId, run.Resources.Revision - 1));
+            var torn = RoundTrip(Tear(loaded));
+            Assert.False(torn.Shop!.Arcade!.Pending!.AwaitingOpen);
+            Assert.Equal(loaded.Money, torn.Money);
+            Assert.Equal(loaded.Resources.RandomState, torn.Resources.RandomState);
+            Assert.Equal(loaded.Resources.Revision + 1, torn.Resources.Revision);
+            Assert.True(result.PackCards.SequenceEqual(torn.Shop.Arcade.Pending.PackCards!));
+            Assert.True(result.TargetCards.SequenceEqual(torn.Shop.Arcade.Pending.TargetCards));
+            Reject(torn, () => Tear(torn));
+            Assert.True(CampaignArcade.PickPackCard(torn, result.PlayId, SigilIndex(result)).Shop!.UseSession is not null);
         }
         foreach (var score in new[] { 3, 4 })
         {
@@ -346,6 +470,13 @@ internal static class CampaignArcadeTests
             Bad(n => { Pending(n)["PackCards"]![0] = "Legendary"; Pending(n)["PackCards"]![1] = "Legendary"; });
             Bad(n => Pending(n)["FeatureId"] = "Fish");
             Bad(n => Pending(n)["PrizeCategory"] = (int)FeatureCategory.Tarot);
+            var old = JsonNode.Parse(original)!;
+            Pending(old).AsObject().Remove("AwaitingOpen");
+            File.WriteAllText(path, old.ToJsonString());
+            var loaded = CampaignStore.Load(path)!;
+            var result = loaded.Shop!.Arcade!.Pending!;
+            Assert.False(result.AwaitingOpen);
+            Assert.True(CampaignArcade.PickPackCard(loaded, result.PlayId, SigilIndex(result)).Shop!.UseSession is not null);
         }
         finally { File.Delete(path); }
     }
@@ -360,11 +491,11 @@ internal static class CampaignArcadeTests
 
     public static void PickSigilForcesUse()
     {
-        var run = Outcome(ArcadeGame.Plinko, 6); var result = run.Shop!.Arcade!.Pending!;
+        var run = Tear(Outcome(ArcadeGame.Plinko, 6)); var result = run.Shop!.Arcade!.Pending!;
         var index = SigilIndex(result); var sigil = result.PackCards![index];
         var picked = CampaignArcade.PickPackCard(run, result.PlayId, index, run.Resources.Revision);
         Assert.Equal(run.Resources.Revision + 1, picked.Resources.Revision);
-        Assert.Equal(27, picked.Money);
+        Assert.Equal(18, picked.Money);
         Assert.True(picked.Shop!.Arcade!.Pending is null);
         Assert.Equal(sigil, picked.Shop.UseSession!.FeatureId);
         Assert.Equal(FeatureCategory.Sigil, picked.Shop.UseSession.Category);
@@ -383,7 +514,7 @@ internal static class CampaignArcadeTests
     {
         foreach (var owned in new[] { 0, 2, 4 })
         {
-            var run = LegendaryPack(owned); var result = run.Shop!.Arcade!.Pending!;
+            var run = Tear(LegendaryPack(owned)); var result = run.Shop!.Arcade!.Pending!;
             var before = run.Resources.Inventory.Jokers.Select(j => j.Id).ToArray();
             var picked = CampaignArcade.PickPackCard(RoundTrip(run), result.PlayId, Array.IndexOf(result.PackCards!, CampaignArcade.LegendaryKey));
             var after = picked.Resources.Inventory.Jokers.Select(j => j.Id).ToArray();
@@ -400,7 +531,7 @@ internal static class CampaignArcadeTests
 
     public static void PickRejectsReplayAndStale()
     {
-        var run = Outcome(ArcadeGame.Plinko, 6); var result = run.Shop!.Arcade!.Pending!;
+        var run = Tear(Outcome(ArcadeGame.Plinko, 6)); var result = run.Shop!.Arcade!.Pending!;
         Reject(run, () => CampaignArcade.PickPackCard(run, result.PlayId, -1));
         Reject(run, () => CampaignArcade.PickPackCard(run, result.PlayId, 3));
         Reject(run, () => CampaignArcade.PickPackCard(run, "other", 0));
@@ -423,7 +554,7 @@ internal static class CampaignArcadeTests
 
     public static void PickedSigilSurvivesRestart()
     {
-        var run = Outcome(ArcadeGame.Roulette, 100); var result = run.Shop!.Arcade!.Pending!;
+        var run = Tear(Outcome(ArcadeGame.Roulette, 100)); var result = run.Shop!.Arcade!.Pending!;
         var picked = CampaignArcade.PickPackCard(run, result.PlayId, SigilIndex(result));
         var loaded = RoundTrip(picked);
         Assert.Equal(picked.Shop!.UseSession, loaded.Shop!.UseSession);
@@ -433,7 +564,7 @@ internal static class CampaignArcadeTests
 
     public static void LegendaryWithFullSlotsIsNotADeadPick()
     {
-        var run = LegendaryPack(2); var result = run.Shop!.Arcade!.Pending!;
+        var run = Tear(LegendaryPack(2)); var result = run.Shop!.Arcade!.Pending!;
         var full = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with
             { Jokers = Enum.GetValues<JokerId>().Take(5).Select(id => new JokerState(id)).ToArray() } } };
         Reject(full, () => CampaignArcade.PickPackCard(full, result.PlayId, Array.IndexOf(result.PackCards!, CampaignArcade.LegendaryKey)));

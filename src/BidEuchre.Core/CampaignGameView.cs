@@ -8,6 +8,7 @@ public sealed record CampaignGameView(long Revision, long DealSerial, int? Viewe
     IReadOnlyList<CampaignTrickPlay> Trick, IReadOnlyList<string> Events,
     CampaignInventory Inventory, int Money, int HandNumber, int Threshold, string? PendingChoice)
 {
+    public int? HandLimit { get; init; }
     public int EffectSequence { get; init; }
     public IReadOnlyList<CampaignEffectEvent> ScoringEffects { get; init; } = [];
     public IReadOnlyList<CampaignTrickPlay> LastTrick { get; init; } = [];
