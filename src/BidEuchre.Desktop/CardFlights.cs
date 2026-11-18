@@ -239,6 +239,11 @@ internal sealed class CardFlights(Canvas overlay)
         using var source = new CancellationTokenSource();
         var flight = new Flight(visual, source, control);
         _active[key] = flight;
+        // The shadow falls on the felt beneath the card: drawn first, with the same transform.
+        var shadow = new CardShadow(visual, width, height, 10 * width / 124);
+        Canvas.SetLeft(shadow.Visual, Canvas.GetLeft(visual));
+        Canvas.SetTop(shadow.Visual, Canvas.GetTop(visual));
+        overlay.Children.Add(shadow.Visual);
         overlay.Children.Add(visual);
         control.Opacity = 0;
         var x = shift.X;
@@ -257,8 +262,9 @@ internal sealed class CardFlights(Canvas overlay)
                 shift.X = x * travel + arcX * lift;
                 shift.Y = y * travel + arcY * lift;
                 rotation.Angle = angle * (1 - eased);
-                // The card rises slightly off the felt in mid-flight.
+                // The card rises slightly off the felt in mid-flight, its shadow falling away beneath it.
                 scale.ScaleX = scale.ScaleY = (startScale + (1 - startScale) * eased) * (1 + .05 * lift);
+                shadow.Follow(scale.ScaleX, scale.ScaleY, rotation.Angle, shift.X, shift.Y, lift);
                 if (!hidden) return;
                 // Edge-on halfway through the turn, where the back gives way to the face.
                 var turn = Math.Clamp((t - TurnFrom) / (TurnTo - TurnFrom), 0, 1);
@@ -269,6 +275,7 @@ internal sealed class CardFlights(Canvas overlay)
         catch (OperationCanceledException) { }
         finally
         {
+            overlay.Children.Remove(shadow.Visual);
             overlay.Children.Remove(visual);
             if (_active.GetValueOrDefault(key) == flight)
             {

@@ -15,8 +15,11 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
         public readonly ScaleTransform Scale = scale;
         public readonly RotateTransform Turn = turn;
         public readonly TranslateTransform Shift = shift;
+        public CardShadow? Shadow;
         public bool Turned;
     }
+    /// <summary>How long the dealer shuffles before the first packet leaves the deck.</summary>
+    public const int ShuffleMilliseconds = 460;
     /// <summary>How long a face-up card takes to turn over after it lands.</summary>
     public const int FlipMilliseconds = 200;
     private sealed record Landing(Point Center, double Scale);
@@ -56,9 +59,11 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
         for (var i = 0; i < 4; i++)
         {
             var back = Back();
+            back.RenderTransform = new TransformGroup { Children = { new RotateTransform(), new TranslateTransform() } };
             Canvas.SetLeft(back, i * 2); Canvas.SetTop(back, -i * 2);
             _deck.Children.Add(back);
         }
+        _deck.Opacity = 0;
         overlay.Children.Add(_deck);
         for (var i = 0; i < 24; i++)
         {
@@ -66,7 +71,9 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
             back.Opacity = 0;
             var flight = new Flight(back, new ScaleTransform(1, 1), new RotateTransform(), new TranslateTransform());
             back.RenderTransform = new TransformGroup { Children = { flight.Scale, flight.Turn, flight.Shift } };
+            flight.Shadow = new CardShadow(back, back.Width, back.Height, 10);
             _visuals.Add(flight);
+            overlay.Children.Add(flight.Shadow.Visual);
             overlay.Children.Add(back);
         }
         _started = AnimationClock.Now;
@@ -82,7 +89,11 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
         _frames = null;
         Running = false;
         foreach (var card in _cards.Values) card.Card.Opacity = 1;
-        foreach (var visual in _visuals) overlay.Children.Remove(visual.Card);
+        foreach (var visual in _visuals)
+        {
+            overlay.Children.Remove(visual.Card);
+            if (visual.Shadow is { } shadow) overlay.Children.Remove(shadow.Visual);
+        }
         _visuals.Clear();
         if (_deck is not null) overlay.Children.Remove(_deck);
         _deck = null;
@@ -121,10 +132,12 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
     private void Tick(double now)
     {
         if (!Running) return;
-        var elapsed = (now - _started) * 1000;
+        var elapsed = (now - _started) * 1000 - ShuffleMilliseconds;
         if (elapsed > DealSequence.TotalMilliseconds(_packets) + FlipMilliseconds + MotionCurves.LandingFadeMilliseconds)
         { Cancel(); return; }
         if (_landings.Count == 0 && !MeasureLandings()) return;
+        if (_deck is not null) Shuffle(Math.Clamp(1 + elapsed / ShuffleMilliseconds, 0, 1));
+        if (elapsed < 0) return;
         var dealt = 0;
         for (var packetIndex = 0; packetIndex < _packets.Count; packetIndex++)
         {
@@ -144,6 +157,7 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
                 visual.Turn.Angle = target.Angle * MotionCurves.EaseOut(t);
                 visual.Shift.X = _origin.X + (landing.Center.X - _origin.X) * travel - 62;
                 visual.Shift.Y = _origin.Y + (landing.Center.Y - _origin.Y) * travel - MotionCurves.Arc(t) * 14 - 88;
+                visual.Shadow?.Follow(visual.Scale.ScaleX, visual.Scale.ScaleY, visual.Turn.Angle, visual.Shift.X, visual.Shift.Y, MotionCurves.Arc(t));
                 if (t < 1)
                 {
                     visual.Card.Opacity = 1;
@@ -165,6 +179,7 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
                             visual.Card.BorderThickness = default;
                         }
                         visual.Scale.ScaleX = landing.Scale * Math.Max(.02, Math.Abs(Math.Cos(turn * Math.PI)));
+                        visual.Shadow?.Follow(visual.Scale.ScaleX, visual.Scale.ScaleY, visual.Turn.Angle, visual.Shift.X, visual.Shift.Y, 0);
                         visual.Card.Opacity = 1;
                         continue;
                     }
@@ -181,6 +196,24 @@ internal sealed class DeckDeal(Canvas overlay, Control table, Action changed)
         {
             var layers = DealSequence.DeckLayers(dealt, _deck.Children.Count);
             for (var i = 0; i < _deck.Children.Count; i++) _deck.Children[i].Opacity = i < layers ? 1 : 0;
+        }
+    }
+
+    /// <summary>The deck fades in, splits into two halves that swing apart, and riffles back together.</summary>
+    private void Shuffle(double progress)
+    {
+        _deck!.Opacity = Math.Clamp(progress / .2, 0, 1);
+        var riffle = MachineFx.Part(progress, .15, 1);
+        var spread = Math.Sin(riffle * Math.PI);
+        for (var i = 0; i < _deck.Children.Count; i++)
+        {
+            var side = i % 2 == 0 ? -1 : 1;
+            var group = (TransformGroup)_deck.Children[i].RenderTransform!;
+            ((RotateTransform)group.Children[0]).Angle = side * 7 * spread;
+            var shift = (TranslateTransform)group.Children[1];
+            shift.X = side * 38 * spread;
+            // The halves lift a little as they bow, and drop back interleaved.
+            shift.Y = -10 * spread + (i % 2) * 4 * Math.Sin(riffle * Math.PI * 3) * spread;
         }
     }
 

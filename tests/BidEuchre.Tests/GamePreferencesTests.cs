@@ -41,6 +41,13 @@ internal static class GamePreferencesTests
             Check(reduced.Save(path) && GamePreferences.Load(path) is { MotionEnabled: true, ReducedMotion: true },
                 "Reduced motion should survive restart");
 
+            var styled = new GamePreferences(CardBack: CardBackStyle.Emerald, Felt: TableFelt.Crimson);
+            Check(styled.Save(path) && GamePreferences.Load(path) is { CardBack: CardBackStyle.Emerald, Felt: TableFelt.Crimson },
+                "Card back and felt should survive restart");
+            File.WriteAllText(path, "{\"CardBack\":99,\"Felt\":-4}");
+            Check(GamePreferences.Load(path) is { CardBack: CardBackStyle.Classic, Felt: TableFelt.Midnight },
+                "Unknown card backs and felts should fall back to the originals");
+
             File.WriteAllText(path, "{\"Fullscreen\":true,\"WindowWidth\":5,\"WindowHeight\":99999,\"UiScale\":40}");
             var repaired = GamePreferences.Load(path);
             Check(repaired.Fullscreen && repaired.WindowWidth == 1320 && repaired.WindowHeight == 860 && repaired.UiScale == 1.0,

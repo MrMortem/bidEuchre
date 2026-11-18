@@ -2,6 +2,12 @@ using System.Text.Json;
 
 namespace BidEuchre.App;
 
+/// <summary>The colour of every face-down card.</summary>
+public enum CardBackStyle { Classic, Crimson, Emerald, Gold }
+
+/// <summary>The cloth under a free-play or normal campaign table. Boss arenas keep their own art.</summary>
+public enum TableFelt { Midnight, Emerald, Crimson }
+
 public sealed record GamePreferences(
     bool MotionEnabled = true,
     bool Fullscreen = false,
@@ -11,7 +17,9 @@ public sealed record GamePreferences(
     HandSort HandSort = HandSort.Suit,
     bool AutomaticHotseatPrivacy = false,
     // Reduced keeps movement that explains the game (flights, deals, collections) and drops ambient sway and shaking.
-    bool ReducedMotion = false)
+    bool ReducedMotion = false,
+    CardBackStyle CardBack = CardBackStyle.Classic,
+    TableFelt Felt = TableFelt.Midnight)
 {
     public static IReadOnlyList<(int Width, int Height)> WindowSizes { get; } =
         [(1280, 720), (1320, 860), (1600, 900), (1920, 1080)];
@@ -27,7 +35,9 @@ public sealed record GamePreferences(
             WindowWidth = size.Item1,
             WindowHeight = size.Item2,
             UiScale = UiScales.Contains(UiScale) ? UiScale : 1.0,
-            HandSort = Enum.IsDefined(HandSort) ? HandSort : HandSort.Suit
+            HandSort = Enum.IsDefined(HandSort) ? HandSort : HandSort.Suit,
+            CardBack = Enum.IsDefined(CardBack) ? CardBack : CardBackStyle.Classic,
+            Felt = Enum.IsDefined(Felt) ? Felt : TableFelt.Midnight
         };
     }
 
