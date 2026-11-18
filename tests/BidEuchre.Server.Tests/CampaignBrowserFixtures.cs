@@ -12,22 +12,54 @@ static class CampaignBrowserFixtures
         if (!WebCampaigns.ValidToken(token)) throw new ArgumentException("Invalid fixture token.");
         var run = kind switch
         {
-            "shop" => Shop(), "human-turn" => HumanTurn(), "match-end" => MatchEnd(),
+            "shop" => Shop(), "shop-use" => ArcadeReady(), "arcade-win" => CampaignArcade.PlayPlinko(ArcadeReady(), 4), "arcade-loss" => ArcadeReady(1), "arcade-ticket" => ArcadeReady(3), "arcade-legendary" => LegendaryReady(), "gambler" => Gambler(), "gambler-hand" => HumanTurn(gambler: true), "human-turn" => HumanTurn(), "match-end" => MatchEnd(),
             _ => throw new ArgumentException("Unknown campaign fixture.")
         };
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token))).ToLowerInvariant();
         var path = Path.Combine(Path.GetFullPath(root), hash, "campaign.json");
         if (!CampaignStore.Save(new CampaignSave(3, run) { Metadata = new("browser-fixture", 1) }, path)) throw new IOException("Could not write test fixture.");
     }
-    private static CampaignRun Shop()
+    private static CampaignRun Shop(ulong seed = 12)
     {
-        var resources = CampaignSnapshot.Create(12); resources.Wallets[0] = 100;
+        var resources = CampaignSnapshot.Create(seed); resources.Wallets[0] = 100;
         resources = resources with { Inventory = new([new(JokerId.Alpha)], [TarotId.Chameleon, TarotId.DevilishDeal], Enum.GetValues<GumballId>()) { Sigils = [SigilId.Bear] } };
         return CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop) { Resources = resources });
     }
-    private static CampaignRun HumanTurn()
+    private static CampaignRun ArcadeReady(int score = 5)
+    {
+        for (ulong seed = 1; seed < 1000; seed++)
+        {
+            var run = Shop(seed);
+            run = run with { Resources = run.Resources with { Inventory = run.Resources.Inventory with
+            { Tarot = [TarotId.Gambler, TarotId.TaxCollector, TarotId.Astronomer] } } };
+            if (CampaignArcade.PlayPlinko(run, 4).Shop!.Arcade!.Pending!.Score == score) return run;
+        }
+        throw new InvalidOperationException("No Arcade fixture found.");
+    }
+    private static CampaignRun LegendaryReady()
+    {
+        for (ulong seed = 1; seed < 20000; seed++)
+        {
+            var run = Shop(seed);
+            if (CampaignArcade.PlayPlinko(run, 4).Shop!.Arcade!.Pending!.PackCards?.Contains(CampaignArcade.LegendaryKey) is true) return run;
+        }
+        throw new InvalidOperationException("No Legendary fixture found.");
+    }
+    private static CampaignRun Gambler()
+    {
+        for (ulong seed = 1; seed < 100; seed++)
+        {
+            var run = Shop(seed);
+            var offer = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Tarot);
+            run = CampaignShop.PrintTickets(run, offer.Id, CampaignShop.TicketSpread);
+            if (run.Shop!.Offers.Single(o => o.Id == offer.Id).Printed!.Contains(nameof(TarotId.Gambler))) return run;
+        }
+        throw new InvalidOperationException("No printed Gambler fixture found.");
+    }
+    private static CampaignRun HumanTurn(bool gambler = false)
     {
         var run = new CampaignRun { Resources = CampaignSnapshot.Create(45) };
+        if (gambler) run = run with { Resources = run.Resources with { Inventory = new([], [TarotId.Gambler], []) } };
         var game = Game(run, 7); game.StartGame(3);
         return run.StartMatch().WithCheckpoint(new(game.ExportCampaignMatchSnapshot()));
     }

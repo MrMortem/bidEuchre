@@ -39,6 +39,63 @@ internal static class CampaignResumeUiTests
     {
         ManualContinueAndForfeit(); AutomaticStages(); ClosePreservesAndTerminalOnce(); LegacyNoticeAndFailedRestore();
     }
+    internal static void FinalScoringChainFinishesBeforeResults()
+    {
+        var window = new MainWindow();
+        var flow = Field<CampaignFlow>(window, "_campaign");
+        var path = Field<string>(window, "_campaignPath");
+        var run = new CampaignRun(Phase: CampaignPhase.InMatch);
+        var state = CampaignSnapshot.Create(73) with { Inventory = new([new(JokerId.LastLaugh)], [], []) };
+        for (var i = 0; i < state.Deck.Length; i++)
+            state.Deck[i] = state.Deck[i] with { Enhancement = EnhancementId.Stone, Sigil = SigilId.Fish };
+        var game = new GameEngine(["You", "West", "Partner", "East"], 73, run.NextMatch(), new(state));
+        game.StartGame(3);
+        game.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.Three));
+        while (game.Phase == GamePhase.Bidding)
+            game.ExecuteCampaignAction(game.CampaignActor!.Value, new CampaignCommand.Pass());
+        game.ExecuteCampaignAction(0, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Hearts));
+
+        static void Play(GameEngine engine)
+        {
+            var actor = engine.CampaignActor!.Value;
+            engine.ExecuteCampaignAction(actor, engine.CreateCampaignView(actor).LegalActions.OfType<CampaignCommand.Play>().First());
+        }
+        while (game.CompletedTricks.Count < 5) Play(game);
+        run = run.WithCheckpoint(new(game.ExportCampaignMatchSnapshot(), new(game.DealSerial, true, null)));
+        Require(CampaignStore.Save(run, path), "The long final-trick fixture must save.");
+
+        try
+        {
+            Field<PixelMotion>(window, "_motion").SetEnabled(true);
+            Field<DispatcherTimer>(window, "_refreshTimer").Stop();
+            window.Show();
+            flow.Open();
+            Dispatcher.UIThread.RunJobs();
+            Click(window, "Continue");
+            Until(() => Field<GameSession?>(window, "_session")?.Started == true);
+            var session = Field<GameSession>(window, "_session");
+            Await((Task)Call(window, "RefreshGameAsync")!);
+            Await(session.DeveloperAsync(engine =>
+            {
+                while (engine.Phase == GamePhase.Playing) Play(engine);
+            }));
+            Require(session.Game!.Phase == GamePhase.GameComplete, "The enhanced last trick must end this match.");
+            Await((Task)Call(window, "RefreshGameAsync")!);
+            var flights = Field<CardFlights>(window, "_cardFlights");
+            Require(flights.Collecting && !flow.InMatch, "Persist the result while the table is still presenting the final trick.");
+
+            var elapsed = System.Diagnostics.Stopwatch.StartNew();
+            Until(() => elapsed.ElapsedMilliseconds >= 2400 || Field<GameSession?>(window, "_session") is null);
+            Require(ReferenceEquals(session, Field<GameSession?>(window, "_session")) && flights.Collecting,
+                "The result must wait even when the scoring chain exceeds the old fixed cutoff.");
+            Until(() => Field<GameSession?>(window, "_session") is null);
+            Require(!flights.Collecting, "Collection must settle before the result replaces the table.");
+            Until(() => window.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "CampaignContinue"));
+            Console.WriteLine("PASS  A long final scoring chain and trick collection finish before the campaign result");
+        }
+        finally { window.Close(); }
+    }
+
     private static void ManualContinueAndForfeit()
     {
         var w = new MainWindow(); var flow = Field<CampaignFlow>(w, "_campaign"); var path = Field<string>(w, "_campaignPath");

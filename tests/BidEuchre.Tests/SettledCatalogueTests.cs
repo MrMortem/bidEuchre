@@ -96,7 +96,8 @@ internal static class SettledCatalogueTests
             Assert.Equal(enhancement, changed.Enhancement!.Value);
             Assert.Equal(before.Face, changed.Face);
             Assert.True(game.CreateCampaignView(0).Events.Contains($"Used {name}."));
-            var run = CampaignShop.UseTarot(new CampaignRun { Resources = resources }, 0, [new(0)]);
+            var run = CampaignShop.UseTicket(new CampaignRun(Phase: CampaignPhase.Shop) { Resources = resources,
+                Shop = new(0, [new ShopOffer("t", FeatureCategory.Tarot, "", 3) { Printed = [tarot.ToString()], TargetCards = Enumerable.Range(0, 6).Select(i => new CardId(i)).ToArray() }]) }, "t", tarot, [new(0)]);
             Assert.Equal(enhancement, run.Resources.Deck[0].Enhancement!.Value);
         }
         foreach (var wallet in new[] { 0, 15, 35 })
@@ -108,7 +109,8 @@ internal static class SettledCatalogueTests
             game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, []));
             Assert.Equal(wallet + Math.Min(wallet, 20), game.ExportCampaignSnapshot().Wallets[0]);
             Assert.True(game.CreateCampaignView(0).Events.Any(e => e.Contains("Taxes +$")));
-            var run = CampaignShop.UseTarot(new CampaignRun(Money: wallet) { Resources = resources }, 0, []);
+            var run = CampaignShop.UseTicket(new CampaignRun(Money: wallet, Phase: CampaignPhase.Shop) { Resources = resources,
+                Shop = new(0, [new ShopOffer("t", FeatureCategory.Tarot, "", 3) { Printed = [nameof(TarotId.TaxCollector)], TargetCards = Enumerable.Range(0, 6).Select(i => new CardId(i)).ToArray() }]) }, "t", TarotId.TaxCollector, []);
             Assert.Equal(wallet + Math.Min(wallet, 20), run.Money);
         }
         var unlocked = CampaignSnapshot.Create(31) with { Inventory = new([], [], [GumballId.Lowballer]) };
@@ -133,5 +135,16 @@ internal static class SettledCatalogueTests
             Assert.Equal(30, run.Money);
             Assert.Equal(0, run.Resources.Inventory.ItemCount);
         }
+    }
+
+    public static void CollectorTitles()
+    {
+        var expected = new Dictionary<SigilId, string>
+        {
+            [SigilId.Bear] = "Strength", [SigilId.Fish] = "Abundance", [SigilId.Frog] = "Echo", [SigilId.Duck] = "Lucky",
+            [SigilId.Chameleon] = "Deception", [SigilId.Eagle] = "Resilient", [SigilId.Spider] = "Affliction", [SigilId.Vulture] = "Resourceful"
+        };
+        Assert.Equal(Enum.GetValues<SigilId>().Length, expected.Count);
+        foreach (var (sigil, title) in expected) Assert.Equal(title, FeatureCatalog.CollectorTitle(sigil));
     }
 }

@@ -29,6 +29,70 @@ public sealed partial record CampaignMatchSnapshot
         for (var i = 1; i < plays.Length; i++) if (plays[i].Seat != Next(plays[i - 1].Seat)) return false;
         return true;
     }
+    private bool ValidScoringEffects()
+    {
+        if (ScoringEffects is null) return false;
+        var priorSequence = 0;
+        foreach (var effect in ScoringEffects)
+        {
+            if (effect is null || effect.Sequence <= priorSequence || effect.Sequence > EffectSequence ||
+                !Enum.IsDefined(effect.Effect) || !Enum.IsDefined(effect.Reward)) return false;
+            priorSequence = effect.Sequence;
+            if (effect.Reward == CampaignEffectReward.Points ? effect.Recipient is not (0 or 1) : !Seat(effect.Recipient))
+                return false;
+            if (effect.SourceCard is not { } card)
+            {
+                if (effect.SourceSeat is not null || effect.TrickNumber is not null) return false;
+                continue;
+            }
+            if (effect.SourceSeat is not { } seat || effect.TrickNumber is not { } number || number < 1 ||
+                number > CompletedTricks.Length + 1) return false;
+            var plays = number <= CompletedTricks.Length ? CompletedTricks[number - 1].Plays : CurrentTrick;
+            if (!plays.Any(play => play.Id == card && play.Seat == seat)) return false;
+        }
+        return true;
+    }
+
+    private static bool ValidPokerResult(PokerRoundResult result)
+    {
+        if (result.Winners is not { Count: >= 1 and <= 4 } || result.TeamPoints is not { Count: 2 }) return false;
+        var seenSeats = new HashSet<int>();
+        var seenCards = new HashSet<CardId>();
+        foreach (var winner in result.Winners)
+        {
+            if (winner is null || !Seat(winner.Seat) || !seenSeats.Add(winner.Seat)
+                || !PokerEvaluator.IsCategory(winner.Category) || winner.Category != result.Winners[0].Category
+                || winner.CardIds is not { Count: 5 } || winner.CardIds.Any(id => !Id(id) || !seenCards.Add(id))) return false;
+        }
+        for (var team = 0; team < 2; team++)
+            if (result.TeamPoints[team] != (seenSeats.Any(seat => GameRules.TeamForSeat(seat) == team) ? PokerEvaluator.WinningPoints : 0)) return false;
+        return true;
+    }
+
+    private static bool SamePokerResult(PokerRoundResult first, PokerRoundResult second) =>
+        first.TeamPoints.SequenceEqual(second.TeamPoints) && first.Winners.Count == second.Winners.Count
+        && first.Winners.Zip(second.Winners).All(pair =>
+            pair.First.Seat == pair.Second.Seat && pair.First.Category == pair.Second.Category
+            && pair.First.CardIds.SequenceEqual(pair.Second.CardIds));
+
+    private bool ValidPokerReveal(PokerRoundResult result)
+    {
+        if (Variant != GumballId.Poker || Bidder != 0 || CurrentSeat != 0 || BiddingTurns != 4 || Contract is not null
+            || PendingActor is not null || PendingChoice is not null || Hands.Any(hand => hand.Length != 6)
+            || CompletedTricks.Length != 0 || CurrentTrick.Length != 0 || TrickPoints.Length != 0
+            || CardPoints.Any(points => points != 0) || JokerPoints.Any(points => points != 0) || ModifierPoints.Any(points => points != 0)
+            || HandHistory.LastOrDefault() is not { PokerResult: { } history, HandNumber: var hand, Reason: var reason }
+            || hand != HandNumber || reason != CompletionReason || !ValidPokerResult(result) || !SamePokerResult(result, history)) return false;
+
+        var deck = Resources.Deck.ToDictionary(card => card.Id);
+        foreach (var overlay in Overlays)
+            deck[overlay.Id] = deck[overlay.Id] with { Face = overlay.Face };
+        var expected = PokerEvaluator.Showdown(Hands.Select(ids => ids.Select(id => deck[id])));
+        var extra = expected.TeamPoints[0] > 0 ? Resources.Inventory.GumballExtraCopies.GetValueOrDefault(GumballId.Poker) : 0;
+        return SamePokerResult(result, expected)
+            && HandHistory[^1].ScoreBreakdowns[0].GumballBonuses.Sum(bonus => bonus.Points) == extra;
+    }
+
     private bool Validate()
     {
         if (Version != 1 || PlayerNames is not { Length: 4 } || PlayerNames.Any(string.IsNullOrWhiteSpace)
@@ -71,6 +135,7 @@ public sealed partial record CampaignMatchSnapshot
             var t = CompletedTricks[i];
             if (t is null || t.Number != i + 1 || !Plays(t.Plays, true) || t.Leader != t.Plays[0].Seat || t.Leader != (i == 0 ? Next(Dealer) : CompletedTricks[i - 1].Winner) || !t.Plays.Any(p => p.Seat == t.Winner)) return false;
         }
+        if (!ValidScoringEffects()) return false;
         if (Phase is not (GamePhase.HandComplete or GamePhase.GameComplete))
         {
             var identities = Hands.SelectMany((hand, seat) => hand.Select(id => new SnapshotPlay(seat, id)))
@@ -106,9 +171,15 @@ public sealed partial record CampaignMatchSnapshot
         var previousHand = 0;
         foreach (var h in HandHistory)
         {
-            if (h is null || h.HandNumber < previousHand || h.HandNumber > HandNumber || !Seat(h.Bidder) || !ValidContract(h.Contract)
+            if (h is null || h.HandNumber < previousHand || h.HandNumber > HandNumber || !Seat(h.Bidder)
                 || h.BiddingTeamTricks < 0 || h.DefendingTeamTricks < 0 || h.BiddingTeamTricks + h.DefendingTeamTricks > 6 || h.Reason is null
                 || h.ScoreBreakdowns is not { Count: 2 }) return false;
+            if (h.PokerResult is { } poker)
+            {
+                if (h.Contract is not null || h.Bidder != 0 || h.MadeContract || h.BiddingTeamTricks != 0 || h.DefendingTeamTricks != 0
+                    || !ValidPokerResult(poker)) return false;
+            }
+            else if (!ValidContract(h.Contract)) return false;
             previousHand = h.HandNumber;
             for (var team = 0; team < 2; team++)
             {
@@ -116,8 +187,18 @@ public sealed partial record CampaignMatchSnapshot
                 if (b is null || b.Team != team || b.HandMultiplier < 1 || b.GumballBonuses is null
                     || b.GumballBonuses.Any(g => g is null || !Enum.IsDefined(g.Id) || g.Points < 0)
                     || b.FinalDelta != (team == 0 ? h.TeamZeroDelta : h.TeamOneDelta)) return false;
+                if (h.PokerResult is { } pokerResult)
+                {
+                    if (b.PokerPoints != pokerResult.TeamPoints[team] || b.ContractPoints != 0 || b.CardPoints != 0 || b.JokerPoints != 0
+                        || b.TrickModifierPoints != 0 || b.HandMultiplier != 1 || b.OpponentBidBonus != 0
+                        || b.GumballBonuses.Count > 1
+                        || b.GumballBonuses.Any(g => team != 0 || b.PokerPoints == 0 || g.Team != 0 || g.Id != GumballId.Poker || g.Points <= 0))
+                        return false;
+                }
+                else if (b.PokerPoints != 0) return false;
             }
         }
+        if (Phase == GamePhase.PokerReveal ? PokerResult is null || !ValidPokerReveal(PokerResult) : PokerResult is not null) return false;
         var terminal = Phase is GamePhase.HandComplete or GamePhase.GameComplete;
         // DeveloperEndMatch intentionally leaves the pending description/exchange identity
         // visible while removing its actor. Preserve that terminal evidence, never resume it.

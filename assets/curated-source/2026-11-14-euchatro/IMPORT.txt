@@ -1,0 +1,84 @@
+EUCHATRO ASSET IMPORT PACKAGE
+Retrieved: 2026-11-14
+Project: https://drive.google.com/drive/project/1fpIj6m0mnU3vqXojS7m-k6_wn1fKHbMx
+
+38 PNG images: 9 arcade tickets, 8 gumballs, 8 sigils, 8 enhancements, 5 arenas.
+Compared with assets/curated-source/2026-11-13: 19 new, 4 updated, 15 unchanged.
+Updated artwork: High/Low, Alone, Chaos, and Lucky.
+
+CONTENTS
+labeled/       Clean lowercase, hyphenated filenames, grouped by stable asset category.
+originals/     Exact source image bytes; only colon in High:Low is made filesystem-safe.
+manifest.json  Labels, runtime mappings, alias notes, source dimensions, alpha, hashes, and links.
+drive-files.json  Complete 38-file project inventory and Drive metadata.
+asset-preview.png  Contact sheet showing every original source image and its dimensions.
+image-validation.json  Original PNG decode and transparency measurements.
+
+RUNTIME IMPORT
+All 38 assets are imported into assets/pixel by tools/CuratedCardArtBuilder.
+Run from the repository root: dotnet run --project tools/CuratedCardArtBuilder
+The builder defaults to this source directory, reads labeled paths, and also supports the legacy manifest format.
+assets/pixel/curated-art.json records each exported PNG, resolved ID, source/output dimensions, checksums,
+source provenance, transform, and measured alpha. curated-art-preview.png shows all 38 textures.
+Tickets retain their 2:3 aspect ratio at 256x384; gumballs and sigils are 128x128.
+Enhancements use the existing 124x176 card-substrate dimensions.
+Five boss arena PNGs retain their original 1536x1024 dimensions and exact source bytes.
+Source originals and labeled files are unchanged. Existing assets are not deleted.
+
+NAME MAPPINGS
+Arcade tickets retain internal Tarot IDs/category and labeled/tarot paths for compatibility.
+Festival -> tarot:chameleon; Ectoplasm -> tarot:spring-loaded.
+Stone Mason -> tarot:grindstone; Taxes -> tarot:tax-collector.
+Psychic artwork -> gumball:telepath, a semantic artwork alias without changing Telepath's name or rules.
+Safety Net -> gumball:lowballer. Gold -> Golden; Curse -> Cursed; High:Low -> high-low;
+Partners Best -> partners-best. Source names and original Drive links remain in the manifest.
+Idea Doc: https://docs.google.com/document/d/1U0cFKHVrq6lUjn4qa95878uTorzPka_IXoQYgLOtyOI/edit?usp=drivesdk
+
+ARENA MAPPINGS
+Arena resources are boss-arena-club, boss-arena-diamond, boss-arena-heart, boss-arena-spade,
+and boss-arena-cursed. These are visual backgrounds, not FeatureCatalog gameplay items.
+Their source runtimeId remains null intentionally; exported metadata identifies them as arena:<theme>.
+Full arena backgrounds remain separate from the existing transparent table suit layers.
+Desktop and web select Club, Diamond, Heart, Spade and Cursed for active boss Antes 1-5,
+then repeat the visual sequence in endless play. Ordinary matches and menus keep their existing scenery.
+The shop, collection and inventory use the ticket images without changing saved Tarot IDs or effects.
+
+FILE INDEX (label -> relative source filename -> runtime ID or visual resource)
+Club Boss Arena -> labeled/arena/boss-arena-club.png -> boss-arena-club (visual background)
+Cursed Boss Arena -> labeled/arena/boss-arena-cursed.png -> boss-arena-cursed (visual background)
+Diamond Boss Arena -> labeled/arena/boss-arena-diamond.png -> boss-arena-diamond (visual background)
+Heart Boss Arena -> labeled/arena/boss-arena-heart.png -> boss-arena-heart (visual background)
+Spade Boss Arena -> labeled/arena/boss-arena-spade.png -> boss-arena-spade (visual background)
+Bouncy -> labeled/enhancement/enhancement-bouncy.png -> enhancement:bouncy
+Curse -> labeled/enhancement/enhancement-cursed.png -> enhancement:cursed
+Glass -> labeled/enhancement/enhancement-glass.png -> enhancement:glass
+Gold -> labeled/enhancement/enhancement-golden.png -> enhancement:golden
+Lucky -> labeled/enhancement/enhancement-lucky.png -> enhancement:lucky
+Silver -> labeled/enhancement/enhancement-silver.png -> enhancement:silver
+Stone BG -> labeled/enhancement/enhancement-stone.png -> enhancement:stone
+Wild -> labeled/enhancement/enhancement-wild.png -> enhancement:wild
+Alone -> labeled/gumball/gumball-alone.png -> gumball:alone
+Chaos -> labeled/gumball/gumball-chaos.png -> gumball:chaos
+Duelist -> labeled/gumball/gumball-duelist.png -> gumball:duelist
+High:Low -> labeled/gumball/gumball-high-low.png -> gumball:high-low
+Partners Best -> labeled/gumball/gumball-partners-best.png -> gumball:partners-best
+Poker -> labeled/gumball/gumball-poker.png -> gumball:poker
+Psychic -> labeled/gumball/gumball-psychic.png -> gumball:telepath
+Safety Net -> labeled/gumball/gumball-lowballer.png -> gumball:lowballer
+Bear -> labeled/sigil/sigil-bear.png -> sigil:bear
+Chameleon -> labeled/sigil/sigil-chameleon.png -> sigil:chameleon
+Duck -> labeled/sigil/sigil-duck.png -> sigil:duck
+Eagle -> labeled/sigil/sigil-eagle.png -> sigil:eagle
+Fish -> labeled/sigil/sigil-fish.png -> sigil:fish
+Frog -> labeled/sigil/sigil-frog.png -> sigil:frog
+Spider -> labeled/sigil/sigil-spider.png -> sigil:spider
+Vulture -> labeled/sigil/sigil-vulture.png -> sigil:vulture
+Astronomer -> labeled/tarot/tarot-astronomer.png -> tarot:astronomer
+Devilish Deal -> labeled/tarot/tarot-devilish-deal.png -> tarot:devilish-deal
+Ectoplasm -> labeled/tarot/tarot-ectoplasm.png -> tarot:spring-loaded
+Festival -> labeled/tarot/tarot-festival.png -> tarot:chameleon
+Gambler -> labeled/tarot/tarot-gambler.png -> tarot:gambler
+Prospector -> labeled/tarot/tarot-prospector.png -> tarot:prospector
+Stone Mason -> labeled/tarot/tarot-grindstone.png -> tarot:grindstone
+Taxes -> labeled/tarot/tarot-tax-collector.png -> tarot:tax-collector
+Traitor -> labeled/tarot/tarot-traitor.png -> tarot:traitor

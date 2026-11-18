@@ -9,7 +9,9 @@ public sealed record GamePreferences(
     int WindowHeight = 860,
     double UiScale = 1.0,
     HandSort HandSort = HandSort.Suit,
-    bool AutomaticHotseatPrivacy = false)
+    bool AutomaticHotseatPrivacy = false,
+    // Reduced keeps movement that explains the game (flights, deals, collections) and drops ambient sway and shaking.
+    bool ReducedMotion = false)
 {
     public static IReadOnlyList<(int Width, int Height)> WindowSizes { get; } =
         [(1280, 720), (1320, 860), (1600, 900), (1920, 1080)];

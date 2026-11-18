@@ -47,20 +47,20 @@ static class CampaignServerTests
     }
     public static async Task RunAsync()
     {
-        Commands(); await Lifecycle(); await Shop(); await CorruptAndDirty(); await CapacityAndExpiry(); await Terminal(); await PendingChoices(); await LifecycleRaces();
+        Commands(); await Lifecycle(); await PokerReveal(); await Shop(); await Arcade(); await ArcadeSaveFailure(); await Tickets(); await LegacyShop(); await LegacyCommittedArcadeUpgrade(); await RetiredGumballShop(); await CorruptAndDirty(); await CapacityAndExpiry(); await Terminal(); await PendingChoices(); await LifecycleRaces();
     }
     private static void Commands()
     {
-        CampaignCommand[] commands = [new CampaignCommand.Bid(BidLevel.Four, GumballId.Chaos), new CampaignCommand.Pass(), new CampaignCommand.PanicButton(),
+        CampaignCommand[] commands = [new CampaignCommand.Bid(BidLevel.Four, GumballId.Chaos), new CampaignCommand.Pass(),
             new CampaignCommand.Play(new(3), Suit.Hearts), new CampaignCommand.Exchange(new(4)), new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Spades),
             new CampaignCommand.UseTarot(2, [new(1), new(4), new(5)]), new CampaignCommand.UseSigil(1, new(7)), new CampaignCommand.SwapPartnerCard(new(8)),
-            new CampaignCommand.ChooseRevealSeat(1), new CampaignCommand.RevealPartnerCard(new(10)), new CampaignCommand.SelectOpponent(3)];
+            new CampaignCommand.ChooseRevealSeat(1), new CampaignCommand.RevealPartnerCard(new(10)), new CampaignCommand.SelectOpponent(3), new CampaignCommand.CompletePoker()];
         foreach (var command in commands.Concat(Enum.GetValues<GumballId>().Select(id => new CampaignCommand.Bid(BidLevel.Four, id))))
         {
             var wire = Element(CampaignWire.Command(command)); var parsed = CampaignWire.ParseCommand(wire);
             Assert(wire.GetRawText() == Element(CampaignWire.Command(parsed)).GetRawText(), "Command union round trip lost a field.");
         }
-        foreach (var invalid in new[] { "{}", "null", "[]", "{\"kind\":\"wat\"}", "{\"kind\":\"pass\",\"seat\":0}",
+        foreach (var invalid in new[] { "{}", "null", "[]", "{\"kind\":\"wat\"}", "{\"kind\":\"panic-button\"}", "{\"kind\":\"bid\",\"level\":\"Four\",\"variant\":\"PanicButton\"}", "{\"kind\":\"pass\",\"seat\":0}",
             "{\"kind\":\"play\",\"cardId\":24}", "{\"kind\":\"bid\",\"level\":4}", "{\"kind\":\"bid\",\"level\":\"99\"}",
             "{\"kind\":\"use-tarot\",\"slot\":0,\"targetIds\":[1,1]}", "{\"kind\":\"use-sigil\",\"slot\":4,\"targetId\":0}",
             "{\"kind\":\"choose-contract\",\"mode\":\"High\",\"trump\":\"Hearts\"}", "{\"kind\":\"choose-contract\",\"mode\":\"Trump\"}",
@@ -70,6 +70,49 @@ static class CampaignServerTests
             catch (CampaignApiException e) { Assert(e.Code == "invalid_request", "Wrong malformed command diagnostic."); }
         }
         Console.WriteLine("PASS  Campaign wire covers all command variants and rejects malformed discriminators, fields, IDs and enum payloads");
+    }
+    private static async Task PokerReveal()
+    {
+        await using var f = new Fixture();
+        var run = new CampaignRun { Resources = CampaignSnapshot.Create(45) with { Inventory = new([], [], [GumballId.Poker]) } };
+        var game = new GameEngine(["You", "Opponent 1", "Partner", "Opponent 3"], 7, run.NextMatch(), new CampaignContext(run.Resources));
+        game.StartGame(3);
+        game.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.Four, GumballId.Poker));
+        for (var seat = 1; seat < 4; seat++) game.ExecuteCampaignAction(seat, new CampaignCommand.Pass());
+        f.Save(run.StartMatch().WithCheckpoint(new(game.ExportCampaignMatchSnapshot())));
+
+        var dormant = await State(f.Service, f.Token);
+        Assert(dormant.GetProperty("requiresContinue").GetBoolean(), "Poker must resume from a saved reveal.");
+        var resumed = await Change(f.Service, f.Token, dormant, "continue");
+        var table = resumed.GetProperty("table");
+        Assert(table.GetProperty("phase").GetString() == "PokerReveal" && table.GetProperty("contract").ValueKind == JsonValueKind.Null,
+            "The resumed Poker reveal must have no trick contract.");
+        Assert(table.GetProperty("players").EnumerateArray().All(p => p.GetProperty("visibleCards").GetArrayLength() == 6), "All four Poker hands must be visible.");
+        var capabilities = resumed.GetProperty("capabilities");
+        Assert(!capabilities.GetProperty("items-use").GetProperty("enabled").GetBoolean() && !capabilities.GetProperty("arrange-hand").GetProperty("enabled").GetBoolean(),
+            "The reveal must disable item use and arrangement.");
+        var poker = table.GetProperty("pokerResult");
+        Assert(poker.GetProperty("teamPoints").EnumerateArray().Any(p => p.GetInt32() == 4), "The Poker award must be visible.");
+        Assert(poker.GetProperty("winners").GetArrayLength() > 0, "At least one Poker winner must be exposed.");
+        foreach (var winner in poker.GetProperty("winners").EnumerateArray())
+        {
+            var handIds = table.GetProperty("players")[winner.GetProperty("seat").GetInt32()].GetProperty("visibleCards").EnumerateArray().Select(c => c.GetProperty("id").GetInt32()).ToHashSet();
+            var winningIds = winner.GetProperty("cardIds").EnumerateArray().Select(c => c.GetInt32()).ToArray();
+            Assert(winner.GetProperty("category").GetString() is { Length: > 0 } && winningIds.Distinct().Count() == 5 && winningIds.All(handIds.Contains),
+                "The winning category and five physical IDs must refer to that player's revealed hand.");
+        }
+        var commands = table.GetProperty("legalCommands");
+        Assert(commands.GetArrayLength() == 1 && commands[0].GetProperty("kind").GetString() == "complete-poker", "Poker must only offer the reveal acknowledgement.");
+        var revision = table.GetProperty("revision").GetInt64();
+        var dealSerial = table.GetProperty("dealSerial").GetInt64();
+        var fields = new { expectedRevision = revision, expectedDealSerial = dealSerial, command = commands[0] };
+        await Reject(() => Change(f.Service, f.Token, resumed, "commands", fields with { expectedDealSerial = dealSerial + 1 }), "stale_state");
+        var advanced = await Change(f.Service, f.Token, resumed, "commands", fields);
+        var next = advanced.GetProperty("table");
+        Assert(next.GetProperty("phase").GetString() == "Bidding" && next.GetProperty("dealSerial").GetInt64() == dealSerial + 1
+            && next.GetProperty("scores").GetRawText() == table.GetProperty("scores").GetRawText(), "Acknowledging the reveal must deal once and leave the award intact.");
+        await Reject(() => Change(f.Service, f.Token, resumed, "commands", fields), "stale_state");
+        Console.WriteLine("PASS  Poker wire exposes the saved showdown and advances exactly one guarded deal");
     }
     private static async Task Lifecycle()
     {
@@ -98,7 +141,7 @@ static class CampaignServerTests
         Assert(result.GetProperty("run").GetProperty("lives").GetInt32() == 2, "Forfeit life cost wrong.");
         await Reject(() => Change(f.Service, f.Token, resumed, "forfeit"), "stale_state");
         await f.Restart(); var savedResult = await State(f.Service, f.Token); Assert(savedResult.GetProperty("phase").GetString() == "Result", "Result not persisted.");
-        var shop = await Change(f.Service, f.Token, savedResult, "result/continue"); Assert(shop.GetProperty("shop").GetProperty("offers").GetArrayLength() == 5, "Result did not open stock.");
+        var shop = await Change(f.Service, f.Token, savedResult, "result/continue"); Assert(shop.GetProperty("shop").GetProperty("offers").GetArrayLength() == 4, "Result did not open stock.");
         var stock = shop.GetProperty("shop").GetRawText(); Assert((await State(f.Service, f.Token)).GetProperty("shop").GetRawText() == stock, "Read rerolled stock.");
         var next = await Change(f.Service, f.Token, shop, "shop/leave"); Assert(next.GetProperty("phase").GetString() == "Intro", "Shop leave failed.");
         var deleted = await Change(f.Service, f.Token, next, "delete"); Assert(!deleted.GetProperty("hasRun").GetBoolean() && !File.Exists(f.SavePath), "Deletion failed.");
@@ -118,17 +161,253 @@ static class CampaignServerTests
         state = await State(f.Service, f.Token); Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Pull payment wrong.");
         state = await Change(f.Service, f.Token, state, "shop/reroll"); Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 95, "Reroll payment wrong.");
         Assert(state.GetProperty("shop").GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("category").GetString() == "Gumball").GetProperty("sold").GetBoolean(), "Reroll replenished gumball.");
-        state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = new[] { 0 } });
-        Assert(state.GetProperty("deck")[0].GetProperty("enhancement").GetString() == "Wild", "Tarot not applied to physical shared deck.");
+        Assert(!state.GetProperty("capabilities").GetProperty("items-use").GetProperty("enabled").GetBoolean(), "Shop enabled held item use.");
+        await RejectUnchanged(f, state, "items/use", new { category = "Tarot", slot = 0, targetIds = new[] { 0 } });
+        await RejectUnchanged(f, state, "items/use", new { category = "Sigil", slot = 0, targetIds = new[] { 0 } });
         state = await Change(f.Service, f.Token, state, "items/discard", new { category = "Sigil", slot = 0 });
         try { await Change(f.Service, f.Token, state, "items/use", new { category = "Sigil", slot = 0, targetIds = new[] { 0 } }); throw new Exception("Empty slot accepted."); }
         catch (GameRuleException) { }
         state = await Change(f.Service, f.Token, state, "shop/sell", new { jokerId = "Alpha" });
         Assert(state.GetProperty("inventory").GetProperty("jokers").GetArrayLength() == 0 && state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Sale wrong.");
-        var offer = state.GetProperty("shop").GetProperty("offers").EnumerateArray().First(o => o.GetProperty("category").GetString() == "Sigil");
-        state = await Change(f.Service, f.Token, state, "shop/buy-use", new { offerId = offer.GetProperty("id").GetString(), targetIds = new[] { 2 } });
-        Assert(state.GetProperty("deck")[2].GetProperty("sigil").GetString() == offer.GetProperty("featureId").GetString(), "Buy/use effect wrong.");
-        Console.WriteLine("PASS  Campaign shop concurrent duplicate pull, reroll, stored items, sell and buy/use share authoritative transactions");
+        Assert(state.GetProperty("shop").GetProperty("offers").EnumerateArray().All(o => o.GetProperty("category").GetString() != "Sigil"), "Arcade must replace direct Sigil stock.");
+        Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("price").GetInt32() == 3, "Arcade price missing.");
+        Assert(state.GetProperty("catalog").EnumerateArray().Single(f => f.GetProperty("id").GetString() == "sigil:vulture").GetProperty("collectorTitle").GetString() == "Resourceful", "Sigil catalog entries need their collector title.");
+        state = await Change(f.Service, f.Token, state, "shop/leave");
+        Assert(!state.GetProperty("capabilities").GetProperty("items-use").GetProperty("enabled").GetBoolean(), "Intro enabled held item use.");
+        await RejectUnchanged(f, state, "items/use", new { category = "Tarot", slot = 0, targetIds = new[] { 0 } });
+        Console.WriteLine("PASS  Shop sample projection, off-sample atomic rejection, held item phase restrictions, and authoritative purchases");
+    }
+    private static async Task Arcade()
+    {
+        foreach (var game in new[] { "plinko", "roulette" })
+        foreach (var score in game == "plinko" ? new[] { 1, 3, 5 } : new[] { 0, 50, 100 })
+        {
+            await using var f = new Fixture();
+            CampaignRun? chosen = null;
+            for (ulong seed = 1; seed < 1000; seed++)
+            {
+                var candidate = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop)
+                { Resources = CampaignSnapshot.Create(seed) with { Inventory = new([], [TarotId.Gambler, TarotId.TaxCollector, TarotId.Astronomer], []) { Sigils = [SigilId.Bear] } } });
+                var result = game == "plinko" ? CampaignArcade.PlayPlinko(candidate, 4) : CampaignArcade.PlayRoulette(candidate, 1);
+                if (result.Shop!.Arcade!.Pending!.Score == score) { chosen = candidate; break; }
+            }
+            Assert(chosen is not null, "Missing deterministic Arcade fixture."); f.Save(chosen!);
+            var state = await State(f.Service, f.Token); var before = state;
+            object selection = game == "plinko" ? new { lane = 4 } : new { pocket = 1 };
+            await Reject(() => Change(f.Service, f.Token, state, "shop/arcade/" + game, new { lane = 4, score = 100 }), "invalid_request");
+            state = await Change(f.Service, f.Token, state, "shop/arcade/" + game, selection);
+            var resultView = state.GetProperty("shop").GetProperty("arcade").GetProperty("pending");
+            var playId = resultView.GetProperty("playId").GetString();
+            Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97 && resultView.GetProperty("score").GetInt32() == score, "Arcade price or score wrong.");
+            Assert(!state.GetProperty("capabilities").GetProperty("shop-leave").GetProperty("enabled").GetBoolean(), "Pending result must block leaving.");
+            Assert(!state.GetProperty("shop").GetProperty("reroll").GetProperty("enabled").GetBoolean(), "Pending result must block rerolls.");
+            await Reject(() => Change(f.Service, f.Token, before, "shop/arcade/" + game, selection), "stale_state");
+            await RejectUnchanged(f, state, "shop/arcade/" + game, selection);
+            await RejectUnchanged(f, state, "shop/leave", new { });
+            await RejectUnchanged(f, state, "shop/reroll", new { });
+            await f.Restart(); state = await State(f.Service, f.Token);
+            Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("pending").GetRawText() == resultView.GetRawText(), "Restart rerolled a paid Arcade result.");
+            if (game == "plinko" ? score <= 2 : score == 0) state = await Change(f.Service, f.Token, state, "shop/arcade/dismiss", new { playId });
+            else
+            {
+                await RejectUnchanged(f, state, "shop/arcade/keep", new { playId });
+                await RejectUnchanged(f, state, "shop/arcade/dismiss", new { playId });
+                if (resultView.GetProperty("pack").ValueKind == JsonValueKind.Array)
+                {
+                    var pack = resultView.GetProperty("pack").EnumerateArray().ToArray();
+                    Assert(pack.Length == 3 && pack.All(c => c.GetProperty("title").GetString() is { Length: > 0 }), "A Sigil prize must show a three-card pack with titles.");
+                    Assert(!resultView.GetProperty("keep").GetProperty("enabled").GetBoolean() && !resultView.GetProperty("use").GetProperty("enabled").GetBoolean()
+                        && resultView.GetProperty("pick").GetProperty("enabled").GetBoolean(), "A pack can only be opened, never kept.");
+                    await RejectUnchanged(f, state, "shop/arcade/use", new { playId });
+                    var index = Array.FindIndex(pack, c => !c.GetProperty("legendary").GetBoolean());
+                    await Reject(() => Change(f.Service, f.Token, state, "shop/arcade/pick", new { playId, index, featureId = "Fish" }), "invalid_request");
+                    await Reject(() => Change(f.Service, f.Token, state, "shop/arcade/pick", new { playId, index = 3 }), "invalid_request");
+                    state = await Change(f.Service, f.Token, state, "shop/arcade/pick", new { playId, index });
+                    Assert(state.GetProperty("shop").GetProperty("useSession").GetProperty("featureId").GetString() == pack[index].GetProperty("key").GetString(), "Picked card must start its use session.");
+                    await RejectUnchanged(f, state, "shop/arcade/pick", new { playId, index });
+                }
+                else
+                {
+                    Assert(!resultView.GetProperty("keep").GetProperty("enabled").GetBoolean() && resultView.GetProperty("use").GetProperty("enabled").GetBoolean(), "Full storage must still allow Use Now.");
+                    Assert(!resultView.GetProperty("pick").GetProperty("enabled").GetBoolean(), "A Tarot prize has no pack to open.");
+                    state = await Change(f.Service, f.Token, state, "shop/arcade/use", new { playId });
+                }
+                Assert(state.GetProperty("shop").GetProperty("offers").GetArrayLength() == 4, "Hidden prize leaked onto the shop shelf.");
+                var session = state.GetProperty("shop").GetProperty("useSession");
+                var ids = session.GetProperty("targetCards").EnumerateArray().Select(c => c.GetProperty("id").GetInt32()).ToArray();
+                Assert(ids.Length == 6 && ids.Distinct().Count() == 6, "Arcade prize lost its six-card sample.");
+                await RejectUnchanged(f, state, "shop/finish-use", new { });
+                state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = new[] { ids[4], ids[1] } });
+                Assert(!state.GetProperty("shop").GetProperty("useSession").GetProperty("purchasedItemUsed").GetBoolean(), "Held Gambler consumed the mandatory prize.");
+                state = await Change(f.Service, f.Token, state, "shop/use-purchased", new { targetIds = ids.Take(session.GetProperty("targetCount").GetInt32()).ToArray() });
+                state = await Change(f.Service, f.Token, state, "shop/finish-use");
+            }
+            await RejectUnchanged(f, state, "shop/arcade/" + game, selection);
+            state = await Change(f.Service, f.Token, state, "shop/reroll");
+            await RejectUnchanged(f, state, "shop/arcade/" + game, selection);
+        }
+        Console.WriteLine("PASS  Arcade price/limits, three prize tiers, strict versioned routes, durable outcomes, full storage Use Now and held Gambler in mandatory six-card sessions");
+    }
+    private static async Task ArcadeSaveFailure()
+    {
+        await using var f = new Fixture();
+        CampaignRun? run = null;
+        for (ulong seed = 1; seed < 1000; seed++)
+        {
+            var candidate = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop)
+            { Resources = CampaignSnapshot.Create(seed) with { Inventory = new([], [TarotId.Gambler], []) } });
+            if (CampaignArcade.PlayPlinko(candidate, 4).Shop!.Arcade!.Pending!.PrizeCategory == FeatureCategory.Sigil) { run = candidate; break; }
+        }
+        Assert(run is not null, "Missing durable Arcade fixture."); f.Save(run!);
+        var state = await State(f.Service, f.Token);
+        async Task FailedWrite(string action, object fields)
+        {
+            state = await State(f.Service, f.Token); var before = state.GetRawText();
+            var backup = f.SavePath + ".blocked-write-backup"; File.Move(f.SavePath, backup); Directory.CreateDirectory(f.SavePath);
+            try
+            {
+                await Reject(() => Change(f.Service, f.Token, state, action, fields), "save_unavailable");
+                Assert((await State(f.Service, f.Token)).GetRawText() == before, "A failed Arcade save exposed a roll, payment, prize, inventory change or revised state: " + action);
+            }
+            finally { Directory.Delete(f.SavePath); File.Move(backup, f.SavePath); }
+            await f.Restart();
+            Assert((await State(f.Service, f.Token)).GetRawText() == before, "Restart changed a rejected Arcade action: " + action);
+        }
+        await FailedWrite("shop/arcade/plinko", new { lane = 4 });
+        state = await Change(f.Service, f.Token, state, "shop/arcade/plinko", new { lane = 4 });
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Retry charged more than once.");
+        var prize = state.GetProperty("shop").GetProperty("arcade").GetProperty("pending"); var playId = prize.GetProperty("playId").GetString();
+        await FailedWrite("items/discard", new { category = "Tarot", slot = 0 });
+        var sigilIndex = Array.FindIndex(prize.GetProperty("pack").EnumerateArray().ToArray(), c => !c.GetProperty("legendary").GetBoolean());
+        await FailedWrite("shop/arcade/pick", new { playId, index = sigilIndex });
+        state = await Change(f.Service, f.Token, state, "shop/arcade/pick", new { playId, index = sigilIndex });
+        var ids = state.GetProperty("shop").GetProperty("useSession").GetProperty("targetCards").EnumerateArray().Select(c => c.GetProperty("id").GetInt32()).ToArray();
+        await FailedWrite("items/use", new { category = "Tarot", slot = 0, targetIds = ids.Take(2).ToArray() });
+        state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = ids.Take(2).ToArray() });
+        await FailedWrite("shop/use-purchased", new { targetIds = ids.Take(1).ToArray() });
+        state = await Change(f.Service, f.Token, state, "shop/use-purchased", new { targetIds = ids.Take(1).ToArray() });
+        await FailedWrite("shop/finish-use", new { });
+        state = await Change(f.Service, f.Token, state, "shop/finish-use");
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97 && state.GetProperty("inventory").GetProperty("tarot").GetArrayLength() == 0, "Durable retries changed charges or duplicated held Tarot use.");
+        Console.WriteLine("PASS  Failed Arcade writes reveal no outcome, charge, grant or consumption; same-version retries commit once and restart preserves every step");
+    }
+    private static async Task RetiredGumballShop()
+    {
+        await using var f = new Fixture();
+        var run = CampaignShop.Open(new CampaignRun(Match: 2, Money: 30, Phase: CampaignPhase.Shop));
+        var machine = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Gumball);
+        f.Save(run with { Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == machine.Id ? o with { Sold = true, FeatureId = "" } : o).ToArray() } });
+        var state = await State(f.Service, f.Token);
+        var catalog = state.GetProperty("catalog").EnumerateArray().ToArray();
+        Assert(catalog.Count(f => f.GetProperty("category").GetString() == "Gumball") == 8, "Only eight active gumball bids should be projected.");
+        Assert(catalog.All(f => f.GetProperty("key").GetString() != "PanicButton"), "The retired bid must not appear in the catalogue.");
+        void Sold(JsonElement current)
+        {
+            var offer = current.GetProperty("shop").GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("category").GetString() == "Gumball");
+            Assert(offer.GetProperty("sold").GetBoolean() && offer.GetProperty("featureId").GetString() == "", "Retired purchase identity must remain sold without exposing the removed feature.");
+            Assert(!offer.GetProperty("buy").GetProperty("enabled").GetBoolean(), "A retired purchase must not unlock a free pull.");
+        }
+        Sold(state);
+        await RejectUnchanged(f, state, "shop/pull", new { offerId = machine.Id });
+        state = await Change(f.Service, f.Token, state, "shop/reroll");
+        Sold(state);
+        await f.Restart();
+        Sold(await State(f.Service, f.Token));
+        Console.WriteLine("PASS  Retired gumball stock stays sold across projection, reroll and restart while active catalogue excludes the removed bid");
+    }
+
+    private static async Task RejectUnchanged(Fixture fixture, JsonElement state, string action, object fields)
+    {
+        var persisted = File.ReadAllText(fixture.SavePath);
+        try { await Change(fixture.Service, fixture.Token, state, action, fields); throw new Exception("Invalid item action accepted: " + action); }
+        catch (GameRuleException) { }
+        Assert(Version(await State(fixture.Service, fixture.Token)) == Version(state), "Rejected action advanced its version: " + action);
+        Assert(File.ReadAllText(fixture.SavePath) == persisted, "Rejected action changed save, random state, money or revision: " + action);
+    }
+    private static async Task Tickets()
+    {
+        await using var f = new Fixture();
+        var run = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop) { Resources = CampaignSnapshot.Create(12) });
+        f.Save(run);
+        var state = await State(f.Service, f.Token);
+        JsonElement Teller(JsonElement value) => value.GetProperty("shop").GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("category").GetString() == "Tarot");
+        var offerId = Teller(state).GetProperty("id").GetString();
+        Assert(Teller(state).GetProperty("targetCards").GetArrayLength() == 0, "Unpaid ticket leaked a sample.");
+        state = await Change(f.Service, f.Token, state, "shop/print", new { offerId, count = 3 });
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 94, "Print charged wrong amount.");
+        var offer = Teller(state); var sample = offer.GetProperty("targetCards").Clone();
+        Assert(sample.GetArrayLength() == 6 && offer.GetProperty("tickets").GetArrayLength() == 3, "Printed spread missing tickets or six-card sample.");
+        Assert(!state.GetProperty("capabilities").GetProperty("shop-leave").GetProperty("enabled").GetBoolean() && !state.GetProperty("shop").GetProperty("reroll").GetProperty("enabled").GetBoolean(), "Unresolved paid tickets must block leaving or rerolling.");
+        await Reject(() => Change(f.Service, f.Token, state, "shop/keep-ticket", new { offerId, ticketId = "99" }), "invalid_request");
+        await RejectUnchanged(f, state, "shop/print", new { offerId, count = 1 });
+        await f.Restart(); state = await State(f.Service, f.Token);
+        Assert(Teller(state).GetProperty("targetCards").GetRawText() == sample.GetRawText(), "Restart changed paid sample.");
+        var ticket = Teller(state).GetProperty("tickets").EnumerateArray().First(t => t.GetProperty("targetCount").GetInt32() > 0);
+        var count = ticket.GetProperty("targetCount").GetInt32(); var ids = sample.EnumerateArray().Select(c => c.GetProperty("id").GetInt32()).ToArray();
+        var valid = ids.Take(count).ToArray(); var invalid = valid.ToArray(); invalid[0] = Enumerable.Range(0, 24).First(id => !ids.Contains(id));
+        await RejectUnchanged(f, state, "shop/use-ticket", new { offerId, ticketId = ticket.GetProperty("id").GetString(), targetIds = invalid });
+        var printedState = state;
+        state = await Change(f.Service, f.Token, state, "shop/use-ticket", new { offerId, ticketId = ticket.GetProperty("id").GetString(), targetIds = valid });
+        Assert(Teller(state).GetProperty("sold").GetBoolean() && Teller(state).GetProperty("tickets").GetArrayLength() == 0, "Used ticket did not resolve the spread.");
+        await Reject(() => Change(f.Service, f.Token, printedState, "shop/use-ticket", new { offerId, ticketId = ticket.GetProperty("id").GetString(), targetIds = valid }), "stale_state");
+        state = await Change(f.Service, f.Token, state, "shop/reroll"); offerId = Teller(state).GetProperty("id").GetString();
+        state = await Change(f.Service, f.Token, state, "shop/print", new { offerId, count = 1 });
+        var kept = Teller(state).GetProperty("tickets")[0].GetProperty("id").GetString();
+        state = await Change(f.Service, f.Token, state, "shop/keep-ticket", new { offerId, ticketId = kept });
+        Assert(state.GetProperty("inventory").GetProperty("tarot")[0].GetProperty("id").GetString() == kept, "Keep did not store printed ticket.");
+        Console.WriteLine("PASS  Fortune Teller print/use/keep transactions, durable six-card sample, stale gates and atomic target rejection");
+    }
+    private static async Task LegacyShop()
+    {
+        await using var f = new Fixture();
+        var run = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop) { Resources = CampaignSnapshot.Create(12) });
+        var teller = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Tarot);
+        run = CampaignShop.PrintTickets(run, teller.Id, 3);
+        run = run with { Shop = run.Shop! with { Offers = run.Shop.Offers.Select(o => o with { TargetCards = null }).ToArray() } };
+        f.Save(run);
+        var states = await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => State(f.Service, f.Token)));
+        Assert(states.All(s => Version(s) == "fixture:6"), "Legacy upgrade must advance the web version exactly once.");
+        var state = states[0];
+        foreach (var offer in state.GetProperty("shop").GetProperty("offers").EnumerateArray().Where(o => o.GetProperty("category").GetString() is "Sigil" or "Tarot"))
+            Assert(offer.GetProperty("targetCards").GetArrayLength() == 6, "Loaded legacy purchase needs six target cards.");
+        var saved = CampaignStore.LoadSave(f.SavePath).Save!;
+        Assert(saved.Run.Resources.Revision == run.Resources.Revision + 1 && saved.Metadata!.RunId == "fixture" && saved.Metadata.StateRevision == 6, "Legacy upgrade lost metadata or changed the resource revision more than once.");
+        Assert(saved.Run.Money == run.Money && saved.Run.Shop!.Offers.Single(o => o.Id == teller.Id).Printed!.SequenceEqual(run.Shop.Offers.Single(o => o.Id == teller.Id).Printed!), "Legacy upgrade changed paid tickets or money.");
+        var shop = state.GetProperty("shop").GetRawText();
+        await f.Restart(); state = await State(f.Service, f.Token);
+        Assert(Version(state) == "fixture:6" && state.GetProperty("shop").GetRawText() == shop, "Legacy shop upgrade was not persisted idempotently.");
+        var printed = state.GetProperty("shop").GetProperty("offers").EnumerateArray().Single(o => o.GetProperty("id").GetString() == teller.Id);
+        var ticket = printed.GetProperty("tickets").EnumerateArray().First(t => t.GetProperty("targetCount").GetInt32() > 0);
+        var targets = printed.GetProperty("targetCards").EnumerateArray().Take(ticket.GetProperty("targetCount").GetInt32()).Select(c => c.GetProperty("id").GetInt32()).ToArray();
+        state = await Change(f.Service, f.Token, state, "shop/use-ticket", new { offerId = teller.Id, ticketId = ticket.GetProperty("id").GetString(), targetIds = targets });
+        Assert(state.GetProperty("shop").GetProperty("offers").EnumerateArray().All(o => o.GetProperty("category").GetString() != "Sigil"), "Legacy shop should replace unsold Sigils with Arcade access.");
+        Console.WriteLine("PASS  Loaded legacy shop upgrades paid-ticket samples once and preserves paid tickets while exposing the Arcade");
+    }
+    private static async Task LegacyCommittedArcadeUpgrade()
+    {
+        await using var f = new Fixture();
+        var run = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop)
+        { Resources = CampaignSnapshot.Create(12) });
+        var targets = run.Resources.Deck.Take(6).Select(c => c.Id).ToArray();
+        var committed = new ShopOffer("legacy-paid-sigil", FeatureCategory.Sigil, nameof(SigilId.Bear), 4, true) { TargetCards = targets };
+        var unsold = new ShopOffer("legacy-unsold-sigil", FeatureCategory.Sigil, nameof(SigilId.Fish), 4) { TargetCards = targets };
+        run = run with { Shop = run.Shop! with
+        {
+            Offers = [.. run.Shop.Offers, committed, unsold], Arcade = null,
+            UseSession = new(committed.Id, committed.Category, committed.FeatureId, false)
+        } };
+        f.Save(run);
+        var state = await State(f.Service, f.Token);
+        Assert(state.GetProperty("shop").GetProperty("useSession").GetProperty("offerId").GetString() == committed.Id, "Legacy committed purchase was lost during migration.");
+        state = await Change(f.Service, f.Token, state, "shop/use-purchased", new { targetIds = new[] { targets[0].Value } });
+        state = await Change(f.Service, f.Token, state, "shop/finish-use");
+        Assert(state.GetProperty("shop").GetProperty("offers").EnumerateArray().All(o => o.GetProperty("id").GetString() != unsold.Id), "Legacy unsold Sigil survived the completed session upgrade.");
+        Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("plinko").GetProperty("enabled").GetBoolean(), "Finishing a legacy session failed to open the Arcade.");
+        state = await Change(f.Service, f.Token, state, "shop/arcade/plinko", new { lane = 4 });
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Upgraded Arcade failed to accept its first paid play.");
+        await f.Restart();
+        Assert((await State(f.Service, f.Token)).GetProperty("shop").GetProperty("arcade").GetProperty("pending").ValueKind == JsonValueKind.Object, "Legacy upgraded Arcade outcome did not persist.");
+        Console.WriteLine("PASS  Completing a legacy paid six-card session upgrades Arcade access and removes unsold Sigils before accepting plays");
     }
     private static async Task CorruptAndDirty()
     {

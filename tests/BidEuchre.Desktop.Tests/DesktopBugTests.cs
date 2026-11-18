@@ -15,7 +15,7 @@ internal static class DesktopBugTests
     public static void Run()
     {
         var failures = new List<Exception>();
-        foreach (var test in new Action[] { SettingsSaveFailure, MenuReachability, ShopReachability, CardFocus })
+        foreach (var test in new Action[] { SettingsSaveFailure, MenuReachability, ShopReachability, ArcadeReachability, CardFocus })
             try { test(); } catch (Exception error) { Console.WriteLine($"FAIL  {test.Method.Name}: {error.Message}"); failures.Add(error); }
         if (failures.Count > 0) throw new AggregateException(failures);
     }
@@ -119,9 +119,8 @@ internal static class DesktopBugTests
                 new("j2", FeatureCategory.Joker, jokerIds[1].ToString(), 3),
                 new("j3", FeatureCategory.Joker, jokerIds[2].ToString(), 3),
                 new("g", FeatureCategory.Gumball, Enum.GetNames<GumballId>()[0], 3),
-                new("s", FeatureCategory.Sigil, "Fish", 3),
                 new("t", FeatureCategory.Tarot, "Prospector", 3)
-            ])
+            ]) { Arcade = new() }
         };
         return run with
         {
@@ -136,7 +135,7 @@ internal static class DesktopBugTests
         };
     }
 
-    private static ShopActions Actions() => new(_ => { }, _ => { }, _ => { }, (_, _) => { }, (_, _) => { }, () => { }, () => { })
+    private static ShopActions Actions() => new(_ => { }, _ => { }, _ => { }, (_, _) => { }, () => { }, () => { })
     { Pull = _ => null, Refresh = () => { } };
 
     private static void ShopReachability()
@@ -148,7 +147,7 @@ internal static class DesktopBugTests
             try
             {
                 window.Show(); Flush();
-                foreach (var name in new[] { "Offerj", "Offers", "Offert", $"Owned{run.Resources.Inventory.Jokers[0].Id}", "OwnedTarot0", "OwnedSigil0", "OwnedTarot1", "OwnedSigil1" })
+                foreach (var name in new[] { "Offerj", "ShopArcade", "FortuneTeller", $"Owned{run.Resources.Inventory.Jokers[0].Id}", "OwnedTarot0", "OwnedSigil0", "OwnedTarot1", "OwnedSigil1" })
                 {
                     var card = Find(window, name); card.BringIntoView(); Flush(); Activate(card); Flush();
                     foreach (var button in window.GetVisualDescendants().OfType<Button>().Where(b => b.Name?.StartsWith("Buy") == true || b.Name?.StartsWith("Use") == true || b.Name?.StartsWith("Sell") == true || b.Name?.StartsWith("Discard") == true).ToArray())
@@ -158,6 +157,36 @@ internal static class DesktopBugTests
             finally { window.Close(); }
         }
         Console.WriteLine("PASS  Shop purchase and owned-card controls are completely reachable at every effective size/scale");
+    }
+
+    private static void ArcadeReachability()
+    {
+        var run = CampaignArcadeUiTests.PlinkoFixture(3, RunWithItems().Resources.Inventory);
+        var packRun = CampaignArcadeUiTests.PlinkoFixture(5, RunWithItems().Resources.Inventory);
+        var actions = new ArcadeActions((_, _) => null, _ => { }, _ => { }, _ => { }, () => { }, () => { }) { Discard = (_, _) => { } };
+        foreach (var size in LogicalViewports())
+        {
+            var window = new Window { Width = size.Width, Height = size.Height };
+            try
+            {
+                window.Content = ArcadeScreen.Build(run, actions, Still()); window.Show(); Flush();
+                foreach (var name in new[] { "PlinkoLane0", "PlinkoLane7", "ArcadePlay", "ArcadeBack", "ArcadeRoulette" })
+                { var button = Find(window, name); button.BringIntoView(); Flush(); Visible(button, window); }
+                Activate(Find(window, "ArcadeRoulette")); Flush();
+                foreach (var name in new[] { "RoulettePocket1", "RoulettePocket12", "ArcadePlay" })
+                { var button = Find(window, name); button.BringIntoView(); Flush(); Visible(button, window); }
+                window.Content = ArcadeScreen.Build(CampaignArcade.PlayPlinko(run, 4), actions, Still()); Flush();
+                var expander = window.GetVisualDescendants().OfType<Expander>().Single(e => e.Name == "ArcadeFreeSlot");
+                expander.IsExpanded = true; Flush();
+                foreach (var name in new[] { "ArcadeKeep", "ArcadeUse", "ArcadeDiscardTarot0", "ArcadeDiscardSigil1" })
+                { var button = Find(window, name); button.BringIntoView(); Flush(); Visible(button, window); }
+                window.Content = ArcadeScreen.Build(CampaignArcade.PlayPlinko(packRun, 4), actions, Still()); Flush();
+                foreach (var name in new[] { "CollectorCard0", "CollectorCard1", "CollectorCard2" })
+                { var button = Find(window, name); button.BringIntoView(); Flush(); Visible(button, window); }
+            }
+            finally { window.Close(); }
+        }
+        Console.WriteLine("PASS  Arcade game choices, prizes and full-inventory discard controls remain reachable at every effective size/scale");
     }
 
     private static void CardFocus()
@@ -189,7 +218,7 @@ internal static class DesktopBugTests
                     window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r"); Flush();
                     if (card.Name!.StartsWith("DeckCard")) Require(Find(window, "ConfirmDeckChoice").IsEnabled, "Enter must select the focused deck target.");
                     if (card.Name.StartsWith("Offer")) Require(window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "Buy" + card.Name[5..]), "Enter must select the focused offer.");
-                    if (card.Name.StartsWith("Owned")) Require(window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "Sell" + card.Name[5..] || b.Name == "Use" + card.Name[5..]), "Enter must select the focused owned item.");
+                    if (card.Name.StartsWith("Owned")) Require(window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "Sell" + card.Name[5..] || b.Name == "Discard" + card.Name[5..]), "Enter must select the focused owned item.");
                     if (card.Name.StartsWith("AnteItem")) { Require(card.Flyout!.IsOpen, "Enter must open the focused inventory card."); card.Flyout.Hide(); }
                     card.Focus(NavigationMethod.Tab); Flush();
                     window.KeyPress(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");

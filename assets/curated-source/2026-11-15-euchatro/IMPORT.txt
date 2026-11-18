@@ -1,0 +1,80 @@
+EUCHATRO ASSET PULL — 2026-11-15
+Project: https://drive.google.com/drive/project/1fpIj6m0mnU3vqXojS7m-k6_wn1fKHbMx
+
+CURRENT PROJECT: 75 image sources
+NEW: 37 images — 32 Jokers, 2 machines, Over Achiever gumball, System Error ticket, alternate Devilish Deal ticket.
+REVISED: 3 images — Gambler ticket, Taxes ticket, Wild card enhancement.
+UNCHANGED: 35 images — 25 existing sources plus 10 identical reuploads with new Drive IDs.
+
+CONTENTS
+originals/       40 new/revised PNGs in their original bytes and resolution.
+labeled/         40 byte-identical copies with normalized import filenames.
+asset-preview.png  Contact sheet of all 40 new/revised images.
+manifest.json    Complete 75-asset inventory, import mappings, dimensions, alpha and SHA-256.
+drive-files.json Current project file IDs, names, URLs, sizes and modification dates.
+changes.json     New and revised asset list.
+png-validation.json  PNG signature, chunk CRC and compressed-pixel validation for all 75 downloads.
+image-validation.json  Skia decode and alpha measurements for the 40 new/revised images.
+
+REUSED FILES
+Unchanged images reference ../2026-11-14-euchatro in the manifest instead of duplicating them.
+Keep the two dated directories together. Both the original bytes and the previous runtime artwork are preserved.
+The original pull staged source images. The subsequent authorized import now exports all 75 assets into assets/pixel.
+
+IMPORT MAPPINGS
+31 new Joker images match existing FeatureCatalog IDs. Name corrections include:
+3s Company -> threes-company; Contrarion -> contrarian; Protctive Bubble -> protective-bubble;
+Loverboy -> lover-boy; Mommy Medusa -> medusa; Undertaker -> the-undertaker;
+Vow of Silence -> vowof-silence (the existing stable runtime ID).
+Original Drive names remain in the manifest.
+
+RUNTIME IMPORT — 2026-11-15
+31 matching Joker portraits replace their old illustrations. Both machine illustrations are used in the shop.
+Gambler, Taxes, Wild and the latest Devilish Deal design replace the matching runtime textures.
+The earlier Devilish Deal ticket is retained as curated-tarot-devilish-deal-previous.png.
+Boomerang, Over Achiever and System Error are imported as art-only resources, with no invented gameplay effects.
+All 75 resources, source hashes and active/inactive mappings are recorded in assets/pixel/curated-art.json.
+The asset builder supports Joker/machine handling, preserves explicit null runtime IDs, and defaults to this snapshot.
+Original downloads and labeled PNG bytes are unchanged. Portraits use aspect fit; machines preserve aspect and alpha.
+
+NEW AND REVISED FILES
+UPDATED: Wild -> labeled/enhancement/enhancement-wild.png -> enhancement:wild
+NEW: Over Achiever -> labeled/gumball/gumball-over-achiever.png -> [no current gameplay mapping]
+NEW: Alpha -> labeled/joker/joker-alpha.png -> joker:alpha
+NEW: Boomerang -> labeled/joker/joker-boomerang.png -> [no current gameplay mapping]
+NEW: Bully -> labeled/joker/joker-bully.png -> joker:bully
+NEW: Cheater -> labeled/joker/joker-cheater.png -> joker:cheater
+NEW: Cheese Touch -> labeled/joker/joker-cheese-touch.png -> joker:cheese-touch
+NEW: Clubhouse -> labeled/joker/joker-clubhouse.png -> joker:clubhouse
+NEW: Consolation Prize -> labeled/joker/joker-consolation-prize.png -> joker:consolation-prize
+NEW: Contrarian -> labeled/joker/joker-contrarian.png -> joker:contrarian
+NEW: Cure-All -> labeled/joker/joker-cure-all.png -> joker:cure-all
+NEW: Deep Digger -> labeled/joker/joker-deep-digger.png -> joker:deep-digger
+NEW: Déjà Vu -> labeled/joker/joker-deja-vu.png -> joker:deja-vu
+NEW: High Roller -> labeled/joker/joker-high-roller.png -> joker:high-roller
+NEW: King Midas -> labeled/joker/joker-king-midas.png -> joker:king-midas
+NEW: Last Laugh -> labeled/joker/joker-last-laugh.png -> joker:last-laugh
+NEW: Lover Boy -> labeled/joker/joker-lover-boy.png -> joker:lover-boy
+NEW: Lucky Duck -> labeled/joker/joker-lucky-duck.png -> joker:lucky-duck
+NEW: Medusa -> labeled/joker/joker-medusa.png -> joker:medusa
+NEW: Millionaire -> labeled/joker/joker-millionaire.png -> joker:millionaire
+NEW: One Up -> labeled/joker/joker-one-up.png -> joker:one-up
+NEW: Penny Pincher -> labeled/joker/joker-penny-pincher.png -> joker:penny-pincher
+NEW: People Pleaser -> labeled/joker/joker-people-pleaser.png -> joker:people-pleaser
+NEW: Protective Bubble -> labeled/joker/joker-protective-bubble.png -> joker:protective-bubble
+NEW: Roller Coaster -> labeled/joker/joker-roller-coaster.png -> joker:roller-coaster
+NEW: Royal Council -> labeled/joker/joker-royal-council.png -> joker:royal-council
+NEW: Slick Willy -> labeled/joker/joker-slick-willy.png -> joker:slick-willy
+NEW: Snake Eyes -> labeled/joker/joker-snake-eyes.png -> joker:snake-eyes
+NEW: Sticky Fingers -> labeled/joker/joker-sticky-fingers.png -> joker:sticky-fingers
+NEW: The Undertaker -> labeled/joker/joker-the-undertaker.png -> joker:the-undertaker
+NEW: Three's Company -> labeled/joker/joker-threes-company.png -> joker:threes-company
+NEW: Trend Setter -> labeled/joker/joker-trend-setter.png -> joker:trend-setter
+NEW: Twin Flame -> labeled/joker/joker-twin-flame.png -> joker:twin-flame
+NEW: Vow of Silence -> labeled/joker/joker-vowof-silence.png -> joker:vowof-silence
+NEW: Fortune Teller (Ticket Dispenser) -> labeled/machines/fortune-teller-ticket-dispenser.png -> [no current gameplay mapping]
+NEW: Gumball Machine -> labeled/machines/gumball-machine.png -> [no current gameplay mapping]
+NEW: Devilish Deal (Updated Artwork) -> labeled/tarot/tarot-devilish-deal-alternate.png -> tarot:devilish-deal
+UPDATED: Gambler -> labeled/tarot/tarot-gambler.png -> tarot:gambler
+NEW: System Error -> labeled/tarot/tarot-system-error.png -> [no current gameplay mapping]
+UPDATED: Taxes -> labeled/tarot/tarot-tax-collector.png -> tarot:tax-collector

@@ -20,7 +20,7 @@ internal static class CampaignIntegrationTests
                     var seat = game.CampaignActor!.Value; var view = game.CreateCampaignView(seat);
                     if (seat == 0 && game.Phase == GamePhase.Bidding && view.PendingChoice is null && view.Inventory.Tarot.Length > 0)
                     {
-                        var tarot = view.Inventory.Tarot[0]; var count = tarot == TarotId.DevilishDeal ? 3 : tarot is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
+                        var tarot = view.Inventory.Tarot[0]; var count = Tarot.TargetCount(tarot);
                         try { game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, view.Players[0].VisibleCards.Take(count).Select(c => c.Id).ToArray())); continue; }
                         catch (GameRuleException) { } // An exhausted Astronomer is intentionally unavailable.
                     }
@@ -53,7 +53,7 @@ internal static class CampaignIntegrationTests
             var s = CampaignSnapshot.Create(8) with { Inventory = new([], [tarot], []), Wallets = [25, 0, 0, 0] };
             var game = new GameEngine(["You", "W", "P", "E"], 8, campaign: new CampaignContext(s)); game.StartGame(3);
             var view = game.CreateCampaignView(0);
-            var count = tarot == TarotId.DevilishDeal ? 3 : tarot is TarotId.Gambler or TarotId.Astronomer or TarotId.TaxCollector ? 0 : 1;
+            var count = Tarot.TargetCount(tarot);
             var candidates = view.Players[0].VisibleCards;
             game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, candidates.Take(count).Select(c => c.Id).ToArray()));
             var result = game.ExportCampaignSnapshot(); Assert.Equal(0, result.Inventory.Tarot.Length);

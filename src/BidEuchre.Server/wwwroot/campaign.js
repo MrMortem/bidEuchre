@@ -2,7 +2,8 @@
 window.CampaignClient = (() => {
   let active=false,generation=0,state=null,pending=false,loading=false,timer=null,readController=null,readSerial=0,renderKey='',screenKey='';
   let message='',connectionLost=false,lastFeedback='';
-  let mutationController=null,mutationFocus=null;
+  let mutationController=null,mutationFocus=null,shopChoice=null,shopTargets=new Set(),shopSelectionVersion=null,arcadeView=false;
+  let pokerTimer=null,pokerKey=null,pokerAttemptVersion=null;
   const root=()=>document.querySelector('#campaign-view');
   const content=()=>document.querySelector('#campaign-content');
   const cap=key=>state?.capabilities?.[key];
@@ -12,10 +13,15 @@ window.CampaignClient = (() => {
     status.textContent=text;status.classList.toggle('error',error);
   }
   function stop() {clearTimeout(timer);timer=null;}
+  function stopPokerTimer() {clearTimeout(pokerTimer);pokerTimer=null;}
   function leave() {
     active=false;generation++;readSerial++;stop();readController?.abort();readController=null;
+    stopPokerTimer();pokerKey=null;pokerAttemptVersion=null;
     mutationFocus=null;mutationController?.abort();
+    shopChoice=null;shopTargets=new Set();shopSelectionVersion=null;
+    arcadeView=false;CampaignArcadeView.reset();
     CampaignCards.close(false);
+    CampaignScreens.backdrop(null);
   }
   async function open() {
     leave();active=true;loading=true;renderKey='';screenKey='';message='';state=null;connectionLost=false;
@@ -34,6 +40,28 @@ window.CampaignClient = (() => {
     if(!active||document.hidden)return;
     timer=setTimeout(async()=>{await refresh({quiet:true});schedule();},state?.phase==='InMatch'&&!state.requiresContinue?800:2500);
   }
+  function pokerCommand() {
+    if(state?.phase==='InMatch'&&!state.requiresContinue&&state.table?.phase==='PokerReveal')
+      return state.table.legalCommands.find(c=>c.kind==='complete-poker');
+    return null;
+  }
+  function syncPokerReveal() {
+    const command=pokerCommand();
+    // Versions are run ID + revision. The same showdown can gain a newer version before its timer fires.
+    const key=command?state.version.slice(0,state.version.lastIndexOf(':'))+':'+state.table.dealSerial:null;
+    if(key!==pokerKey){stopPokerTimer();pokerKey=key;pokerAttemptVersion=null;}
+    if(!key||document.hidden||connectionLost){stopPokerTimer();return;}
+    if(pokerTimer!==null||pending||loading||pokerAttemptVersion===state.version)return;
+    const myGeneration=generation;
+    pokerTimer=setTimeout(()=>{
+      pokerTimer=null;
+      if(!active||generation!==myGeneration||pokerKey!==key||document.hidden||pending||loading||connectionLost)return;
+      const currentCommand=pokerCommand();
+      if(!currentCommand)return;
+      pokerAttemptVersion=state.version;
+      mutate('/commands',{command:currentCommand},{live:true});
+    },3000);
+  }
   async function refresh({quiet=false}={}) {
     if(!active||pending||document.hidden&&quiet)return;
     const myGeneration=generation,serial=++readSerial;
@@ -42,6 +70,7 @@ window.CampaignClient = (() => {
     try{
       const next=await request('','GET',null,controller.signal);
       if(!active||myGeneration!==generation||serial!==readSerial)return;
+      if(!quiet)pokerAttemptVersion=null;
       connectionLost=false;loading=false;adopt(next);
       if((!quiet&&!message)||message.startsWith('Could not refresh'))announce('Campaign ready.');
     }catch(error){
@@ -53,6 +82,8 @@ window.CampaignClient = (() => {
     if(state&&next.version!==state.version)CampaignCards.close();
     const wasUnsaved=state?.saveStatus==='failed';
     state=next;
+    if(next.phase!=='Shop')arcadeView=false;
+    else if(next.shop?.arcade?.pending)arcadeView=true;
     if(next.saveStatus==='failed')announce('Progress is not saved. '+(next.notice||'Changes are retained in this session only. Refresh to check the save status.'),true);
     else if(next.feedback) {
       const text=next.feedback.message+(next.feedback.grants||[]).map(g=>' '+CampaignCards.feature(next,'Gumball',g.id).name+': '+(g.duplicate?'duplicate':'new unlock')+', '+g.copies+' '+(g.copies===1?'copy':'copies')+(g.bonus?', bid bonus +'+g.bonus:'.')).join('');
@@ -63,16 +94,18 @@ window.CampaignClient = (() => {
   }
   function render() {
     if(!active)return;
+    CampaignScreens.backdrop(state);
     root().setAttribute('aria-busy',String(pending||loading));
     const refreshButton=document.querySelector('#campaign-refresh');
     refreshButton.disabled=pending||loading;
-    const key=state?JSON.stringify(state):'loading';
+    const showArcade=arcadeView&&state?.phase==='Shop'&&!state.shop?.useSession;
+    const key=(state?JSON.stringify(showArcade?{...state,feedback:null,notice:null}:state):'loading')+':'+showArcade;
     if(key!==renderKey) {
       const focused=document.activeElement?.dataset.focusKey;
       const detailKey=element=>element.querySelector('summary')?.textContent.split(' · ')[0];
       const openDetails=[...content().querySelectorAll('details[open]')].map(detailKey);
       const scroll=window.scrollY;
-      content().innerHTML=state?CampaignScreens.render(state):'<header class="page-header"><div><h1 tabindex="-1">Loading campaign…</h1><p>Your saved progress is being checked.</p></div></header>';
+      content().innerHTML=state?(showArcade?CampaignArcadeView.render(state):CampaignScreens.render(state)):'<header class="page-header"><div><h1 tabindex="-1">Loading campaign…</h1><p>Your saved progress is being checked.</p></div></header>';
       const footer=document.querySelector('#campaign-footer');
       footer.innerHTML=state?'<div class="campaign-actions">'+(state.hasRun||state.phase==='Recovery'?CampaignScreens.button('new','New replacement run',cap('new'))+CampaignScreens.button('delete','Delete saved run',cap('delete'),'danger'):'')
         +(state.phase==='InMatch'?CampaignScreens.button('forfeit','Forfeit match',cap('forfeit'),'danger'):'')
@@ -83,10 +116,11 @@ window.CampaignClient = (() => {
         if(summary)summary.dataset.focusKey='disclosure:'+detailKey(x);
         if(openDetails.includes(detailKey(x)))x.open=true;
       });
+      CampaignArcadeView.mount(content(),state);
       renderKey=key;
-      const nextScreen=state?.requiresContinue?'continue':state?.phase||'loading';
+      const nextScreen=state?.requiresContinue?'continue':state?.shop?.useSession?'shop-use':showArcade?'arcade':state?.table?.phase==='PokerReveal'?'poker-reveal':state?.phase||'loading';
       if(nextScreen!==screenKey){
-        content().querySelector('h1')?.focus({preventScroll:true});screenKey=nextScreen;
+        content().querySelector('h1')?.focus({preventScroll:nextScreen!=='poker-reveal'});screenKey=nextScreen;
       }else if(focused&&!pending&&!loading) {
         [...root().querySelectorAll('[data-focus-key]')].find(x=>x.dataset.focusKey===focused)?.focus({preventScroll:true});
         window.scrollTo(0,scroll);
@@ -110,6 +144,7 @@ window.CampaignClient = (() => {
     const warning=document.querySelector('#campaign-save-warning');
     warning.hidden=state?.saveStatus!=='failed';
     warning.textContent=state?.saveStatus==='failed'?'Progress is not saved. '+(state.notice||'Changes are retained in this session only.'): '';
+    syncPokerReveal();
   }
   async function mutate(route,body={}, {live=false,method='POST'}={}) {
     if(!active||pending||loading||connectionLost||!state)return;
@@ -144,20 +179,19 @@ window.CampaignClient = (() => {
       }
     }
   }
-  function targets(title,count,invoke,confirm,description='') {
-    const cards=state.phase==='InMatch'?state.table?.players.find(p=>p.seat===0)?.visibleCards||[]:state.deck;
+  function targets(title,count,invoke,confirm,description='',cards=[]) {
     CampaignCards.targets({title,cards,count,invoke,onConfirm:confirm,description});
   }
   function useItem(button) {
+    if(state.phase!=='InMatch'||state.requiresContinue)return;
     const category=button.dataset.category,slot=Number(button.dataset.slot);
     const item=(category==='Tarot'?state.inventory.tarot:state.inventory.sigils).find(x=>x.slot===slot);
     if(!item)return;
     const itemFeature=CampaignCards.feature(state,category,item.id);
     const name=itemFeature.name;
     targets('Use '+name,item.targetCount,button,targetIds=>{
-      if(state.phase==='InMatch')mutate('/commands',{command:category==='Tarot'?{kind:'use-tarot',slot,targetIds}:{kind:'use-sigil',slot,targetId:targetIds[0]}},{live:true});
-      else mutate('/items/use',{category,slot,targetIds});
-    },itemFeature.description);
+      mutate('/commands',{command:category==='Tarot'?{kind:'use-tarot',slot,targetIds}:{kind:'use-sigil',slot,targetId:targetIds[0]}},{live:true});
+    },itemFeature.description,item.targetCount?state.table?.players.find(p=>p.seat===0)?.visibleCards||[]:[]);
   }
   function action(button) {
     if(pending||loading||connectionLost)return;
@@ -176,22 +210,90 @@ window.CampaignClient = (() => {
       case 'continue':case 'start-match':return mutate('/'+name);
       case 'result-continue':case 'victory-continue':case 'shop-leave':case 'shop-reroll':
         return mutate('/'+name.replace('-','/'));
+      case 'arcade-open':arcadeView=true;return render();
+      case 'arcade-close':if(!state.shop?.arcade?.pending){arcadeView=false;render();}return;
+      case 'arcade-lane':return CampaignArcadeView.choose('lane',Number(button.dataset.value),content());
+      case 'arcade-pocket':return CampaignArcadeView.choose('pocket',Number(button.dataset.value),content());
+      case 'arcade-play-plinko':return mutate('/shop/arcade/plinko',{lane:CampaignArcadeView.selection().lane});
+      case 'arcade-play-roulette':return mutate('/shop/arcade/roulette',{pocket:CampaignArcadeView.selection().pocket});
+      case 'arcade-keep':case 'arcade-use':case 'arcade-dismiss':return mutate('/shop/arcade/'+name.slice(7),{playId:button.dataset.playId});
+      case 'arcade-pick':{
+        const owned=new Set((state.inventory?.jokers||[]).map(j=>j.id));
+        return mutate('/shop/arcade/pick',{playId:button.dataset.playId,index:Number(button.dataset.index)}).then(()=>{
+          const granted=(state?.inventory?.jokers||[]).map(j=>j.id).filter(id=>!owned.has(id));
+          if(granted.length){CampaignArcadeView.noteGranted(granted.map(id=>CampaignCards.feature(state,'Joker',id).name));renderKey='';render();}
+        });
+      }
       case 'sell':return mutate('/shop/sell',{jokerId:button.dataset.jokerId});
       case 'buy':case 'pull':return mutate('/shop/'+name,{offerId:button.dataset.offerId});
-      case 'buy-use':{
-        const offer=state.shop.offers.find(o=>o.id===button.dataset.offerId);
-        targets('Buy & use '+CampaignCards.feature(state,offer.category,offer.featureId).name,offer.targetCount,button,targetIds=>mutate('/shop/buy-use',{offerId:offer.id,targetIds}),CampaignCards.feature(state,offer.category,offer.featureId).description);
-        return;
-      }
+      case 'print-tickets':return mutate('/shop/print',{offerId:button.dataset.offerId,count:Number(button.dataset.count)});
+      case 'keep-ticket':return mutate('/shop/keep-ticket',{offerId:button.dataset.offerId,ticketId:button.dataset.ticketId});
+      case 'use-ticket':return mutate('/shop/begin-ticket-use',{offerId:button.dataset.offerId,ticketId:button.dataset.ticketId});
+      case 'buy-use':return mutate('/shop/begin-sigil-use',{offerId:button.dataset.offerId});
+      case 'select-session-item':return chooseShopItem(button);
+      case 'apply-session-item':
+        if(!shopChoice||shopTargets.size!==shopChoice.targetCount)return;
+        return shopChoice.purchased?mutate('/shop/use-purchased',{targetIds:[...shopTargets]}):mutate('/items/use',{category:'Tarot',slot:shopChoice.slot,targetIds:[...shopTargets]});
+      case 'finish-use':return mutate('/shop/finish-use');
       case 'use-item':return useItem(button);
       case 'discard-item':return mutate('/items/discard',{category:button.dataset.category,slot:Number(button.dataset.slot)});
       case 'deck':return CampaignCards.targets({title:'Shared deck',cards:state.deck,count:null,invoke:button});
       case 'arrange':return CampaignCards.order(state.table.players.find(p=>p.seat===0).visibleCards,button,orderedCardIds=>mutate('/arrange-hand',{orderedCardIds},{live:true}));
     }
   }
+  function chooseShopItem(button) {
+    const session=state.shop?.useSession;
+    if(!session)return;
+    shopTargets=new Set();
+    shopChoice=button.dataset.purchased==='true'&&!session.purchasedItemUsed
+      ? {purchased:true,category:session.category,id:session.featureId,targetCount:session.targetCount}
+      : button.dataset.slot!==undefined?{...state.inventory.tarot.find(item=>item.slot===Number(button.dataset.slot)),category:'Tarot',purchased:false}:null;
+    if(shopChoice?.id===undefined)shopChoice=null;
+    updateShopSelection();
+  }
+  function updateShopSelection() {
+    const panel=content().querySelector('[data-shop-use-session]');if(!panel)return;
+    const feature=shopChoice?CampaignCards.feature(state,shopChoice.category,shopChoice.id):null;
+    panel.querySelector('[data-session-item-name]').textContent=feature?'Use '+feature.name:'Purchased item used';
+    panel.querySelector('[data-session-description]').textContent=feature?feature.description:'Use another inventory ticket, or choose Done to return to the shop.';
+    panel.querySelector('[data-session-selection-status]').textContent=!shopChoice?'':shopChoice.targetCount===0?'No cards needed. Use this item when ready.':shopTargets.size+' / '+shopChoice.targetCount+' selected';
+    panel.querySelectorAll('[data-campaign-action="select-session-item"]').forEach(button=>{
+      const selected=!!shopChoice&&(shopChoice.purchased?button.dataset.purchased==='true':button.dataset.slot===String(shopChoice.slot));
+      button.setAttribute('aria-pressed',String(selected));
+    });
+    panel.querySelectorAll('button[data-card-id]').forEach(button=>{
+      const id=Number(button.dataset.cardId),selected=shopTargets.has(id),position=[...shopTargets].indexOf(id)+1;
+      button.dataset.cardLabel??=button.getAttribute('aria-label');
+      button.setAttribute('aria-label',button.dataset.cardLabel+(selected?', target '+position:''));
+      button.setAttribute('aria-pressed',String(selected));button.classList.toggle('selected',selected);
+      button.querySelector('.campaign-target-number')?.remove();
+      if(selected){const badge=document.createElement('span');badge.className='campaign-target-number';badge.textContent='Target '+position;button.append(badge);}
+      const disabled=!shopChoice||shopChoice.targetCount===0||!selected&&shopTargets.size>=shopChoice.targetCount;
+      button.dataset.serverDisabled=String(disabled);button.disabled=disabled||pending||loading||connectionLost;
+    });
+    const use=panel.querySelector('[data-campaign-action="apply-session-item"]');
+    const disabled=!shopChoice||shopTargets.size!==shopChoice.targetCount;
+    use.textContent=feature?'Use '+feature.name:'Use selected item';use.dataset.serverDisabled=String(disabled);use.disabled=disabled||pending||loading||connectionLost;
+  }
   function bind(container) {
+    const sessionPanel=container.querySelector('[data-shop-use-session]');
+    if(sessionPanel){
+      // Feedback and save notices may change on an unchanged-version poll.
+      // Repaint that response without discarding the player's current choice.
+      if(shopSelectionVersion!==state.version){
+        shopChoice=null;shopTargets=new Set();shopSelectionVersion=state.version;
+        const initial=sessionPanel.querySelector('[data-campaign-action="select-session-item"]:not(:disabled)');
+        if(initial)chooseShopItem(initial);else updateShopSelection();
+      }else updateShopSelection();
+      sessionPanel.querySelectorAll('button[data-card-id]').forEach(button=>button.addEventListener('click',()=>{
+        if(pending||loading||connectionLost||!shopChoice)return;
+        const id=Number(button.dataset.cardId);
+        if(shopTargets.has(id))shopTargets.delete(id);else if(shopTargets.size<shopChoice.targetCount)shopTargets.add(id);
+        updateShopSelection();
+      }));
+    }
     // New catalog entries remain readable while their dedicated art is pending.
-    container.querySelectorAll('img').forEach(img=>img.addEventListener('error',()=>{img.src='/pixel/back.png';},{once:true}));
+    container.querySelectorAll('img').forEach(img=>img.addEventListener('error',()=>{if(img.hasAttribute('data-arcade-art'))img.hidden=true;else img.src='/pixel/back.png';},{once:true}));
     container.querySelectorAll('[data-campaign-action]').forEach(button=>button.addEventListener('click',()=>action(button)));
     container.querySelectorAll('[data-campaign-command]').forEach(button=>button.addEventListener('click',()=>{
       const command=state.table.legalCommands[Number(button.dataset.campaignCommand)];
@@ -209,7 +311,7 @@ window.CampaignClient = (() => {
   }
   document.addEventListener('visibilitychange',()=>{
     stop();
-    if(document.hidden){readSerial++;readController?.abort();}else if(active){refresh({quiet:true}).then(schedule);}
+    if(document.hidden){stopPokerTimer();readSerial++;readController?.abort();}else if(active){refresh({quiet:true}).then(schedule);}
   });
   window.addEventListener('pagehide',leave);
   window.addEventListener('pageshow',event=>{if(event.persisted&&root().classList.contains('active'))open();});

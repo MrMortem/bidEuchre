@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
@@ -11,7 +12,8 @@ internal sealed class HandGlide(Visual surface)
 {
     // Ambient float moves a resting card by a few pixels; only a real change of slot glides.
     private const double Threshold = 6;
-    private readonly Dictionary<string, Control> _cards = [];
+    private readonly Dictionary<string, Border> _cards = [];
+    private readonly ConditionalWeakTable<Control, Border> _wrappers = new();
     private readonly Dictionary<string, Point> _previous = [];
     private CancellationTokenSource? _frame;
     private string? _context;
@@ -25,24 +27,35 @@ internal sealed class HandGlide(Visual surface)
             foreach (var (key, card) in _cards)
                 if (card.TranslatePoint(new Point(card.Bounds.Width / 2, card.Bounds.Height / 2), surface) is { } center &&
                     card.Bounds.Width > 0) _previous[key] = center;
+        Stop();
         _context = context;
         _cards.Clear();
-        Stop();
     }
 
-    public void Reset() { _context = null; _previous.Clear(); _cards.Clear(); Stop(); }
+    public void Reset() { Stop(); _context = null; _previous.Clear(); _cards.Clear(); }
 
     private void Stop()
     {
-        _frame?.Cancel();
-        _frame?.Dispose();
+        if (_frame is null) return;
+        _frame.Cancel();
+        _frame.Dispose();
         _frame = null;
+        // The offsets were sampled before cancellation. Clear them before the next
+        // layout uses these same wrappers to compute the new glide.
+        foreach (var wrapper in _cards.Values)
+        {
+            var shift = (TranslateTransform)wrapper.RenderTransform!;
+            shift.X = shift.Y = 0;
+        }
     }
 
     public Control Card(string key, Control card, bool enabled)
     {
-        var shift = new TranslateTransform();
-        var wrapper = new Border { Child = card, RenderTransform = shift };
+        var wrapper = _wrappers.GetValue(card, static child => new Border
+        {
+            Child = child, RenderTransform = new TranslateTransform()
+        });
+        var shift = (TranslateTransform)wrapper.RenderTransform!;
         _cards[key] = wrapper;
         if (!enabled || !_previous.TryGetValue(key, out var from)) return wrapper;
         var token = (_frame ??= new CancellationTokenSource()).Token;
@@ -58,6 +71,7 @@ internal sealed class HandGlide(Visual surface)
             _ = Glide(shift, x, y, token);
         }
         wrapper.LayoutUpdated += Placed;
+        token.Register(() => wrapper.LayoutUpdated -= Placed);
         return wrapper;
     }
 
@@ -72,8 +86,9 @@ internal sealed class HandGlide(Visual surface)
                 shift.Y = y * left;
             });
         }
-        catch (OperationCanceledException) { }
-        // Stopped early (motion off, resize), the card belongs in its slot.
-        finally { shift.X = shift.Y = 0; }
+        catch (OperationCanceledException)
+        {
+            // Stop already reset the wrapper. A newer tween may now own it.
+        }
     }
 }

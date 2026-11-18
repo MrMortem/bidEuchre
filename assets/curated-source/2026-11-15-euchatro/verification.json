@@ -1,0 +1,35 @@
+{
+  "verifiedAssetPaths": 150,
+  "preservedPreviousAssets": 38,
+  "newAssets": 37,
+  "revisedAssets": 3,
+  "reusedAssets": 35,
+  "runtimeMappings": 64,
+  "previewVisuallyInspected": true,
+  "sourceAndLabeledHashesMatch": true,
+  "currentRuntimeUnchanged": false,
+  "runtimeImport": {
+    "textures": 75,
+    "catalogMappings": 64,
+    "jokerPortraits": 31,
+    "sceneArtwork": 7,
+    "artOnly": 4,
+    "sourceBytesPreserved": true,
+    "allExportedHashesVerified": true,
+    "replacedTextures": [
+      "curated-tarot-gambler",
+      "curated-tarot-tax-collector",
+      "curated-tarot-devilish-deal",
+      "curated-enhancement-wild"
+    ],
+    "desktopChecksPassed": 78,
+    "coreChecksPassed": 244,
+    "webServerChecksPassed": 51,
+    "optionalBrowserChecksSkipped": 24,
+    "skipReason": "Playwright is not installed; desktop and compact web layouts were visually inspected through the available browser.",
+    "review": "No actionable integration findings.",
+    "screenshots": "artifacts/nov15-desktop",
+    "macAppRebuilt": true,
+    "macAppSignatureVerified": true
+  }
+}

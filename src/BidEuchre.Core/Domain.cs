@@ -110,7 +110,8 @@ public enum GamePhase
     ExchangingPartnerCard,
     Playing,
     HandComplete,
-    GameComplete
+    GameComplete,
+    PokerReveal
 }
 
 public sealed record Contract(BidLevel Bid, ContractMode Mode, Suit? Trump)
@@ -173,7 +174,7 @@ public sealed record CompletedTrick(int Number, int Leader, int Winner, IReadOnl
 public sealed record HandResult(
     int HandNumber,
     int Bidder,
-    Contract Contract,
+    Contract? Contract,
     int BiddingTeamTricks,
     int DefendingTeamTricks,
     int TeamZeroDelta,
@@ -181,7 +182,8 @@ public sealed record HandResult(
     string Reason)
 {
     // Illegal-play awards may make a contract before its normal six tricks finish.
-    public bool MadeContract { get; init; } = BiddingTeamTricks >= Contract.RequiredTricks;
+    public bool MadeContract { get; init; } = Contract is not null && BiddingTeamTricks >= Contract.RequiredTricks;
+    public PokerRoundResult? PokerResult { get; init; }
     private readonly IReadOnlyList<TeamScoreBreakdown> _scoreBreakdowns = Array.Empty<TeamScoreBreakdown>();
     public IReadOnlyList<TeamScoreBreakdown> ScoreBreakdowns
     {
@@ -190,10 +192,11 @@ public sealed record HandResult(
     }
 }
 
-/// <summary>Exact score arithmetic. Fixed bid rewards apply after the whole-hand multiplier.</summary>
+/// <summary>Exact score arithmetic. Fixed bid rewards and Poker points apply after the whole-hand multiplier.</summary>
 public sealed record TeamScoreBreakdown(int Team, int ContractPoints, int CardPoints, int JokerPoints,
     int TrickModifierPoints, int HandMultiplier, int OpponentBidBonus)
 {
+    public int PokerPoints { get; init; }
     private readonly IReadOnlyList<GumballBidBonus> _gumballBonuses = Array.Empty<GumballBidBonus>();
     public IReadOnlyList<GumballBidBonus> GumballBonuses
     {
@@ -201,7 +204,7 @@ public sealed record TeamScoreBreakdown(int Team, int ContractPoints, int CardPo
         init => _gumballBonuses = Array.AsReadOnly(value.ToArray());
     }
     public int FinalDelta => checked((ContractPoints + CardPoints + JokerPoints + TrickModifierPoints)
-        * HandMultiplier + OpponentBidBonus + GumballBonuses.Sum(bonus => bonus.Points));
+        * HandMultiplier + OpponentBidBonus + PokerPoints + GumballBonuses.Sum(bonus => bonus.Points));
 }
 
 // Free play uses the defaults; campaign options set ante thresholds and successful opponent bid points.

@@ -22,7 +22,11 @@ internal static class SettingsPage
         var sizes = GamePreferences.WindowSizes;
         var scales = GamePreferences.UiScales;
 
-        var motion = OnOff("SettingsMotion", preferences.MotionEnabled);
+        var motion = new ComboBox
+        {
+            Name = "SettingsMotion", ItemsSource = new[] { "Full", "Reduced", "Off" },
+            SelectedIndex = !preferences.MotionEnabled ? 2 : preferences.ReducedMotion ? 1 : 0
+        };
         var hotseat = OnOff("SettingsHotseatPrivacy", preferences.AutomaticHotseatPrivacy);
         var fullscreen = OnOff("SettingsFullscreen", preferences.Fullscreen);
         var size = new ComboBox
@@ -46,7 +50,11 @@ internal static class SettingsPage
         }
 
         hotseat.SelectionChanged += (_, _) => Publish(preferences with { AutomaticHotseatPrivacy = hotseat.SelectedIndex == 0 });
-        motion.SelectionChanged += (_, _) => Publish(preferences with { MotionEnabled = motion.SelectedIndex == 0 });
+        motion.SelectionChanged += (_, _) =>
+        {
+            if (motion.SelectedIndex >= 0)
+                Publish(preferences with { MotionEnabled = motion.SelectedIndex != 2, ReducedMotion = motion.SelectedIndex == 1 });
+        };
         fullscreen.SelectionChanged += (_, _) =>
         {
             size.IsEnabled = fullscreen.SelectedIndex != 0;
@@ -70,7 +78,7 @@ internal static class SettingsPage
         foreach (var (label, help, input) in new (string, string, ComboBox)[]
         {
             ("Automatic hotseat privacy", "With multiple human players, hide hands between turns until the next player presses Reveal.", hotseat),
-            ("Motion", "Card flights, bid announcements and trick collection.", motion),
+            ("Motion", "Card flights, bid announcements and trick collection. Reduced keeps these but stops cards floating and shaking.", motion),
             ("Fullscreen", "Fill the whole display instead of a window.", fullscreen),
             ("Window size", "Used when fullscreen is off.", size),
             ("UI scale", "Enlarge everything. Scale is capped to fit the current window and restored when enlarged.", scale)

@@ -1,0 +1,353 @@
+{
+  "project": {
+    "id": "1fpIj6m0mnU3vqXojS7m-k6_wn1fKHbMx",
+    "name": "Euchatro",
+    "url": "https://drive.google.com/drive/project/1fpIj6m0mnU3vqXojS7m-k6_wn1fKHbMx"
+  },
+  "retrievedDate": "2026-11-14",
+  "sourceCount": 38,
+  "files": [
+    {
+      "id": "1UGskx8q18ylabvuFpioJCiHOy7AonbFE",
+      "name": "Ticket Ectoplasm.png",
+      "url": "https://drive.google.com/file/d/1UGskx8q18ylabvuFpioJCiHOy7AonbFE/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1675128,
+      "modifiedTime": "2026-11-14T17:14:04.553Z",
+      "localSource": "originals/Ticket Ectoplasm.png"
+    },
+    {
+      "id": "1Oe15t9t5UqfO5DqI4YQSiFGcnlwSFnCv",
+      "name": "Ticket Gambler.png",
+      "url": "https://drive.google.com/file/d/1Oe15t9t5UqfO5DqI4YQSiFGcnlwSFnCv/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2683199,
+      "modifiedTime": "2026-11-14T17:14:04.553Z",
+      "localSource": "originals/Ticket Gambler.png"
+    },
+    {
+      "id": "1b-NRGN2ZqSAXPimSZrvQpgQUrBVem7VY",
+      "name": "Ticket Festival.png",
+      "url": "https://drive.google.com/file/d/1b-NRGN2ZqSAXPimSZrvQpgQUrBVem7VY/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2468586,
+      "modifiedTime": "2026-11-14T17:14:04.552Z",
+      "localSource": "originals/Ticket Festival.png"
+    },
+    {
+      "id": "10Ljmt9FLRnSOCBsGu8m7jktoSXFE4DF8",
+      "name": "Ticket Astronomer.png",
+      "url": "https://drive.google.com/file/d/10Ljmt9FLRnSOCBsGu8m7jktoSXFE4DF8/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2721216,
+      "modifiedTime": "2026-11-14T17:14:04.552Z",
+      "localSource": "originals/Ticket Astronomer.png"
+    },
+    {
+      "id": "1C5dmY_DZ4e5KdeiqVnMHO427-JeWEjfi",
+      "name": "Ticket Stone Mason.png",
+      "url": "https://drive.google.com/file/d/1C5dmY_DZ4e5KdeiqVnMHO427-JeWEjfi/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2628605,
+      "modifiedTime": "2026-11-14T17:14:04.553Z",
+      "localSource": "originals/Ticket Stone Mason.png"
+    },
+    {
+      "id": "1YMlh-dMvddVWF1qHep-0zmrZLRhuKnPl",
+      "name": "Ticket Taxes.png",
+      "url": "https://drive.google.com/file/d/1YMlh-dMvddVWF1qHep-0zmrZLRhuKnPl/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2493318,
+      "modifiedTime": "2026-11-14T17:14:04.552Z",
+      "localSource": "originals/Ticket Taxes.png"
+    },
+    {
+      "id": "1zCsyRt_RDmEk0b9SAkHTx5adewc5r3vX",
+      "name": "Ticket Prospector.png",
+      "url": "https://drive.google.com/file/d/1zCsyRt_RDmEk0b9SAkHTx5adewc5r3vX/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2497577,
+      "modifiedTime": "2026-11-14T17:14:04.553Z",
+      "localSource": "originals/Ticket Prospector.png"
+    },
+    {
+      "id": "1I4Wl_n10BGy39REcuGKmUa1BHAjL1GPQ",
+      "name": "Ticket Devilish Deal.png",
+      "url": "https://drive.google.com/file/d/1I4Wl_n10BGy39REcuGKmUa1BHAjL1GPQ/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2572634,
+      "modifiedTime": "2026-11-14T17:14:04.553Z",
+      "localSource": "originals/Ticket Devilish Deal.png"
+    },
+    {
+      "id": "1vO5hWWoEyT6dZWID-oAcctzXPpy4Bt3v",
+      "name": "Ticket Traitor.png",
+      "url": "https://drive.google.com/file/d/1vO5hWWoEyT6dZWID-oAcctzXPpy4Bt3v/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2694435,
+      "modifiedTime": "2026-11-14T17:14:04.553Z",
+      "localSource": "originals/Ticket Traitor.png"
+    },
+    {
+      "id": "1dvpVgBsHf1zrKIswTfXJCKk0Oh4yAsJC",
+      "name": "Duelist Gumball.png",
+      "url": "https://drive.google.com/file/d/1dvpVgBsHf1zrKIswTfXJCKk0Oh4yAsJC/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1568907,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/Duelist Gumball.png"
+    },
+    {
+      "id": "1aWw6fXDey7Qruzr3xCEYEjpH3jtdQ1zV",
+      "name": "Poker Gumball.png",
+      "url": "https://drive.google.com/file/d/1aWw6fXDey7Qruzr3xCEYEjpH3jtdQ1zV/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2028774,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/Poker Gumball.png"
+    },
+    {
+      "id": "1rr3LWDFwaJ-F1H2xpGx__5CAwtkAcOTS",
+      "name": "Partners Best Gumball.png",
+      "url": "https://drive.google.com/file/d/1rr3LWDFwaJ-F1H2xpGx__5CAwtkAcOTS/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2070396,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/Partners Best Gumball.png"
+    },
+    {
+      "id": "1AgOLl30mEac9JDwSjAR4eTLpV8qpD6d3",
+      "name": "Safety Net Gumball.png",
+      "url": "https://drive.google.com/file/d/1AgOLl30mEac9JDwSjAR4eTLpV8qpD6d3/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2068768,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/Safety Net Gumball.png"
+    },
+    {
+      "id": "1zjIVzDF_EuYxJfUIQRvNCKEpTVA1bISP",
+      "name": "Psychic Gumball.png",
+      "url": "https://drive.google.com/file/d/1zjIVzDF_EuYxJfUIQRvNCKEpTVA1bISP/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2002790,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/Psychic Gumball.png"
+    },
+    {
+      "id": "1as2TOd-MMaq20nVeBvRA2ut-MMxfrHSf",
+      "name": "High:Low Gumball (2).png",
+      "url": "https://drive.google.com/file/d/1as2TOd-MMaq20nVeBvRA2ut-MMxfrHSf/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1632207,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/High_Low Gumball (2).png"
+    },
+    {
+      "id": "1olNKNFPB7cgW7C7AoFu4YUaa2G7AR3pA",
+      "name": "Alone Gumball (2).png",
+      "url": "https://drive.google.com/file/d/1olNKNFPB7cgW7C7AoFu4YUaa2G7AR3pA/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1955920,
+      "modifiedTime": "2026-11-14T10:05:38.961Z",
+      "localSource": "originals/Alone Gumball (2).png"
+    },
+    {
+      "id": "1MQGMs-np9xS5j5e0PpwjA92uiWXT4aKZ",
+      "name": "Chaos Gumball (2).png",
+      "url": "https://drive.google.com/file/d/1MQGMs-np9xS5j5e0PpwjA92uiWXT4aKZ/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2068175,
+      "modifiedTime": "2026-11-14T10:05:38.962Z",
+      "localSource": "originals/Chaos Gumball (2).png"
+    },
+    {
+      "id": "1-hR1EYfJn9_Q-ylR4-yWgLm_jQrCn61O",
+      "name": "Club Boss Arena.png",
+      "url": "https://drive.google.com/file/d/1-hR1EYfJn9_Q-ylR4-yWgLm_jQrCn61O/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1914195,
+      "modifiedTime": "2026-11-14T04:50:27.556Z",
+      "localSource": "originals/Club Boss Arena.png"
+    },
+    {
+      "id": "1WZ79oPmtc64gYuDL5soVfGmiuPuwHoRJ",
+      "name": "Bouncy Card (1).png",
+      "url": "https://drive.google.com/file/d/1WZ79oPmtc64gYuDL5soVfGmiuPuwHoRJ/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1338475,
+      "modifiedTime": "2026-11-13T05:49:41.447Z",
+      "localSource": "originals/Bouncy Card (1).png"
+    },
+    {
+      "id": "1yBqTSUiFJgABmw5LqTwijvke84qS9Iev",
+      "name": "Cursed Boss Arena.png",
+      "url": "https://drive.google.com/file/d/1yBqTSUiFJgABmw5LqTwijvke84qS9Iev/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2096784,
+      "modifiedTime": "2026-11-14T05:09:39.364Z",
+      "localSource": "originals/Cursed Boss Arena.png"
+    },
+    {
+      "id": "12Se8PShRc6bLJdURyX3arjBNifEMS3K4",
+      "name": "Diamond Boss Area.png",
+      "url": "https://drive.google.com/file/d/12Se8PShRc6bLJdURyX3arjBNifEMS3K4/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2034612,
+      "modifiedTime": "2026-11-14T04:54:59.086Z",
+      "localSource": "originals/Diamond Boss Area.png"
+    },
+    {
+      "id": "103W2q12uBqcx6W36Ymtd1rQcZpO8gEMT",
+      "name": "Curse Card (1).png",
+      "url": "https://drive.google.com/file/d/103W2q12uBqcx6W36Ymtd1rQcZpO8gEMT/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1639109,
+      "modifiedTime": "2026-11-13T05:46:43.798Z",
+      "localSource": "originals/Curse Card (1).png"
+    },
+    {
+      "id": "1xcCy8bue1ya8mIJU_WfPZBa1-Ot-ebpy",
+      "name": "Eagle (1).png",
+      "url": "https://drive.google.com/file/d/1xcCy8bue1ya8mIJU_WfPZBa1-Ot-ebpy/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1604090,
+      "modifiedTime": "2026-11-14T03:53:45.390Z",
+      "localSource": "originals/Eagle (1).png"
+    },
+    {
+      "id": "1gFotaWs6mnDdS1pfSxDGtZHq3w1XRsKY",
+      "name": "Heart Boss Arena.png",
+      "url": "https://drive.google.com/file/d/1gFotaWs6mnDdS1pfSxDGtZHq3w1XRsKY/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2016292,
+      "modifiedTime": "2026-11-14T04:48:47.992Z",
+      "localSource": "originals/Heart Boss Arena.png"
+    },
+    {
+      "id": "1C3T2Mp_556XBnEy1BqsQdCmg6_zePUIJ",
+      "name": "Gold Card (1).png",
+      "url": "https://drive.google.com/file/d/1C3T2Mp_556XBnEy1BqsQdCmg6_zePUIJ/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1352684,
+      "modifiedTime": "2026-11-13T05:35:32.070Z",
+      "localSource": "originals/Gold Card (1).png"
+    },
+    {
+      "id": "1Q1kukl8YpO2qhyjd_UKpXjvAgjjOkPJO",
+      "name": "Glass Card (1).png",
+      "url": "https://drive.google.com/file/d/1Q1kukl8YpO2qhyjd_UKpXjvAgjjOkPJO/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1200130,
+      "modifiedTime": "2026-11-13T05:51:24.763Z",
+      "localSource": "originals/Glass Card (1).png"
+    },
+    {
+      "id": "1Q65kdf38AF1RgMnYO2QOIPDg-ir_GMAZ",
+      "name": "Lucky.png",
+      "url": "https://drive.google.com/file/d/1Q65kdf38AF1RgMnYO2QOIPDg-ir_GMAZ/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2534701,
+      "modifiedTime": "2026-11-14T05:20:50.248Z",
+      "localSource": "originals/Lucky.png"
+    },
+    {
+      "id": "1hv5dEHk65rmwLZQA4nCD_29oNKBueNmU",
+      "name": "Spade Boss Arena.png",
+      "url": "https://drive.google.com/file/d/1hv5dEHk65rmwLZQA4nCD_29oNKBueNmU/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2178960,
+      "modifiedTime": "2026-11-14T04:49:34.283Z",
+      "localSource": "originals/Spade Boss Arena.png"
+    },
+    {
+      "id": "1SopfBSuwxFRdnSvzvcsZhMKy2tVlJ5aq",
+      "name": "Silver Card (1).png",
+      "url": "https://drive.google.com/file/d/1SopfBSuwxFRdnSvzvcsZhMKy2tVlJ5aq/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1241534,
+      "modifiedTime": "2026-11-13T05:36:32.934Z",
+      "localSource": "originals/Silver Card (1).png"
+    },
+    {
+      "id": "1LzWQvtIx0NjrlxQzZDWEV4I8NtzuWZbG",
+      "name": "Wild Card (1).png",
+      "url": "https://drive.google.com/file/d/1LzWQvtIx0NjrlxQzZDWEV4I8NtzuWZbG/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2914400,
+      "modifiedTime": "2026-11-13T05:44:28.681Z",
+      "localSource": "originals/Wild Card (1).png"
+    },
+    {
+      "id": "1_WyoTFbW5cT5dZy7N24w1jt9PHVbX-dv",
+      "name": "Stone BG (1).png",
+      "url": "https://drive.google.com/file/d/1_WyoTFbW5cT5dZy7N24w1jt9PHVbX-dv/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 2561364,
+      "modifiedTime": "2026-11-13T05:29:01.117Z",
+      "localSource": "originals/Stone BG (1).png"
+    },
+    {
+      "id": "1m888akXqXd1bW4zW6YMJRyuMTwoW6_Um",
+      "name": "Chameleon.png",
+      "url": "https://drive.google.com/file/d/1m888akXqXd1bW4zW6YMJRyuMTwoW6_Um/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1423963,
+      "modifiedTime": "2026-11-14T05:22:40.050Z",
+      "localSource": "originals/Chameleon.png"
+    },
+    {
+      "id": "1vyIu_eEY7ekqdw3R-IfCKs2t5lw-4zqa",
+      "name": "Bear.png",
+      "url": "https://drive.google.com/file/d/1vyIu_eEY7ekqdw3R-IfCKs2t5lw-4zqa/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1224082,
+      "modifiedTime": "2026-11-14T05:22:38.270Z",
+      "localSource": "originals/Bear.png"
+    },
+    {
+      "id": "1jlhWWcjq4fY-l8R1EyYq5uCmsa-kjGvg",
+      "name": "Duck.png",
+      "url": "https://drive.google.com/file/d/1jlhWWcjq4fY-l8R1EyYq5uCmsa-kjGvg/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1447572,
+      "modifiedTime": "2026-11-14T05:22:41.703Z",
+      "localSource": "originals/Duck.png"
+    },
+    {
+      "id": "1HUFKx-8JmX-W0mzB4SFn6Y7HpHsGw5Cq",
+      "name": "Fish.png",
+      "url": "https://drive.google.com/file/d/1HUFKx-8JmX-W0mzB4SFn6Y7HpHsGw5Cq/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1287294,
+      "modifiedTime": "2026-11-14T05:22:43.374Z",
+      "localSource": "originals/Fish.png"
+    },
+    {
+      "id": "1j8etgWCehF7_v0GTFDdzxD3JX2eLkK2D",
+      "name": "Frog.png",
+      "url": "https://drive.google.com/file/d/1j8etgWCehF7_v0GTFDdzxD3JX2eLkK2D/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1405580,
+      "modifiedTime": "2026-11-14T05:22:45.184Z",
+      "localSource": "originals/Frog.png"
+    },
+    {
+      "id": "1g6VYl9z3qyuyoPOv1oAWN0VilBZBuTOq",
+      "name": "Vulture.png",
+      "url": "https://drive.google.com/file/d/1g6VYl9z3qyuyoPOv1oAWN0VilBZBuTOq/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1352460,
+      "modifiedTime": "2026-11-14T05:22:48.576Z",
+      "localSource": "originals/Vulture.png"
+    },
+    {
+      "id": "1SNZqiFL2W3F7iipkj4vuLERyiu8LmLO0",
+      "name": "Spider.png",
+      "url": "https://drive.google.com/file/d/1SNZqiFL2W3F7iipkj4vuLERyiu8LmLO0/view?usp=drivesdk",
+      "mimeType": "image/png",
+      "size": 1447677,
+      "modifiedTime": "2026-11-14T05:22:47.008Z",
+      "localSource": "originals/Spider.png"
+    }
+  ]
+}

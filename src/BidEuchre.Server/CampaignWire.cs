@@ -59,7 +59,7 @@ public static class CampaignWire
         var kind = Text(value, "kind");
         var fields = kind switch
         {
-            "bid" => new[] { "level", "variant" }, "pass" or "panic-button" => [],
+            "bid" => new[] { "level", "variant" }, "pass" or "complete-poker" => [],
             "play" => ["cardId", "effectiveSuit"], "exchange" or "swap-partner-card" or "reveal-partner-card" => ["cardId"],
             "choose-contract" => ["mode", "trump"], "use-tarot" => ["slot", "targetIds"],
             "use-sigil" => ["slot", "targetId"], "choose-reveal-seat" or "select-opponent" => ["targetSeat"],
@@ -72,7 +72,8 @@ public static class CampaignWire
         return kind switch
         {
             "bid" => new CampaignCommand.Bid(EnumValue<BidLevel>(value, "level"), Optional<GumballId>(value, "variant")),
-            "pass" => new CampaignCommand.Pass(), "panic-button" => new CampaignCommand.PanicButton(),
+            "pass" => new CampaignCommand.Pass(),
+            "complete-poker" => new CampaignCommand.CompletePoker(),
             "play" => new CampaignCommand.Play(Id(), Optional<Suit>(value, "effectiveSuit")),
             "exchange" => new CampaignCommand.Exchange(Id()),
             "choose-contract" => ContractCommand(value),
@@ -94,7 +95,8 @@ public static class CampaignWire
     public static object Command(CampaignCommand command) => command switch
     {
         CampaignCommand.Bid c => new { kind = "bid", level = c.Level.ToString(), variant = c.Variant?.ToString() },
-        CampaignCommand.Pass => new { kind = "pass" }, CampaignCommand.PanicButton => new { kind = "panic-button" },
+        CampaignCommand.Pass => new { kind = "pass" },
+        CampaignCommand.CompletePoker => new { kind = "complete-poker" },
         CampaignCommand.Play c => new { kind = "play", cardId = c.Id.Value, effectiveSuit = c.EffectiveSuit?.ToString() },
         CampaignCommand.Exchange c => new { kind = "exchange", cardId = c.Id.Value },
         CampaignCommand.ChooseContract c => new { kind = "choose-contract", mode = c.Mode.ToString(), trump = c.Trump?.ToString() },

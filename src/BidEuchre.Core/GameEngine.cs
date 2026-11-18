@@ -52,6 +52,8 @@ public sealed partial class GameEngine
         _scores = [options.StartingScoreTeam0, options.StartingScoreTeam1];
     }
 
+    internal long ViewRevision { get; private set; }
+
     public GamePhase Phase { get; private set; } = GamePhase.NotStarted;
     public int HandNumber { get; private set; }
     public long DealSerial { get; private set; }
@@ -71,6 +73,7 @@ public sealed partial class GameEngine
 
     public void StartGame(int? dealer = null)
     {
+        ViewRevision++;
         EnsurePhase(GamePhase.NotStarted);
         Dealer = dealer ?? _random.Next(4);
         if (IsCampaign && Dealer == 0 && Has(JokerId.SlickWilly)) Dealer = CampaignNextDealer(Dealer);
@@ -80,6 +83,7 @@ public sealed partial class GameEngine
 
     public void StartNextHand()
     {
+        ViewRevision++;
         EnsurePhase(GamePhase.HandComplete);
         if (GameWinner is not null)
         {
@@ -92,7 +96,8 @@ public sealed partial class GameEngine
 
     public void Redeal()
     {
-        if (Phase is GamePhase.NotStarted or GamePhase.GameComplete)
+        ViewRevision++;
+        if (Phase is GamePhase.NotStarted or GamePhase.GameComplete or GamePhase.PokerReveal)
         {
             throw new GameRuleException("There is no active hand to redeal.");
         }
@@ -110,6 +115,7 @@ public sealed partial class GameEngine
 
     public void PlaceBid(int seat, BidLevel? bid)
     {
+        ViewRevision++;
         if (IsCampaign && !_dispatchCampaign) throw new GameRuleException("Use a campaign bidding action.");
         EnsureTurn(GamePhase.Bidding, seat);
 
@@ -125,6 +131,9 @@ public sealed partial class GameEngine
             throw new GameRuleException($"{bid} is not a legal raise over {HighBid?.ToString() ?? "no bid"}.");
         }
 
+        // Check score overflow before committing the last bid or pass.
+        var poker = IsCampaign && _biddingTurns == 3 && (bid is null ? _variant : _pendingBidVariant) == GumballId.Poker
+            ? PreparePokerShowdown() : null;
         _auction.Add(new AuctionAction(seat, bid));
         _biddingTurns++;
         if (bid is not null)
@@ -146,9 +155,14 @@ public sealed partial class GameEngine
                 throw new GameRuleException("The auction ended without the dealer's required bid.");
             }
 
+            _events.Add($"{_playerNames[Bidder.Value]} won the auction.");
+            if (poker is not null)
+            {
+                RevealPoker(poker);
+                return;
+            }
             Phase = GamePhase.ChoosingContract;
             CurrentSeat = Bidder;
-            _events.Add($"{_playerNames[Bidder.Value]} won the auction.");
             if (IsCampaign) CampaignAfterBid();
             return;
         }
@@ -158,6 +172,7 @@ public sealed partial class GameEngine
 
     public void ChooseContract(int seat, ContractMode mode, Suit? trump = null)
     {
+        ViewRevision++;
         EnsureTurn(GamePhase.ChoosingContract, seat);
         if (seat != Bidder)
         {
@@ -169,7 +184,7 @@ public sealed partial class GameEngine
         Contract = IsCampaign && (int)HighBid! == 2
             ? mode == ContractMode.Trump && trump is not null ? new Contract(HighBid.Value, mode, trump) : throw new GameRuleException("Bid 2 requires trump.")
             : Contract.Create(HighBid!.Value, mode, trump);
-        if (IsCampaign) CampaignContractSelected();
+        if (IsCampaign) RecordContract();
         _events.Add($"{_playerNames[seat]} chose {DisplayContract(Contract)}.");
 
         if (Contract.IsPartnersBest)
@@ -184,6 +199,7 @@ public sealed partial class GameEngine
 
     public void ExchangeCard(int seat, Card card)
     {
+        ViewRevision++;
         if (IsCampaign && !_dispatchCampaign) throw new GameRuleException("Select a physical campaign card.");
         if (Contract?.IsPartnersBest is not true || Bidder is null)
         {
@@ -240,6 +256,7 @@ public sealed partial class GameEngine
 
     public void PlayCard(int seat, Card card)
     {
+        ViewRevision++;
         if (IsCampaign && !_dispatchCampaign) throw new GameRuleException("Select a physical campaign card.");
         EnsureTurn(GamePhase.Playing, seat);
         if (!GetLegalCards(seat).Contains(card))
@@ -248,9 +265,10 @@ public sealed partial class GameEngine
         }
 
         _hands[seat].Remove(card);
-        _currentTrick.Add(new CardPlay(seat, card));
+        var play = new CardPlay(seat, card);
+        _currentTrick.Add(play);
         _events.Add($"{_playerNames[seat]} played {(IsCampaign ? StateFor(card).Face.Code : card.Code)}.");
-        if (IsCampaign) CampaignOnPlay(seat, card);
+        if (IsCampaign) ResolvePlayedCard(play);
 
         var activePlayers = IsCampaign ? Enumerable.Range(0, 4).Count(CampaignActive) : Contract!.PartnerSitsOut ? 3 : 4;
         if (_currentTrick.Count < activePlayers)
@@ -284,6 +302,7 @@ public sealed partial class GameEngine
 
     public void ApplyIllegalPlayPenalty(int offendingSeat)
     {
+        ViewRevision++;
         if (Phase is not GamePhase.Playing || Bidder is null || Contract is null)
         {
             throw new GameRuleException("Illegal-play penalties require an active contract in trick play.");
@@ -326,7 +345,7 @@ public sealed partial class GameEngine
                 _playerNames[seat],
                 GameRules.TeamForSeat(seat),
                 _hands[seat].Count,
-                revealAllCards || viewerSeat == seat ? _hands[seat].OrderBy(card => card.Code).ToArray() : null,
+                revealAllCards || viewerSeat == seat || Phase == GamePhase.PokerReveal ? _hands[seat].OrderBy(card => card.Code).ToArray() : null,
                 seat == sittingOut))
             .ToArray();
 
@@ -399,6 +418,7 @@ public sealed partial class GameEngine
 
     private void DealHand()
     {
+        _scoringEffects.Clear();
         _priorHandEvents.AddRange(_events);
         _events.Clear();
         CompletionReason = null;
@@ -493,28 +513,41 @@ public sealed partial class GameEngine
 
     private void CompleteHandWithBreakdowns(TeamScoreBreakdown[] breakdowns, string reason, bool madeContract)
     {
-        int[] deltas;
-        (int Team0, int Team1) totals;
+        RecordHandScore(breakdowns, CalculateHandScore(breakdowns), reason, madeContract);
+        FinishScoredHand();
+    }
+
+    private (int[] Deltas, int Team0, int Team1) CalculateHandScore(TeamScoreBreakdown[] breakdowns)
+    {
         try
         {
-            deltas = breakdowns.Select(part => part.FinalDelta).ToArray();
-            totals = (checked(_scores[0] + deltas[0]), checked(_scores[1] + deltas[1]));
+            var deltas = breakdowns.Select(part => part.FinalDelta).ToArray();
+            return (deltas, checked(_scores[0] + deltas[0]), checked(_scores[1] + deltas[1]));
         }
         catch (OverflowException) { throw new GameRuleException("The hand score exceeds the supported point total."); }
+    }
+
+    private void RecordHandScore(TeamScoreBreakdown[] breakdowns, (int[] Deltas, int Team0, int Team1) score,
+        string reason, bool madeContract, PokerRoundResult? poker = null)
+    {
         var biddingTeam = GameRules.TeamForSeat(Bidder!.Value);
         CompletionReason = reason;
-        _scores[0] = totals.Team0;
-        _scores[1] = totals.Team1;
+        _scores[0] = score.Team0;
+        _scores[1] = score.Team1;
         _handHistory.Add(new HandResult(
             HandNumber,
             Bidder.Value,
-            Contract!,
+            Contract,
             _tricksByTeam[biddingTeam],
             _tricksByTeam[1 - biddingTeam],
-            deltas[0],
-            deltas[1],
-            reason) { MadeContract = madeContract, ScoreBreakdowns = breakdowns });
-        _events.Add($"Hand complete: Team 1 {Signed(deltas[0])}, Team 2 {Signed(deltas[1])}.");
+            score.Deltas[0],
+            score.Deltas[1],
+            reason) { MadeContract = madeContract, ScoreBreakdowns = breakdowns, PokerResult = poker });
+        _events.Add($"Hand complete: Team 1 {Signed(score.Deltas[0])}, Team 2 {Signed(score.Deltas[1])}.");
+    }
+
+    private void FinishScoredHand()
+    {
         CurrentSeat = null;
 
         GameWinner = DetermineGameWinner();

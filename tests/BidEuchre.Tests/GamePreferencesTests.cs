@@ -35,6 +35,11 @@ internal static class GamePreferencesTests
             File.WriteAllText(path, "{\"MotionEnabled\":false}");
             var legacy = GamePreferences.Load(path);
             Check(!legacy.MotionEnabled && legacy == new GamePreferences(false), "A motion-only file should keep motion and default the rest");
+            Check(!legacy.ReducedMotion, "Files saved before Reduced motion existed must load as Full or Off");
+
+            var reduced = new GamePreferences(ReducedMotion: true);
+            Check(reduced.Save(path) && GamePreferences.Load(path) is { MotionEnabled: true, ReducedMotion: true },
+                "Reduced motion should survive restart");
 
             File.WriteAllText(path, "{\"Fullscreen\":true,\"WindowWidth\":5,\"WindowHeight\":99999,\"UiScale\":40}");
             var repaired = GamePreferences.Load(path);

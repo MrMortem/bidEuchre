@@ -18,6 +18,13 @@
 .campaign-feature { display:flex; gap:14px; padding:16px; background:#160f32; border:2px solid #654a83; min-width:0; }
 .campaign-feature>div { min-width:0; }
 .campaign-feature img { width:58px; height:82px; object-fit:contain; image-rendering:pixelated; flex-shrink:0; }
+.campaign-feature[data-category="Joker"]>img { width:84px; height:auto; aspect-ratio:5/7; align-self:flex-start; }
+.campaign-feature[data-category="Tarot"]>img { width:88px; height:132px; }
+.campaign-shop-offer { display:flex; flex-direction:column; min-width:0; background:#160f32; border:2px solid #654a83; }
+.campaign-shop-offer>.campaign-feature { flex:1; border:0; }
+.campaign-machine { display:flex; flex-direction:column; align-items:center; gap:10px; margin:0; padding:18px 16px 12px; border-bottom:1px solid #654a83; background:#100b28; }
+.campaign-machine img { display:block; width:auto; height:180px; max-width:100%; object-fit:contain; }
+.campaign-machine figcaption { color:var(--amber); font:13px/1.5 system-ui,sans-serif; text-align:center; }
 .campaign-feature h3 { font-size:14px; line-height:1.6; margin:0; overflow-wrap:anywhere; }
 .campaign-feature p { font-size:14px; margin:8px 0 12px; }
 .campaign-feature .campaign-control { margin:0 8px 10px 0; }
@@ -43,10 +50,24 @@
 .campaign-card-row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-start; padding:10px 4px; }
 .campaign-card-row .playing-card,.campaign-trick .playing-card,.campaign-dialog .playing-card { margin:0; width:70px; height:100px; min-height:100px; display:inline-block; flex-shrink:0; vertical-align:top; }
 .campaign-card { isolation:isolate; background-color:#fff; }
-.campaign-enhancement,.campaign-sigil { position:absolute; z-index:2; font:9px/1.3 system-ui,sans-serif; font-weight:bold; color:white; background:#21123eea; padding:2px 3px; max-width:100%; overflow-wrap:anywhere; pointer-events:none; }
+/* The imported enhancement PNG supplies its own frame and transparent silhouette. */
+.campaign-card-enhanced { background-color:transparent; background-repeat:no-repeat; background-clip:padding-box; border-color:transparent; border-radius:0 !important; }
+.campaign-card-enhanced .card-face-sprite { filter:drop-shadow(0 0 1px white) drop-shadow(0 0 1px white); }
+.campaign-enhancement { position:absolute; z-index:2; font:9px/1.3 system-ui,sans-serif; font-weight:bold; color:white; background:#21123eea; padding:2px 3px; max-width:100%; overflow-wrap:anywhere; pointer-events:none; }
 .campaign-enhancement { bottom:0; left:0; right:0; text-align:center; border-top:1px solid #ffdf69; }
-.campaign-sigil { top:0; right:0; max-width:80%; color:#fff1a3; }
+.campaign-sigil { position:absolute; z-index:2; top:3.4%; right:4.8%; width:21%; aspect-ratio:1; object-fit:contain; image-rendering:pixelated; pointer-events:none; }
 .campaign-card.selected { outline:4px solid #65dcfd; box-shadow:0 0 0 7px #123278; }
+.campaign-poker { border-color:var(--amber); }
+.campaign-poker h1 { margin:0 0 12px; font-size:clamp(17px,3vw,27px); line-height:1.4; }
+.campaign-poker-winners { display:flex; flex-wrap:wrap; gap:8px 24px; list-style:none; margin:0; padding:0; font:16px/1.5 system-ui,sans-serif; }
+.campaign-poker-award { margin:8px 0 18px; color:var(--amber); font:bold 15px/1.5 system-ui,sans-serif; }
+.campaign-poker-hands { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.campaign-poker-hands article { min-width:0; padding:10px; border:2px solid var(--line); }
+.campaign-poker-hands h2 { margin:0 0 8px; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.campaign-poker-hands .campaign-card-row { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:clamp(4px,1vw,10px); padding:4px; }
+.campaign-poker-hands .campaign-card-row .playing-card { width:100%; max-width:70px; height:auto; min-height:0; aspect-ratio:7 / 10; }
+.campaign-poker-hands .campaign-poker-winning-card { outline:2px solid var(--amber); box-shadow:0 0 10px #ffc64299; }
+@media(max-width:720px) { .campaign-poker-hands { grid-template-columns:1fr; } }
 .campaign-trick { display:flex; flex-wrap:wrap; gap:20px; }
 .campaign-trick figure { margin:0; max-width:150px; }
 .campaign-trick figcaption { margin-top:8px; font-size:13px; overflow-wrap:anywhere; }
@@ -65,6 +86,9 @@
 @media(max-width:520px) {
  #campaign-content { gap:14px; }.campaign-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }.campaign-stats>div{padding:8px;}
  .campaign-feature { padding:12px; gap:10px; }.campaign-feature img{width:42px;height:62px;}
+ .campaign-feature[data-category="Joker"]>img{width:64px;height:auto;}
+ .campaign-feature[data-category="Tarot"]>img{width:64px;height:96px;}
+ .campaign-machine img{height:150px;}
  .campaign-card-row{gap:10px;}.campaign-card-row .playing-card{width:62px;height:90px;min-height:90px;}
  .campaign-dialog{padding:16px;width:calc(100% - 20px);}.campaign-deck-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
  .campaign-actions .button { font-size:10px; }.campaign-players{padding:12px;gap:8px;}.campaign-players article{padding:8px;}
@@ -74,3 +98,43 @@
 .campaign-target-number { position:absolute; inset:auto 0 0; z-index:3; color:white; background:#123278; font:700 11px/1.6 system-ui,sans-serif; text-align:center; }
 
 .campaign-dialog-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }.campaign-dialog-heading .icon-button { flex-shrink:0; line-height:1; padding:2px 8px; }
+
+.campaign-session-cards { grid-template-columns:repeat(6,minmax(0,1fr)); max-width:900px; margin:18px auto; }
+.campaign-session-cards .playing-card { margin:0; width:70px; height:100px; min-height:100px; display:inline-block; }
+.campaign-use-session h3[data-session-item-name] { margin-top:26px; font-size:16px; line-height:1.6; }
+.campaign-purchase-status { color:var(--amber); }
+.campaign-session-items [aria-pressed="true"] { outline:3px solid #65dcfd; outline-offset:3px; }
+@media(max-width:700px) { .campaign-session-cards { grid-template-columns:repeat(3,minmax(0,1fr)); }.campaign-session-cards small { font-size:11px; } }
+
+.campaign-session-items { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); gap:12px; }
+.campaign-session-item { display:flex; gap:10px; min-width:0; padding:12px; background:#160f32; border:2px solid #654a83; }
+.campaign-session-item>div { min-width:0; }
+.campaign-session-item img { width:46px; height:70px; object-fit:contain; image-rendering:pixelated; flex-shrink:0; }
+.campaign-session-item h3 { margin:0 0 8px; font-size:11px; line-height:1.7; overflow-wrap:anywhere; }
+.campaign-session-item p { margin:0 0 8px; font:12px/1.5 system-ui,sans-serif; }
+.campaign-session-item .button { padding:8px; font-size:9px; line-height:1.6; white-space:normal; text-align:left; }
+@media(max-width:520px) { .campaign-session-items { grid-template-columns:repeat(2,minmax(0,1fr)); }.campaign-session-item{flex-direction:column;padding:10px;}.campaign-session-item img{height:64px;width:42px;} }
+
+/* Arcade boards keep the saved outcome independent of motion and input. */
+.arcade-sign{align-self:center;min-width:105px;text-align:center;color:#f5d78e;font-weight:900;letter-spacing:.13em;font-size:1.2rem;line-height:1.8;text-shadow:0 0 16px #ba3668}
+.arcade-games{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.2rem;margin-bottom:1.2rem}.arcade-games>.panel{min-width:0}.arcade-games p{min-height:4.5em}
+.arcade-plinko{position:relative;aspect-ratio:1199/1312;max-width:500px;margin:1.25rem auto;background:#000;overflow:hidden}
+.arcade-board-art{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}.arcade-dropper{position:absolute;width:11.6764%;height:auto;transform:translateX(-50%);z-index:2}
+.arcade-ball{position:absolute;display:block;width:1.67%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 30% 25%,#fff9d7,#efa647 65%,#986019);box-shadow:0 1px 3px #0008;z-index:3}
+.arcade-roulette{max-width:440px;margin:1.25rem auto}.arcade-roulette svg{display:block;width:100%;overflow:visible}.arcade-roulette text{fill:#fff6dc;font:bold 19px system-ui,sans-serif}
+.arcade-choices{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}.arcade-choices .campaign-control{flex:0 0 auto}.arcade-choices .button{padding:.55rem .7rem}.arcade-choices [aria-pressed=true]{outline:3px solid #f3d493;background:#60482c;color:#fff4d4}.arcade-choices .disabled-reason{display:none}
+.arcade-result{text-align:center;max-width:760px;margin:0 auto 1rem}.arcade-result .campaign-actions{justify-content:center}.arcade-result-copy{font-size:1.15rem}.arcade-prize-art{display:block;max-width:140px;max-height:190px;object-fit:contain;margin:1rem auto}.arcade-result .disabled-reason{max-width:290px}
+@media(max-width:760px){.arcade-games{grid-template-columns:1fr}.arcade-games p{min-height:0}.arcade-choices .button{min-height:44px}}
+
+.collector-pack{display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap;margin:1rem auto}
+.collector-card{padding:4px;border:2px solid var(--line,#4b3a6b);border-radius:8px;background:transparent;cursor:pointer;transition:transform .12s ease}
+.collector-card img{display:block;width:120px;height:180px;object-fit:contain}
+.collector-card:hover:not(:disabled),.collector-card:focus-visible{transform:translateY(-6px)}
+.collector-card:focus-visible{outline:3px solid #f4c95d;outline-offset:3px}
+.collector-card.legendary{border:3px solid #f4c95d;box-shadow:0 0 18px #f4c95d}
+.collector-card.collector-flip{animation:collector-flip .45s ease-out both}
+@keyframes collector-flip{from{transform:rotateY(90deg);opacity:0}to{transform:rotateY(0);opacity:1}}
+.collector-granted{text-align:center;color:#f4c95d;font-weight:700}
+@media (max-width:520px){.collector-card img{width:88px;height:132px}}
+@media (prefers-reduced-motion:reduce){.collector-card.collector-flip{animation:none}}
+body.motion-off .collector-card.collector-flip{animation:none}

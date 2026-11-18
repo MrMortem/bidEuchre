@@ -68,7 +68,7 @@ internal static class TableRenderingTests
             var wild = campaign with { LegalActions = Enum.GetValues<Suit>().Select(s => (CampaignCommand)new CampaignCommand.Play(id, s)).ToArray() };
             Require(!CampaignTableControls.CenterCommands(wild).Any(), "Wild plays must not fill the table action panel.");
         });
-        var bids = new List<CampaignCommand> { new CampaignCommand.Pass(), new CampaignCommand.Bid((BidLevel)2), new CampaignCommand.PanicButton() };
+        var bids = new List<CampaignCommand> { new CampaignCommand.Pass(), new CampaignCommand.Bid((BidLevel)2) };
         foreach (var level in new[] { BidLevel.Three, BidLevel.Four, BidLevel.Five, BidLevel.Six, BidLevel.PartnersBest, BidLevel.Alone })
         {
             bids.Add(new CampaignCommand.Bid(level));
@@ -156,7 +156,7 @@ internal static class TableRenderingTests
                     Flush();
                 }
                 // Step 1: a number. Gumballs wait for step 2.
-                Require(Labels().SequenceEqual(["Pass", "2", "3", "4", "5", "6", "Partners Best", "Alone", "Panic Button · −8 points · consumes this hand"]),
+                Require(Labels().SequenceEqual(["Pass", "2", "3", "4", "5", "6", "Partners Best", "Alone"]),
                     "Step 1 offers Pass and each bid level once: " + string.Join(", ", Labels()));
                 CheckLabels();
                 Press("4");
@@ -173,7 +173,7 @@ internal static class TableRenderingTests
                     FeatureCatalog.Get(FeatureCategory.Gumball, "Chaos").Description), "Gumballs must explain their effect on hover.");
                 CheckLabels();
                 Press("← Back");
-                Require(Labels().Length == 9, "Back returns to the numbers.");
+                Require(Labels().Length == 8, "Back returns to the numbers.");
                 // Choices coming and going must not slide the table sideways.
                 Field<WrapPanel>(window, "_actionButtons").Children.Clear();
                 Call(window, "ShowCenter", false); Flush();

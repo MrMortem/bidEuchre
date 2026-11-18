@@ -16,15 +16,50 @@ internal static class CampaignEngineTests
         game.CreateView(0); game.CreateCampaignView(0);
         Assert.Equal(before.RandomState, game.ExportCampaignSnapshot().RandomState);
     }
-    public static void PanicAndFullMatch()
+    public static void ScoringEventsIdentifyPhysicalCardsAcrossResume()
     {
-        var s = CampaignSnapshot.Create(11) with { Inventory = new([], [], [GumballId.PanicButton, GumballId.Lowballer]) };
+        var state = CampaignSnapshot.Create(73);
+        for (var i = 0; i < state.Deck.Length; i++)
+            state.Deck[i] = state.Deck[i] with { Enhancement = EnhancementId.Stone };
+        var game = new GameEngine(["You", "West", "Partner", "East"], 73, campaign: new CampaignContext(state));
+        game.StartGame(3);
+        while (game.Phase == GamePhase.Bidding)
+        {
+            var seat = game.CampaignActor!.Value;
+            var legal = game.CreateCampaignView(seat).LegalActions;
+            game.ExecuteCampaignAction(seat, legal.OfType<CampaignCommand.Pass>().FirstOrDefault() as CampaignCommand
+                ?? legal.OfType<CampaignCommand.Bid>().First());
+        }
+        var bidder = game.CampaignActor!.Value;
+        game.ExecuteCampaignAction(bidder, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Hearts));
+
+        CampaignEffectEvent PlayStone(int sequence)
+        {
+            var seat = game.CampaignActor!.Value;
+            var play = game.CreateCampaignView(seat).LegalActions.OfType<CampaignCommand.Play>().First();
+            game.ExecuteCampaignAction(seat, play);
+            var observation = game.CreateCampaignView(null);
+            Assert.Equal(sequence, observation.EffectSequence);
+            return new(sequence, CampaignScoringEffect.Stone, CampaignEffectReward.Points, 1, seat % 2, play.Id, seat, 1);
+        }
+
+        var first = PlayStone(1);
+        Assert.Equal(first, game.CreateCampaignView(null).ScoringEffects.Single());
+        game = GameEngine.RestoreCampaignMatch(game.ExportCampaignMatchSnapshot());
+        Assert.Equal(1, game.CreateCampaignView(null).EffectSequence);
+        Assert.Equal(first, game.CreateCampaignView(null).ScoringEffects.Single());
+        var second = PlayStone(2);
+        Assert.Equal(second, game.CreateCampaignView(null).ScoringEffects.Last());
+        Assert.True(first.SourceCard != second.SourceCard);
+    }
+
+    public static void BoundedFullMatch()
+    {
+        var s = CampaignSnapshot.Create(11) with { Inventory = new([], [], [GumballId.Lowballer]) };
         var game = new GameEngine(["You", "West", "Partner", "East"], 11, new MatchOptions(24) { HandLimit = 8, NegativeThreshold = -24 }, new CampaignContext(s));
         game.StartGame(3);
-        game.ExecuteCampaignAction(0, new CampaignCommand.PanicButton());
-        Assert.Equal(-8, game.Scores[0]);
-        Assert.Equal(GamePhase.HandComplete, game.Phase);
-        game.StartNextHand();
+        Assert.Equal(0, game.Scores[0]);
+        Assert.Equal(GamePhase.Bidding, game.Phase);
         var guard = 0;
         while (game.Phase != GamePhase.GameComplete && guard++ < 1000)
         {

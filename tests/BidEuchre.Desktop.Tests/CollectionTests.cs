@@ -37,7 +37,7 @@ internal static class CollectionTests
                 $"{feature.Id} must render an icon even while its artwork is unavailable.");
         var run = new CampaignRun(Money: 20, Phase: CampaignPhase.Shop)
         { Shop = new(0, [new("double", FeatureCategory.Joker, "DoubleDown", 4)]) };
-        var actions = new ShopActions(_ => { }, _ => { }, _ => { }, (_, _) => { }, (_, _) => { }, () => { }, () => { })
+        var actions = new ShopActions(_ => { }, _ => { }, _ => { }, (_, _) => { }, () => { }, () => { })
         { Pull = _ => null, Refresh = () => { } };
         var window = new Window { Width = 1280, Height = 1100, Content = CampaignShopScreen.Build(run, actions, StillMotion()) };
         try

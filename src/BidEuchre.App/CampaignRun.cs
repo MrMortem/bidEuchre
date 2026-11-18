@@ -87,7 +87,12 @@ public sealed record CampaignRun(
 
     public CampaignRun AcknowledgeVictory() => From(CampaignPhase.Victory) with { Phase = CampaignPhase.Shop };
 
-    public CampaignRun LeaveShop() => From(CampaignPhase.Shop) with { Phase = CampaignPhase.Intro };
+    public CampaignRun LeaveShop()
+    {
+        From(CampaignPhase.Shop);
+        CampaignShop.RequireNoPrintedTickets(this);
+        return this with { Phase = CampaignPhase.Intro };
+    }
 
     private (CampaignRun Run, MatchOutcome Outcome) Finish(bool won, int playerScore, int opponentScore, int matchEndIncome, bool forfeited)
     {

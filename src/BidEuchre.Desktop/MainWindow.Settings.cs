@@ -49,7 +49,7 @@ public sealed partial class MainWindow
             {
                 _liveSettingsOpen = false;
                 await session.ResumeAsync();
-                _renderKey = null;
+                _renderedView = null;
                 await RefreshGameAsync();
                 return;
             }
@@ -62,7 +62,7 @@ public sealed partial class MainWindow
         {
             _liveSettingsOpen = false;
             try { await session.ResumeAsync(); } catch (ObjectDisposedException) { }
-            _renderKey = null;
+            _renderedView = null;
             await RefreshGameAsync();
             ShowError(error.Message);
         }
@@ -87,7 +87,7 @@ public sealed partial class MainWindow
             _targeting = null;
             _actionView = null;
             _inventoryKey = null;
-            _renderKey = null;
+            _renderedView = null;
             _liveSettingsOpen = false;
             // Hide the previous private view before the first asynchronous return refresh.
             _tableHost.IsVisible = false;
@@ -96,7 +96,7 @@ public sealed partial class MainWindow
             await RefreshGameAsync();
             await session.ResumeAsync();
             // A pre-resume refresh may have rejected the contract-dependent hand sort.
-            _renderKey = null;
+            _renderedView = null;
             await RefreshGameAsync();
         }
         catch (ObjectDisposedException) { _liveSettingsOpen = false; }
@@ -107,8 +107,10 @@ public sealed partial class MainWindow
     private void StopTablePresentation()
     {
         CancelContractAnnouncement();
+        _pokerReveal = null;
         _motion.Cancel();
         _bidAnnouncement?.Clear();
+        _scoreJolts.Cancel();
         _cardFlights?.Cancel();
         _deckDeal?.Cancel();
         _handGlide?.Reset();

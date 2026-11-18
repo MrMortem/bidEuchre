@@ -119,11 +119,19 @@ nav .active, .nav-item:hover { background:#143b8f; border-color:#69c9ff; }
 .player-position .card-row > :nth-child(3n) { animation-delay:-3.8s; }
 .player-position.north .card-row > * { animation-duration:6.1s; }
 .player-position.east .card-row > * { animation-duration:5.8s; }
+/* A purchase's six offered cards drift like a hand; the wrapper floats so selection styling stays on the card. */
+.campaign-session-cards > div { animation:hand-float 5.5s ease-in-out infinite; animation-delay:-.7s; }
+.campaign-session-cards > div:nth-child(2) { animation-delay:-2.1s; }
+.campaign-session-cards > div:nth-child(3) { animation-delay:-3.8s; }
+.campaign-session-cards > div:nth-child(4) { animation-delay:-1.4s; }
+.campaign-session-cards > div:nth-child(5) { animation-delay:-4.6s; }
+.campaign-session-cards > div:nth-child(6) { animation-delay:-3.1s; }
 @keyframes hand-float {
   0%,100% { translate:0 1.8px; rotate:-.85deg; }
   50% { translate:0 -1.8px; rotate:.85deg; }
 }
 .table-scenery { position:fixed; inset:0; z-index:-1; pointer-events:none; overflow:hidden; }
+body.campaign-boss-arena .table-scenery { display:none; }
 .table-scenery > span {
   position:absolute; inset:0; background-position:center; background-size:cover;
   background-repeat:no-repeat; animation:suit-float 8.5s ease-in-out infinite;

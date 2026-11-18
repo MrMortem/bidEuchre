@@ -35,50 +35,59 @@ internal static class GumballDuplicateUiTests
         {
             var inventory = new CampaignInventory([], [TarotId.Astronomer, TarotId.Prospector], Enum.GetValues<GumballId>()) { Sigils = [SigilId.Bear, SigilId.Fish] };
             var initial = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
-            { Resources = CampaignSnapshot.Create(which == "Panic" ? 40UL : 17UL) with { Wallets = [30, 0, 0, 0], Inventory = inventory }, Shop = new(0, [new("g", FeatureCategory.Gumball, "", 3), new("a", FeatureCategory.Tarot, "Astronomer", 3)]) };
+            { Resources = CampaignSnapshot.Create(17) with { Wallets = [30, 0, 0, 0], Inventory = inventory }, Shop = new(0, [new("g", FeatureCategory.Gumball, "", 3, which == "Retired"), new("a", FeatureCategory.Tarot, "", 3) { Printed = ["Astronomer"] }]) };
             Require(CampaignStore.Save(initial, path), "Prepare duplicate shop save.");
             var flow = new CampaignFlow(path, screen => window.Content = screen, _ => Task.CompletedTask, () => { }, Still());
             flow.Open(); window.Show(); Dispatcher.UIThread.RunJobs(); Click(Find(window, "CampaignContinue"));
-            if (which is "Machine" or "Panic")
+            if (which == "Retired")
+            {
+                Require(Text(window).Contains("SOLD"), "A migrated retired gumball purchase must remain sold.");
+                Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name is "GumballMachine" or "PullGumball"), "The retired purchase must not give another pull.");
+                Require(!Text(window).Contains("Panic Button"), "The retired bid must not appear in the current shop.");
+                var saved = CampaignStore.Load(path)!;
+                Require(saved.Money == 30 && saved.Shop!.Offers.Single(o => o.Id == "g") is { Sold: true, FeatureId: "" }, "Showing a retired sold machine must preserve its payment and stock.");
+                Capture(window, "retired-gumball-sold");
+            }
+            else if (which == "Machine")
             {
                 Click(Find(window, "GumballMachine"));
                 Click(Find(window, "PullGumball"));
                 var saved = CampaignStore.Load(path)!;
-                Require(saved.Money == 27 && saved.Resources.Inventory.Unlocks.Length == 9, "A duplicate pull must save once without changing unique unlocks.");
+                Require(saved.Money == 27 && saved.Resources.Inventory.Unlocks.Length == CampaignInventory.GumballCount, "A duplicate pull must save once without changing unique unlocks.");
                 Require(Text(window).Contains("copy 2") && Text(window).Contains("×2"), "Duplicate feedback and owned inventory must display its count.");
-                Require(Text(window).Contains("GUMBALLS 9/9"), "Unique collection count must stay nine.");
+                Require(Text(window).Contains($"GUMBALLS {CampaignInventory.GumballCount}/{CampaignInventory.GumballCount}"), "Unique collection count must include every active bid.");
                 var note = window.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == "CampaignNote");
                 Require(Equals(note.Foreground, MainWindow.Green), "Successful duplicate grants must use the positive reward tone.");
-                if (which == "Panic")
-                {
-                    Require(saved.Resources.Inventory.GumballExtraCopies.GetValueOrDefault(GumballId.PanicButton) == 1, "Seed40 must award a Panic Button duplicate.");
-                    Require(Text(window).Contains("No successful contract reward"), "Panic Button duplicate feedback must not promise a successful-bid bonus.");
-                    var tip = window.GetVisualDescendants().OfType<Border>().Select(ToolTip.GetTip).OfType<string>().Single(t => t.StartsWith("Panic Button:"));
-                    Require(tip.Contains("Copies: 2") && tip.Contains("extra copies award no success points"), "Panic Button inventory must show count and no success payout.");
-                }
+                Require(Text(window).Contains("+1 points on your successful matching bid"), "Every active duplicate must explain its successful-bid reward.");
+                Require(!Text(window).Contains("Panic Button"), "Retired bids must not appear in the collection or pull feedback.");
                 Capture(window, "duplicate-gumball-" + which.ToLowerInvariant());
             }
             else
             {
-                Click(Find(window, "Offera"));
-                Require(Find(window, "BuyUsea").IsEnabled, "Astronomer Buy & Use must work with every bid unlocked and full inventory.");
+                Click(Find(window, "FortuneTeller"));
+                Click(Find(window, "TicketAstronomer"));
+                Require(!Find(window, "TellerKeep").IsEnabled, "A printed ticket cannot be kept with full card slots.");
+                Require(Find(window, "TellerUse").IsEnabled, "A printed Astronomer must be usable with every bid unlocked and full inventory.");
                 Capture(window, "astronomer-full-inventory");
-                Click(Find(window, "BuyUsea"));
-                Require(flow.Run!.Resources.Inventory.ItemCount == 4 && flow.Run.Money == 27, "Immediate Astronomer use must not need a slot.");
+                Click(Find(window, "TellerUse"));
+                Require(Find(window, "ConfirmDeckChoice").IsEnabled && !Find(window, "FinishShopUse").IsEnabled, "A zero-target purchase still requires explicit use before Done.");
+                Click(Find(window, "ConfirmDeckChoice"));
+                Require(flow.Run!.Resources.Inventory.ItemCount == 4 && flow.Run.Money == 30, "Immediate Astronomer use must not need a slot or charge again.");
                 Require(Text(window).Contains("copy 2"), "Astronomer must identify its duplicate reward.");
+                Click(Find(window, "ShopHeldTarot0"));
+                Click(Find(window, "ConfirmDeckChoice"));
+                Require(flow.Run.Resources.Inventory.ItemCount == 3 && flow.Run.Resources.Inventory.GumballExtraCopies.Values.Sum() == 2, "An inventory Astronomer must remain usable and preserve both grants within the same committed session.");
+                Click(Find(window, "FinishShopUse"));
                 Click(Find(window, "OwnedTarot0"));
-                Require(Find(window, "UseTarot0").IsEnabled, "Stored Astronomer remains usable after every unlock.");
-                Click(Find(window, "UseTarot0"));
-                Require(flow.Run.Resources.Inventory.ItemCount == 3, "Stored Astronomer must be consumed once.");
-                var used = 0;
-                window.Content = CampaignAnteScreen.Build(initial with { Phase = CampaignPhase.Intro }, () => { }, () => { }, null, Still(), (_, _) => used++);
+                Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "UseTarot0"), "Stored tickets must wait for a match or a new purchase opportunity outside an application session.");
+                Require(flow.Run.Resources.Inventory.ItemCount == 3, "Inspecting a stored ticket must preserve it.");
+                window.Content = CampaignAnteScreen.Build(initial with { Phase = CampaignPhase.Intro }, () => { }, () => { }, null, Still());
                 Dispatcher.UIThread.RunJobs();
                 var item = Find(window, "AnteItemTarot0");
                 var flyout = (Flyout)item.Flyout!;
-                var use = ((Control)flyout.Content!).GetVisualDescendants().OfType<Button>().SingleOrDefault(b => b.Name == "AnteUseTarot0")
-                    ?? ((Panel)flyout.Content!).Children.OfType<Button>().Single(b => b.Name == "AnteUseTarot0");
-                Require(use.IsEnabled, "Astronomer remains usable before the next match after every unlock.");
-                Click(use); Require(used == 1, "Pre-match Astronomer must invoke one use.");
+                var controls = ((Panel)flyout.Content!).Children.OfType<Button>().ToArray();
+                Require(!controls.Any(b => b.Name == "AnteUseTarot0"), "A stored Astronomer must not be usable before the next match.");
+                Require(controls.Any(b => b.Name == "AnteDiscardTarot0"), "Pre-match cards must remain inspectable and discardable.");
             }
         }
         finally { window.Close(); File.Delete(path); }

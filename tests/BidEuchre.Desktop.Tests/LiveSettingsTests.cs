@@ -182,7 +182,7 @@ internal static class LiveSettingsTests
             Require(State(session) == paused, "Neither delayed bots nor stale table buttons may act while settings is open.");
             Require(!session.WaitingForDeal, "A hidden table must release its cancelled deal gate.");
             var motion = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "SettingsMotion");
-            motion.SelectedIndex = animated ? 1 : 0;
+            motion.SelectedIndex = animated ? 2 : 0; // Full, Reduced, Off
             var scale = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "SettingsUiScale");
             scale.SelectedIndex = 2;
             var fullscreen = window.GetVisualDescendants().OfType<ComboBox>().Single(c => c.Name == "SettingsFullscreen");

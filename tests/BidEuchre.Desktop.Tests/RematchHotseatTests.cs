@@ -101,8 +101,9 @@ internal static class RematchHotseatTests
         bool disposed = false; try { View(old); } catch (ObjectDisposedException) { disposed = true; }
         Require(disposed && Field<System.Collections.IDictionary>(old, "_bots").Count == 0, "Rematch must dispose the previous session and its bot resources.");
         Await(next.DeveloperAsync(g => g.DeveloperEndMatch(1))); Refresh(w); Click(w, "FreePlayNewTable");
-        Until(() => Field<GameSession?>(w, "_session") is null);
-        Require(Field<ContentControl>(w, "_playHost").GetVisualDescendants().OfType<TextBlock>().Any(x => x.Text == "New session"), "New table must reach editable setup after disposal.");
+        // Detaching starts asynchronous disposal. Wait for the setup screen that follows it.
+        Until(() => Field<GameSession?>(w, "_session") is null &&
+            Field<ContentControl>(w, "_playHost").GetVisualDescendants().OfType<TextBlock>().Any(x => x.Text == "New session"));
     }
     private static void CampaignExclusion()
     {

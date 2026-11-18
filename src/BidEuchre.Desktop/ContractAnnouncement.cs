@@ -62,7 +62,7 @@ internal sealed class ContractAnnouncement(Canvas overlay, Control table)
                 };
                 await entrance.RunAsync(badge, cancellationToken);
             }
-            await Task.Delay(TimeSpan.FromMilliseconds(1500), cancellationToken);
+            await Tween.Delay(1500, cancellationToken);
         }
         finally
         {

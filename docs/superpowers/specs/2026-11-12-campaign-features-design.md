@@ -6,6 +6,11 @@ Status: approved by the user in chat on 2026-11-12, including all proposed rules
 
 ## Intent and scope
 
+Poker's trick-play continuation below was superseded by the user's November 17,
+2026 rule: reveal all hands, highlight the winning five cards, award Poker
+points, and redeal without selecting a contract or taking tricks. See
+[Poker showdown](2026-11-17-poker-showdown-design.md).
+
 Add build-making choices to the existing single-player Bid Euchre campaign: a shared evolving deck, persistent Jokers, permanent bidding unlocks, consumable Tarot, and purchasable Sigils. The deck is a strategic shared resource: a modification may help the player, their partner, or an opponent on a later deal.
 
 The complete catalogue contains 77 entries: 10 enhancements, 31 Jokers, 8 Planets, 12 Sigils, and 16 Tarot cards. Values are initial playtest values, not evidence of validated balance.

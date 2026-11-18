@@ -126,7 +126,7 @@ internal static class ScoreHistoryUiTests
     {
         using var table = new Table(); var window = table.Window; var flow = Field<CampaignFlow>(window, "_campaign");
         typeof(CampaignFlow).GetProperty(nameof(CampaignFlow.Run))!.SetValue(flow, new CampaignRun(Phase: CampaignPhase.InMatch));
-        Call(window, "CompleteCampaignMatch", table.Session, Sample(GamePhase.GameComplete));
+        Await((Task)Call(window, "CompleteCampaignMatchAsync", table.Session, Sample(GamePhase.GameComplete))!);
         Until(() => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "CampaignContinue"));
         var summary = window.GetVisualDescendants().OfType<ScrollViewer>().SingleOrDefault(c => c.Name == "HandScoreSummary");
         Require(summary is not null && Text(summary).Contains("Hand 2") && Text(summary).Contains("SET"), "The campaign result page must retain score history after the table is disposed.");

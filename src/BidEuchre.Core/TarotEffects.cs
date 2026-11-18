@@ -2,8 +2,8 @@ namespace BidEuchre.Core;
 
 public sealed partial class GameEngine
 {
-    /// <summary>Whether the human may play a stored Tarot or Sigil now: on any turn of theirs, in any phase.</summary>
-    private bool CanUseItems(int seat) => seat == 0 && CampaignLegal(0).Count > 0;
+    /// <summary>Whether the human has an active turn on which to play a stored Tarot or Sigil.</summary>
+    private bool CanUseItems(int seat) => seat == 0 && Phase != GamePhase.PokerReveal && CampaignLegal(0).Count > 0;
     private void RequireItemTurn(int seat)
     { if (!CanUseItems(seat)) throw new GameRuleException("Use Tarots and Sigils on your own turn."); }
     private void ResolveSigil(int seat, CampaignCommand.UseSigil request)
@@ -29,16 +29,14 @@ public sealed partial class GameEngine
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
         {
-            case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), "Taxes"); break;
+            case TarotId.TaxCollector: Money(0, Math.Min(20, _resources.Wallets[0]), CampaignScoringEffect.Taxes); break;
             case TarotId.Astronomer:
                 var grant = GumballGrants.Pull(inventory, _campaignRandom.State);
                 inventory = grant.Inventory; _campaignRandom = new(grant.RandomState);
                 _events.Add($"Astronomer granted {FeatureCatalog.Get(FeatureCategory.Gumball, grant.Id.ToString()).Name} (copy {inventory.GumballCopies(grant.Id)}).");
                 break;
             case TarotId.Gambler:
-                // Physical order, so how the player arranged their hand cannot steer the draw.
-                var choices = _hands[0].Select(IdFor).OrderBy(id => id.Value).ToList(); _campaignRandom.Shuffle(choices);
-                foreach (var id in choices.Take(2)) Enhance(id, EnhancementId.Lucky); break;
+                foreach (var id in targets) Enhance(id, EnhancementId.Lucky); break;
             case TarotId.DevilishDeal:
                 var enhancements = Enum.GetValues<EnhancementId>();
                 foreach (var id in targets.Take(2))

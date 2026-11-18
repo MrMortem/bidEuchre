@@ -38,6 +38,7 @@ public sealed partial record CampaignMatchSnapshot
     public required int? DuelOpponent { get; init; }
     public required bool DuelistUsedThisMatch { get; init; }
     public required bool PokerRevealed { get; init; }
+    public PokerRoundResult? PokerResult { get; init; }
     public required bool TelepathDone { get; init; }
     public required bool FirstMatchCard { get; init; }
     public required bool FirstHumanRoundCard { get; init; }
@@ -45,6 +46,7 @@ public sealed partial record CampaignMatchSnapshot
     public required int RollerValue { get; init; }
     public required int DejaValue { get; init; }
     public required int EffectSequence { get; init; }
+    public CampaignEffectEvent[] ScoringEffects { get; init; } = [];
     public required int[] Scores { get; init; }
     public required int[] TricksByTeam { get; init; }
     public required int[] CardPoints { get; init; }

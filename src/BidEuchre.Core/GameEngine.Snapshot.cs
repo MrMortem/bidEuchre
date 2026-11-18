@@ -43,6 +43,7 @@ public sealed partial class GameEngine
             DuelOpponent = _duelOpponent,
             DuelistUsedThisMatch = _duelistUsedThisMatch,
             PokerRevealed = _pokerRevealed,
+            PokerResult = _pokerResult,
             TelepathDone = _telepathDone,
             FirstMatchCard = _firstMatchCard,
             FirstHumanRoundCard = _firstHumanRoundCard,
@@ -50,6 +51,7 @@ public sealed partial class GameEngine
             RollerValue = _rollerValue,
             DejaValue = _dejaValue,
             EffectSequence = _effectSequence,
+            ScoringEffects = _scoringEffects.ToArray(),
             Scores = _scores.ToArray(),
             TricksByTeam = _tricksByTeam.ToArray(),
             CardPoints = _cardPoints.ToArray(),
@@ -81,6 +83,7 @@ public sealed partial class GameEngine
         game._duelOpponent = snapshot.DuelOpponent;
         game._duelistUsedThisMatch = snapshot.DuelistUsedThisMatch;
         game._pokerRevealed = snapshot.PokerRevealed;
+        game._pokerResult = snapshot.PokerResult;
         game._telepathDone = snapshot.TelepathDone;
         game._firstMatchCard = snapshot.FirstMatchCard;
         game._firstHumanRoundCard = snapshot.FirstHumanRoundCard;
@@ -88,6 +91,7 @@ public sealed partial class GameEngine
         game._rollerValue = snapshot.RollerValue;
         game._dejaValue = snapshot.DejaValue;
         game._effectSequence = snapshot.EffectSequence;
+        game._scoringEffects.AddRange(snapshot.ScoringEffects);
         snapshot.Scores.CopyTo(game._scores, 0);
         snapshot.TricksByTeam.CopyTo(game._tricksByTeam, 0);
         snapshot.CardPoints.CopyTo(game._cardPoints, 0);
@@ -109,6 +113,9 @@ public sealed partial class GameEngine
         foreach (var seat in snapshot.StickyTriggered) game._stickyTriggered.Add(seat);
         foreach (var trick in snapshot.TrickHistory) game._campaignTrickHistory.Add(trick.Number, trick.Plays.ToArray());
         game._trickPoints.AddRange(snapshot.TrickPoints.Select(p => new EffectPoint(p.Team, p.Amount, p.Source)));
+        // Older checkpoints can be between the Poker auction and the former contract choice.
+        if (game.Phase == GamePhase.ChoosingContract && game._variant == GumballId.Poker)
+            game.RevealPoker(game.PreparePokerShowdown());
         return game;
     }
 

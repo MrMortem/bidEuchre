@@ -53,7 +53,7 @@ public static class CampaignBotPolicy
         CampaignCardView Card(CampaignCommand.Play play) => hand.Single(c => c.Id == play.Id);
         var low = contract.Mode is ContractMode.Low;
         // Among cards of equal power, the one least worth keeping: a low rank, or a high one when low cards win.
-        int Spare(CampaignCommand.Play play) => low ? -(int)Rank(Card(play)) : (int)Rank(Card(play));
+        int Spare(CampaignCommand.Play play) => low ? -(int)EffectiveRank(Card(play)) : (int)EffectiveRank(Card(play));
 
         if (trick.Count == 0)
         {
@@ -73,22 +73,10 @@ public static class CampaignBotPolicy
         return plays.OrderBy(Strength).ThenBy(Spare).First();
     }
 
-    /// <summary>How strongly a card competes for a trick, on the scale the engine decides tricks with.
-    /// <paramref name="led"/> is null for a card that is led or only being weighed.</summary>
-    private static int Power(CampaignCardView card, Suit? declared, Contract contract, Suit? led)
-    {
-        var rank = Rank(card);
-        var face = card.Face with { Rank = rank };
-        var suit = declared ?? GameRules.EffectiveSuit(face, contract);
-        if (contract.Mode is ContractMode.Trump && suit == contract.Trump)
-            return rank is BidEuchre.Core.Rank.Jack ? card.Enhancement == EnhancementId.Wild || face.Suit == contract.Trump ? 400 : 399 : 200 + (int)rank;
-        if (led is { } follow && suit != follow) return int.MinValue;
-        return contract.Mode is ContractMode.Low ? 100 - (int)rank : 100 + (int)rank;
-    }
+    private static int Power(CampaignCardView card, Suit? declaration, Contract contract, Suit? led) =>
+        CampaignCardRules.TrickPower(card.Face, card.Enhancement, card.Sigil, contract, led, declaration);
 
-    // A Bear card counts one rank higher, and an Ace wraps to a 9.
-    private static Rank Rank(CampaignCardView card) => card.Sigil != SigilId.Bear ? card.Face.Rank
-        : card.Face.Rank is BidEuchre.Core.Rank.Ace ? BidEuchre.Core.Rank.Nine : card.Face.Rank + 1;
+    private static Rank EffectiveRank(CampaignCardView card) => CampaignCardRules.EffectiveRank(card.Face.Rank, card.Sigil);
 
     /// <summary>Roughly how many tricks this hand takes by itself with <paramref name="trump"/> as trump.</summary>
     private static double TrumpTricks(IReadOnlyList<CampaignCardView> hand, Suit trump)
@@ -97,8 +85,8 @@ public static class CampaignBotPolicy
         var tricks = 0d;
         foreach (var card in hand)
         {
-            var rank = Rank(card);
-            var isTrump = card.Enhancement == EnhancementId.Wild || GameRules.EffectiveSuit(card.Face with { Rank = rank }, contract) == trump;
+            var rank = EffectiveRank(card);
+            var isTrump = card.Enhancement == EnhancementId.Wild || CampaignCardRules.EffectiveSuit(card.Face, card.Enhancement, card.Sigil, contract) == trump;
             tricks += isTrump
                 ? rank switch { BidEuchre.Core.Rank.Jack => 1, BidEuchre.Core.Rank.Ace => .75, BidEuchre.Core.Rank.King => .5, _ => .34 }
                 : rank is BidEuchre.Core.Rank.Ace ? .6 : 0;

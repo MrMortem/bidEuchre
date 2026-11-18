@@ -59,9 +59,19 @@ internal static class HandArrangementTests
         {
             var game = Fixture(Resources() with { Inventory = new([], [TarotId.Gambler], []) });
             if (reversed) game.ArrangeCampaignHand(0, Ids(5, 4, 3, 2, 1, 0));
-            game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, []));
+            var before = System.Text.Json.JsonSerializer.Serialize(game.ExportCampaignMatchSnapshot());
+            foreach (var invalid in new CardId[][] { [], Ids(1), Ids(1, 2, 3), Ids(1, 1), Ids(1, 6), Ids(1, 99) })
+            {
+                Assert.Throws<GameRuleException>(() => game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, invalid)));
+                Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(game.ExportCampaignMatchSnapshot()));
+            }
+            var random = game.ExportCampaignSnapshot().RandomState;
+            game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, Ids(4, 1)));
+            Assert.Equal(random, game.ExportCampaignSnapshot().RandomState);
+            Assert.Equal(0, game.ExportCampaignSnapshot().Inventory.Tarot.Length);
             return string.Join(',', game.ExportCampaignSnapshot().Deck.Where(c => c.Enhancement == EnhancementId.Lucky).Select(c => c.Id.Value));
         }
-        Assert.Equal(Enhanced(false), Enhanced(true), "Arranging the hand must not change which cards Gambler picks.");
+        Assert.Equal("1,4", Enhanced(false), "Gambler must enhance exactly the selected physical cards.");
+        Assert.Equal("1,4", Enhanced(true), "Arranging the hand must not change the selected targets.");
     }
 }
