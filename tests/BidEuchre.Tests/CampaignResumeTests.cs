@@ -113,7 +113,7 @@ internal static class CampaignResumeTests
         while (game.Phase == GamePhase.Bidding) game.ExecuteCampaignAction(game.CampaignActor!.Value, new CampaignCommand.Pass());
         game.ExecuteCampaignAction(0, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Hearts));
         var id = game.CreateCampaignView(0).Players[0].VisibleCards[0].Id;
-        // Festival's stable Tarot identity is Chameleon. Its active effect is Wild, not
+        // System Error's stable Tarot identity is Chameleon. Its active effect is Wild, not
         // a permanent printed-face change; exercise its real item action during exchange.
         game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [id]));
         Assert.Equal(EnhancementId.Wild, game.ExportCampaignSnapshot().Deck.Single(c => c.Id == id).Enhancement!.Value);

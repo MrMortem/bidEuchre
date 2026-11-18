@@ -33,8 +33,8 @@ internal static class CampaignConsumableTests
         var original = Snapshot(ticket);
         Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(ticket, "ticket", TarotId.Prospector, [new(6)]));
         Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(ticket, "ticket", TarotId.Prospector, [new(99)]));
-        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(ticket, "ticket", TarotId.DevilishDeal, [new(0), new(1), new(6)]));
-        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(ticket, "ticket", TarotId.DevilishDeal, [new(0), new(0), new(1)]));
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(ticket, "ticket", TarotId.DevilishDeal, [new(0), new(6)]));
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(ticket, "ticket", TarotId.DevilishDeal, [new(0), new(0)]));
         Assert.Equal(original, Snapshot(ticket));
 
         var full = run with { Resources = run.Resources with { Inventory = new([], [TarotId.Prospector, TarotId.Gambler], []) { Sigils = [SigilId.Bear, SigilId.Fish] } } };
@@ -133,21 +133,22 @@ internal static class CampaignConsumableTests
         var before = Snapshot(run);
         foreach (var targets in new CardId[][]
         {
-            [], [new(1)], [new(1), new(2), new(3)], [new(1), new(1)], [new(1), new(6)], [new(1), new(99)]
+            [new(1)], [new(5), new(2)], [new(1), new(2), new(3)], [new(1), new(1)], [new(1), new(6)], [new(1), new(99)]
         })
         {
             Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(run, "ticket", TarotId.Gambler, targets));
             Assert.Equal(before, Snapshot(run));
         }
-        var chosen = new CardId[] { new(5), new(2) };
-        var after = CampaignShop.UseTicket(run, "ticket", TarotId.Gambler, chosen);
-        Assert.True(after.Resources.Deck.Where(c => c.Enhancement == EnhancementId.Lucky).Select(c => c.Id).ToHashSet().SetEquals(chosen));
-        Assert.True(after.Resources.Deck.Where(c => !chosen.Contains(c.Id)).SequenceEqual(run.Resources.Deck.Where(c => !chosen.Contains(c.Id))));
-        Assert.Equal(run.Resources.RandomState, after.Resources.RandomState);
+        var after = CampaignShop.UseTicket(run, "ticket", TarotId.Gambler, []);
+        var lucky = after.Resources.Deck.Single(c => c.Enhancement == EnhancementId.Lucky);
+        Assert.Contains(lucky.Id, run.Shop!.Offers.Single().TargetCards!);
+        Assert.True(after.Resources.Deck.Where(c => c.Id != lucky.Id).SequenceEqual(run.Resources.Deck.Where(c => c.Id != lucky.Id)));
+        Assert.True(run.Resources.RandomState != after.Resources.RandomState);
+        Assert.Equal(Snapshot(after), Snapshot(CampaignShop.UseTicket(run, "ticket", TarotId.Gambler, [])));
         Assert.Equal(run.Money, after.Money);
         Assert.True(after.Shop!.Offers.Single().Sold);
         Assert.Equal(before, Snapshot(run));
-        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(after, "ticket", TarotId.Gambler, chosen));
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(after, "ticket", TarotId.Gambler, []));
     }
 
     public static void MalformedSavedSamplesAreRejected()

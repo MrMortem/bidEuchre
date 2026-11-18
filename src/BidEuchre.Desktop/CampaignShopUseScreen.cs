@@ -62,7 +62,7 @@ internal static class CampaignShopUseScreen
                 frame.BorderBrush = position >= 0 ? Gold : Brushes.Transparent;
                 var preview = position < 0 || item is null ? null : item.Category == FeatureCategory.Sigil
                     ? card with { Sigil = Enum.Parse<SigilId>(item.Key) }
-                    : Tarot.Preview(Enum.Parse<TarotId>(item.Key), card, position);
+                    : Tarot.Preview(Enum.Parse<TarotId>(item.Key), card);
                 var shown = preview ?? card;
                 frame.Child = PixelArt.CardContent(shown.Face, shown.Enhancement, shown.Sigil);
                 var marks = new List<string>();

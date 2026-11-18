@@ -194,11 +194,12 @@ public static partial class CampaignShop
         return session;
     }
 
-    private static void RequireSessionTargets(CampaignRun run, IReadOnlyList<CardId> targets)
+    private static CardId[] RequireSessionTargets(CampaignRun run, IReadOnlyList<CardId> targets)
     {
         var eligible = UseSessionCards(run).Select(c => c.Id).ToArray();
         if (eligible.Length != ShopTargetCount || targets.Any(id => !eligible.Contains(id)))
             throw new GameRuleException("Choose from the six cards offered for this purchase.");
+        return eligible;
     }
 
     /// <summary>Applies the committed purchase once, leaving the menu open for held Tarots.</summary>
@@ -206,7 +207,7 @@ public static partial class CampaignShop
     {
         var session = RequireUseSession(run, expectedRevision);
         if (session.PurchasedItemUsed) throw new GameRuleException("The purchased item has already been used.");
-        RequireSessionTargets(run, targets);
+        var eligible = RequireSessionTargets(run, targets);
         var resources = run.Resources.Copy();
         resources.Wallets[0] = run.Money;
         if (session.Category == FeatureCategory.Sigil)
@@ -214,7 +215,7 @@ public static partial class CampaignShop
             if (targets.Count != 1) throw new GameRuleException("Choose one of the six offered cards.");
             resources = ApplySigil(resources, Enum.Parse<SigilId>(session.FeatureId), targets[0]);
         }
-        else resources = ApplyTarot(resources, Enum.Parse<TarotId>(session.FeatureId), targets);
+        else resources = ApplyTarot(resources, Enum.Parse<TarotId>(session.FeatureId), targets, eligible);
         return run with
         {
             Money = resources.Wallets[0], Resources = resources with { Revision = resources.Revision + 1 },
@@ -228,10 +229,10 @@ public static partial class CampaignShop
         RequireUseSession(run, expectedRevision);
         var held = run.Resources.Inventory.Tarot;
         if (slot < 0 || slot >= held.Length) throw new GameRuleException("No Tarot in that slot.");
-        RequireSessionTargets(run, targets);
+        var eligible = RequireSessionTargets(run, targets);
         var resources = run.Resources.Copy();
         resources.Wallets[0] = run.Money;
-        resources = ApplyTarot(resources, held[slot], targets);
+        resources = ApplyTarot(resources, held[slot], targets, eligible);
         return Updated(run, resources, resources.Inventory with { Tarot = Without(resources.Inventory.Tarot, slot) });
     }
 
@@ -243,11 +244,12 @@ public static partial class CampaignShop
         return run with { Shop = run.Shop! with { UseSession = null }, Resources = run.Resources with { Revision = run.Resources.Revision + 1 } };
     }
 
-    private static void RequireTargets(CampaignRun run, ShopOffer offer, IReadOnlyList<CardId> targets)
+    private static CardId[] RequireTargets(CampaignRun run, ShopOffer offer, IReadOnlyList<CardId> targets)
     {
         var eligible = TargetCards(run, offer.Id).Select(c => c.Id).ToArray();
         if (eligible.Length != ShopTargetCount || targets.Any(id => !eligible.Contains(id)))
             throw new GameRuleException("Choose from the six cards offered for this purchase.");
+        return eligible;
     }
 
     /// <summary>Replenishes regular stock, including purchased slots, while retaining this visit's gumball pull and Joker booster.</summary>
@@ -427,13 +429,13 @@ public static partial class CampaignShop
     {
         RequireCurrentShop(run, expectedRevision);
         var (offer, card) = Chosen(run, offerId, ticket);
-        RequireTargets(run, offer, targets);
+        var eligible = RequireTargets(run, offer, targets);
         var resources = run.Resources.Copy(); resources.Wallets[0] = run.Money;
         if (card.Category == FeatureCategory.Sigil && targets.Count != 1)
             throw new GameRuleException("Choose one of the six offered cards.");
         return Took(run, offer, card, card.Category == FeatureCategory.Sigil
             ? ApplySigil(resources, Enum.Parse<SigilId>(card.Key), targets[0])
-            : ApplyTarot(resources, Enum.Parse<TarotId>(card.Key), targets));
+            : ApplyTarot(resources, Enum.Parse<TarotId>(card.Key), targets, eligible));
     }
 
     /// <summary>Printed tickets are paid for, so the shop cannot be left or restocked until one is taken.</summary>
@@ -467,7 +469,7 @@ public static partial class CampaignShop
         Shop = run.Shop! with { Offers = run.Shop.Offers.Select(o => o.Id == offer.Id ? o with { Sold = true, Category = card.Category, FeatureId = card.Key, IsTellerSigil = card.Category == FeatureCategory.Sigil, Printed = null } : o).ToArray() }
     };
     // Plays a purchased Tarot on its offered cards. Takes a copy it may change, with the human's wallet already up to date.
-    private static CampaignSnapshot ApplyTarot(CampaignSnapshot resources, TarotId tarot, IReadOnlyList<CardId> targets)
+    private static CampaignSnapshot ApplyTarot(CampaignSnapshot resources, TarotId tarot, IReadOnlyList<CardId> targets, IReadOnlyList<CardId> eligible)
     {
         var inventory = resources.Inventory; var deck = resources.Deck;
         var required = TarotTargets(tarot);
@@ -484,15 +486,8 @@ public static partial class CampaignShop
             case TarotId.Astronomer:
                 var grant = GumballGrants.Pull(inventory, random.State);
                 inventory = grant.Inventory; random = new(grant.RandomState); break;
-            case TarotId.Gambler:
-                foreach (var id in targets) Enhance(id, EnhancementId.Lucky); break;
-            case TarotId.DevilishDeal:
-                var pool = Enum.GetValues<EnhancementId>();
-                foreach (var id in targets.Take(2))
-                    Enhance(id, pool[random.NextInt(pool.Length)]);
-                Enhance(targets[2], EnhancementId.Cursed); break;
             default:
-                Enhance(targets[0], Tarot.EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot.")); break;
+                Tarot.ApplyEnhancements(tarot, targets, eligible, random, Enhance); break;
         }
         resources.Wallets[0] = money;
         return resources with { Inventory = inventory, RandomState = random.State };

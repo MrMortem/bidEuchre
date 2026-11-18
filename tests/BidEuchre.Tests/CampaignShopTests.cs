@@ -11,14 +11,14 @@ internal static class CampaignShopTests
             { Resources = CampaignSnapshot.Create(seed) with { Wallets = [30, 0, 0, 0] } };
             var shop = CampaignShop.Open(run);
             Assert.True(shop.Shop!.Offers.All(o => o.FeatureId is not ("Merchant" or "Beggar")));
-            var dealt = CampaignShop.UseTicket(Waiting(run, TarotId.DevilishDeal), "t", TarotId.DevilishDeal, [new(0), new(1), new(2)]);
+            var dealt = CampaignShop.UseTicket(Waiting(run, TarotId.DevilishDeal), "t", TarotId.DevilishDeal, [new(0), new(1)]);
             foreach (var card in dealt.Resources.Deck.Take(2))
             {
                 var name = card.Enhancement!.Value.ToString();
                 Assert.True(name is not ("Emerald" or "Stinky"));
                 seen.Add(name);
             }
-            Assert.True(dealt.Resources.Deck[2].Enhancement == EnhancementId.Cursed);
+            Assert.Equal(EnhancementId.Cursed, dealt.Resources.Deck.Skip(2).Take(4).Single(c => c.Enhancement is not null).Enhancement!.Value);
         }
         Assert.True(seen.SetEquals(["Lucky", "Golden", "Wild", "Cursed", "Stone", "Silver", "Glass", "Bouncy"]));
     }
@@ -240,17 +240,16 @@ internal static class CampaignShopTests
         Assert.Equal(27, kept.Money);
 
         var deal = Stocked(TarotId.DevilishDeal);
-        var ids = deal.Resources.Deck.Take(3).Select(c => c.Id).ToArray();
+        var ids = deal.Resources.Deck.Take(2).Select(c => c.Id).ToArray();
         var dealt = CampaignShop.UseTicket(deal, "t", TarotId.DevilishDeal, ids);
         Assert.True(dealt.Resources.Deck[0].Enhancement is not null && dealt.Resources.Deck[1].Enhancement is not null);
-        Assert.True(dealt.Resources.Deck[2].Enhancement == EnhancementId.Cursed);
-        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(deal, "t", TarotId.DevilishDeal, [ids[0], ids[0], ids[1]]));
+        Assert.Equal(EnhancementId.Cursed, dealt.Resources.Deck.Skip(2).Take(4).Single(c => c.Enhancement is not null).Enhancement!.Value);
+        Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(deal, "t", TarotId.DevilishDeal, [ids[0], ids[0]]));
         FortuneTellerPrints();
 
-        var lucky = CampaignShop.UseTicket(Stocked(TarotId.Gambler), "t", TarotId.Gambler, [new(1), new(4)]);
-        Assert.Equal(2, lucky.Resources.Deck.Count(c => c.Enhancement == EnhancementId.Lucky));
-        Assert.True(lucky.Resources.Deck.Where(c => c.Enhancement == EnhancementId.Lucky).Select(c => c.Id).ToHashSet().SetEquals([new(1), new(4)]));
-        Assert.Equal(start.Resources.RandomState, lucky.Resources.RandomState);
+        var lucky = CampaignShop.UseTicket(Stocked(TarotId.Gambler), "t", TarotId.Gambler, []);
+        Assert.True(lucky.Resources.Deck.Single(c => c.Enhancement == EnhancementId.Lucky).Id.Value < 6);
+        Assert.True(start.Resources.RandomState != lucky.Resources.RandomState);
 
         // Doubling applies to what is left after paying for the print, and gains at most $20.
         var poor = Stocked(TarotId.TaxCollector) with { Money = 7, Resources = Stocked().Resources with { Wallets = [7, 0, 0, 0] } };

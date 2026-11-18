@@ -299,7 +299,7 @@ public sealed partial class MainWindow
                     {
                         // Chosen cards show their result and remain available for deselection at the target limit.
                         var position = targeting.Chosen.IndexOf(card.Id);
-                        var result = position < 0 ? card : Preview(targeting, card, position);
+                        var result = position < 0 ? card : Preview(targeting, card);
                         var id = card.Id;
                         var canChoose = targeting.Required <= 1 || targeting.Chosen.Count < targeting.Required || position >= 0;
                         button = FaceButton(key, result.Face, canChoose, () => { ToggleTarget(id); return Task.CompletedTask; }, result.Enhancement, result.Sigil,

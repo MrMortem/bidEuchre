@@ -2,7 +2,7 @@ namespace BidEuchre.Core;
 
 public sealed record GumballGrant(CampaignInventory Inventory, ulong RandomState, GumballId Id);
 
-/// <summary>The shared deterministic acquisition rule for paid pulls and Astronomer uses.</summary>
+/// <summary>The shared deterministic acquisition rule for paid pulls and Sweet Tooth uses.</summary>
 public static class GumballGrants
 {
     public static GumballGrant Pull(CampaignInventory inventory, ulong randomState)

@@ -63,25 +63,26 @@ test('a second server process cannot acquire the same campaign data root',async(
  finally {if(second.exitCode===null)second.kill('SIGTERM');}
 });
 
-test('Gambler rejects invalid targets atomically and applies Lucky to the two chosen offered cards',async()=>{
+test('Gambler rejects invalid targets atomically and applies Lucky to one random offered card',async()=>{
  const token=randomBytes(32).toString('base64url'),cookie='bideuchre.campaign='+token;
  const seeded=spawnSync(process.env.BIDEUCHRE_DOTNET||'dotnet',[path.join(root,'tests/BidEuchre.Server.Tests/bin/Debug/net10.0/BidEuchre.Server.Tests.dll'),'--campaign-fixture',directory,token,'gambler'],{cwd:root,env:process.env,encoding:'utf8'});
  assert.equal(seeded.status,0,seeded.stderr+seeded.stdout);
  const state=await get(cookie),offer=state.shop.offers.find(o=>o.tickets.some(t=>t.id==='Gambler'));
- const ids=offer.targetCards.map(c=>c.id),outside=state.deck.find(c=>!ids.includes(c.id)).id,selected=[ids[4],ids[1]];
+ const ids=offer.targetCards.map(c=>c.id),outside=state.deck.find(c=>!ids.includes(c.id)).id;
  assert.equal(ids.length,6);
- assert.equal(offer.tickets.find(t=>t.id==='Gambler').targetCount,2);
- for(const targetIds of [[],[ids[0]],ids.slice(0,3),[ids[0],ids[0]],[ids[0],outside]]){
+ assert.equal(offer.tickets.find(t=>t.id==='Gambler').targetCount,0);
+ for(const targetIds of [[ids[0]],ids.slice(0,2),ids.slice(0,3),[ids[0],ids[0]],[ids[0],outside]]){
   const response=await request(cookie,'/shop/use-ticket',{expectedVersion:state.version,offerId:offer.id,ticketId:'Gambler',targetIds});
   assert.equal(response.status,400,JSON.stringify(targetIds));
   assert.deepEqual(await get(cookie),state,'Rejected targets must preserve the paid spread, deck, inventory, wallet and version');
  }
  await stop();await start();
  assert.deepEqual(await get(cookie),state,'Reload must preserve the paid sample');
- const response=await request(cookie,'/shop/use-ticket',{expectedVersion:state.version,offerId:offer.id,ticketId:'Gambler',targetIds:selected});
+ const response=await request(cookie,'/shop/use-ticket',{expectedVersion:state.version,offerId:offer.id,ticketId:'Gambler',targetIds:[]});
  assert.equal(response.status,200);const after=await response.json();
  assert.equal(after.run.money,state.run.money);assert.deepEqual(after.inventory,state.inventory);
- assert.deepEqual(after.deck,state.deck.map(c=>selected.includes(c.id)?{...c,enhancement:'Lucky'}:c));
+ const lucky=after.deck.filter(c=>c.enhancement==='Lucky');assert.equal(lucky.length,1);assert.ok(ids.includes(lucky[0].id));
+ assert.deepEqual(after.deck,state.deck.map(c=>c.id===lucky[0].id?{...c,enhancement:'Lucky'}:c));
  assert.equal(after.shop.offers.find(o=>o.id===offer.id).sold,true);
 });
 
@@ -140,12 +141,12 @@ test('Arcade Spectral Pack pick allows held Tarots before and after; restart pre
  await reject('/shop/use-purchased',{targetIds:[outside]});await reject('/items/use',{category:'Tarot',slot:0,targetIds:[ids[0],outside]});
  assert.equal((await request(cookie,'/shop/use-purchased',{expectedVersion:before.version,targetIds:[ids[0]]})).status,409);
  await stop();await start();state=await get(cookie);assert.equal(state.version,paid.version);assert.deepEqual(state.shop.useSession,paid.shop.useSession);assert.equal(state.run.money,paid.run.money);
- await change('/items/use',{category:'Tarot',slot:0,targetIds:[ids[4],ids[1]]});
+ await change('/items/use',{category:'Tarot',slot:0,targetIds:[]});
  assert.equal(state.inventory.tarot.length,2);assert.equal(state.shop.useSession.purchasedItemUsed,false);
- assert.ok(state.shop.useSession.targetCards.filter(c=>[ids[4],ids[1]].includes(c.id)).every(c=>c.enhancement==='Lucky'));
+ const lucky=state.shop.useSession.targetCards.filter(c=>c.enhancement==='Lucky');assert.equal(lucky.length,1);
  await reject('/shop/finish-use');
- await change('/shop/use-purchased',{targetIds:[ids[4]]});assert.equal(state.shop.useSession.purchasedItemUsed,true);
- assert.equal(state.deck.find(c=>c.id===ids[4]).sigil,offer.pack[index].key);assert.equal(state.deck.find(c=>c.id===ids[4]).enhancement,'Lucky');
+ await change('/shop/use-purchased',{targetIds:[lucky[0].id]});assert.equal(state.shop.useSession.purchasedItemUsed,true);
+ assert.equal(state.deck.find(c=>c.id===lucky[0].id).sigil,offer.pack[index].key);assert.equal(state.deck.find(c=>c.id===lucky[0].id).enhancement,'Lucky');
  await reject('/shop/use-purchased',{targetIds:[ids[0]]});await reject('/shop/leave');
  const applied=state;await stop();await start();state=await get(cookie);assert.equal(state.version,applied.version);assert.deepEqual(state.shop.useSession,applied.shop.useSession);
  await change('/items/use',{category:'Tarot',slot:0,targetIds:[]});assert.equal(state.run.money,paid.run.money+20);
@@ -159,12 +160,12 @@ test('choosing a printed ticket commits it without a second charge or changing t
  const offer=state.shop.offers.find(o=>o.tickets.some(t=>t.id==='Gambler')),money=state.run.money;
  const response=await request(cookie,'/shop/begin-ticket-use',{expectedVersion:state.version,offerId:offer.id,ticketId:'Gambler'});
  assert.equal(response.status,200);state=await response.json();assert.equal(state.run.money,money);
- assert.equal(state.shop.useSession.category,'Tarot');assert.equal(state.shop.useSession.featureId,'Gambler');assert.equal(state.shop.useSession.targetCount,2);assert.deepEqual(state.shop.useSession.targetCards,offer.targetCards);
+ assert.equal(state.shop.useSession.category,'Tarot');assert.equal(state.shop.useSession.featureId,'Gambler');assert.equal(state.shop.useSession.targetCount,0);assert.deepEqual(state.shop.useSession.targetCards,offer.targetCards);
  const sold=state.shop.offers.find(o=>o.id===offer.id);assert.equal(sold.sold,true);assert.equal(sold.tickets.length,0);
  for(const route of ['/shop/finish-use','/shop/leave','/shop/keep-ticket']){
   const body={expectedVersion:state.version,...(route.endsWith('keep-ticket')?{offerId:offer.id,ticketId:'Gambler'}:{})};assert.equal((await request(cookie,route,body)).status,400);
  }
- const used=await request(cookie,'/shop/use-purchased',{expectedVersion:state.version,targetIds:offer.targetCards.slice(0,2).map(c=>c.id)});assert.equal(used.status,200);state=await used.json();assert.equal(state.run.money,money);assert.equal(state.shop.useSession.purchasedItemUsed,true);
+ const used=await request(cookie,'/shop/use-purchased',{expectedVersion:state.version,targetIds:[]});assert.equal(used.status,200);state=await used.json();assert.equal(state.run.money,money);assert.equal(state.shop.useSession.purchasedItemUsed,true);
 });
 
 test('Arcade HTTP rejects injected outcomes, commits payment before presentation, and persists limits across restart and reroll',async()=>{

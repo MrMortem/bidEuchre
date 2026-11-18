@@ -82,7 +82,7 @@ internal static class CampaignReviewRegressionTests
                 new CardOverlay(new(2), new(Suit.Hearts, Rank.Ten), EnhancementId.Wild, SigilId.Frog)
             };
             var g = Fixture(r, overlays: overlays);
-            g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [new(0), new(1), new(2)]));
+            g.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, [new(0), new(1)]));
             var result = g.ExportCampaignSnapshot();
             Assert.Equal(0, result.Inventory.Tarot.Length);
             foreach (var index in new[] { 0, 1 })
@@ -91,7 +91,7 @@ internal static class CampaignReviewRegressionTests
                 Assert.True(Enum.IsDefined(enhancement), "Devilish Deal must choose an active enhancement.");
                 observed.Add(enhancement);
             }
-            Assert.Equal(EnhancementId.Cursed, result.Deck[2].Enhancement!.Value);
+            Assert.Equal(EnhancementId.Cursed, result.Deck.Skip(2).Take(4).Single(c => c.Enhancement is not null).Enhancement!.Value);
             Assert.Equal(r.Deck[0].Face, result.Deck[0].Face);
             Assert.Equal(SigilId.Fish, result.Deck[0].Sigil!.Value);
             foreach (var overlay in overlays)
@@ -99,9 +99,9 @@ internal static class CampaignReviewRegressionTests
                 var visible = g.CreateCampaignView(0).Players[0].VisibleCards.Single(c => c.Id == overlay.Id);
                 Assert.Equal(overlay.Face, visible.Face);
                 Assert.Equal(overlay.Sigil!.Value, visible.Sigil!.Value);
-                Assert.Equal(result.Deck[overlay.Id.Value].Enhancement!.Value, visible.Enhancement!.Value);
+                Assert.Equal(result.Deck[overlay.Id.Value].Enhancement ?? overlay.Enhancement!.Value, visible.Enhancement!.Value);
             }
-            Assert.True(result.Deck.Skip(3).SequenceEqual(r.Deck.Skip(3)), "Devilish Deal must only modify its three targets.");
+            Assert.True(result.Deck.Skip(6).SequenceEqual(r.Deck.Skip(6)), "Devilish Deal must only modify its three targets.");
         }
         Assert.True(observed.SetEquals(Enum.GetValues<EnhancementId>()), "Devilish Deal must be able to generate every active enhancement.");
     }

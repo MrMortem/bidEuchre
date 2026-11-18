@@ -308,7 +308,7 @@ static class CampaignServerTests
                 var ids = session.GetProperty("targetCards").EnumerateArray().Select(c => c.GetProperty("id").GetInt32()).ToArray();
                 Assert(ids.Length == 6 && ids.Distinct().Count() == 6, "Arcade prize lost its six-card sample.");
                 await RejectUnchanged(f, state, "shop/finish-use", new { });
-                state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = new[] { ids[4], ids[1] } });
+                state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = Array.Empty<int>() });
                 Assert(!state.GetProperty("shop").GetProperty("useSession").GetProperty("purchasedItemUsed").GetBoolean(), "Held Gambler consumed the mandatory prize.");
                 state = await Change(f.Service, f.Token, state, "shop/use-purchased", new { targetIds = ids.Take(session.GetProperty("targetCount").GetInt32()).ToArray() });
                 state = await Change(f.Service, f.Token, state, "shop/finish-use");
@@ -356,8 +356,8 @@ static class CampaignServerTests
         await FailedWrite("shop/arcade/pick", new { playId, index = sigilIndex });
         state = await Change(f.Service, f.Token, state, "shop/arcade/pick", new { playId, index = sigilIndex });
         var ids = state.GetProperty("shop").GetProperty("useSession").GetProperty("targetCards").EnumerateArray().Select(c => c.GetProperty("id").GetInt32()).ToArray();
-        await FailedWrite("items/use", new { category = "Tarot", slot = 0, targetIds = ids.Take(2).ToArray() });
-        state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = ids.Take(2).ToArray() });
+        await FailedWrite("items/use", new { category = "Tarot", slot = 0, targetIds = Array.Empty<int>() });
+        state = await Change(f.Service, f.Token, state, "items/use", new { category = "Tarot", slot = 0, targetIds = Array.Empty<int>() });
         await FailedWrite("shop/use-purchased", new { targetIds = ids.Take(1).ToArray() });
         state = await Change(f.Service, f.Token, state, "shop/use-purchased", new { targetIds = ids.Take(1).ToArray() });
         await FailedWrite("shop/finish-use", new { });

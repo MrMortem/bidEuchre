@@ -23,13 +23,13 @@ internal static class CampaignItemPreviewTests
             game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, Enumerable.Range(0, required).Select(i => new CardId(i)).ToArray()));
             for (var position = 0; position < required; position++)
             {
-                if (Tarot.Preview(tarot, before[position], position) is not { } expected) continue;
+                if (Tarot.Preview(tarot, before[position]) is not { } expected) continue;
                 Assert.Equal(expected, Card(game, position), $"{tarot} preview for target {position + 1}.");
                 previewed++;
             }
         }
-        var expectedCount = Enum.GetValues<TarotId>().Count(t => Tarot.EnhancementOf(t) is not null) + 3;
-        Assert.Equal(expectedCount, previewed, "Every enhancement Tarot, both Gambler targets, and Devilish Deal's Cursed card have previews.");
+        var expectedCount = Enum.GetValues<TarotId>().Count(t => Tarot.EnhancementOf(t) is not null);
+        Assert.Equal(expectedCount, previewed, "Every Tarot with a deterministic enhancement has a preview.");
     }
 
     public static void SigilsAreHandCardTargets()

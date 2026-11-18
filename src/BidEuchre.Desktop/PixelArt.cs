@@ -236,7 +236,7 @@ internal static class PixelArt
 
     internal static string CampaignImageName(FeatureDefinition definition)
     {
-        var curated = $"curated-{definition.Id.Replace(':', '-')}";
+        var curated = definition.Id == "tarot:chameleon" ? "curated-tarot-system-error" : $"curated-{definition.Id.Replace(':', '-')}";
         return HasImage(curated) ? curated : $"campaign/{definition.Id.Replace(':', '/')}";
     }
 

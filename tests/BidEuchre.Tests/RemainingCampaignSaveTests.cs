@@ -95,7 +95,7 @@ internal static class RemainingCampaignSaveTests
                     Assert.True(view.LegalActions.Count > 0, "A migrated deck cannot deadlock from a constrained deal.");
                     if (!used && actor == 0)
                     {
-                        var targets = view.Players[0].VisibleCards.Take(3).Select(card => card.Id).ToArray();
+                        var targets = view.Players[0].VisibleCards.Take(2).Select(card => card.Id).ToArray();
                         game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, targets)); used = true;
                     }
                     else game.ExecuteCampaignAction(actor, view.LegalActions.OfType<CampaignCommand.Pass>().FirstOrDefault() as CampaignCommand ?? view.LegalActions[0]);
