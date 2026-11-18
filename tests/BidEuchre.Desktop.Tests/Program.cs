@@ -43,6 +43,14 @@ if (args.Contains("--hand-hover-only")) { HandHoverTests.Run(); return; }
 
 if (args.Contains("--score-jolt-only")) { ScoreJoltTests.Run(); return; }
 
+if (args.Contains("--ante-only"))
+{
+    var anteMotion = new PixelMotion();
+    anteMotion.SetEnabled(false);
+    TestAntePreviews(anteMotion);
+    return;
+}
+
 if (args.Contains("--shop-only")) { CampaignShopUiTests.Run(); return; }
 
 if (args.Contains("--arcade-only")) { CampaignArcadeUiTests.Run(); return; }
@@ -183,7 +191,15 @@ foreach (var animated in new[] { false, true })
     finally { shop.Close(); File.Delete(path); }
 }
 
-foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±16 POINTS"), (16, "ANTE 6", "±44 POINTS") })
+TestAntePreviews(motion);
+
+static void TestAntePreviews(PixelMotion motion)
+{
+    foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±16 POINTS"), (16, "ANTE 6", "±44 POINTS") })
+        TestAntePreview(motion, match, title, threshold);
+}
+
+static void TestAntePreview(PixelMotion motion, int match, string title, string threshold)
 {
     var path = Path.Combine(Path.GetTempPath(), $"ante-ui-{Guid.NewGuid():N}.json");
     var ante = new Window { Width = 1280, Height = 1100 };
@@ -207,9 +223,16 @@ foreach (var (match, title, threshold) in new[] { (5, "ANTE 2", "±16 POINTS"), 
         var texts = ante.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).ToArray();
         string Status(int slot) => ante.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Name == $"AnteStatus{slot}").Text!;
         var current = (match - 1) % 3 + 1;
-        foreach (var expected in new[] { title, threshold, "8 HANDS · TIES CONTINUE", "REWARD $5+", "REWARD $6+", "REWARD $8+", "$14", "YOUR JOKERS 0/5" }
+        foreach (var expected in new[] { title, threshold, "8 HANDS · TIES CONTINUE", "$14", "YOUR JOKERS 0/5" }
             .Concat(match > 9 ? ["LOSE ♥2", "LOSE ♥3"] : ["LOSE ♥1", "LOSE ♥2"]))
             if (!texts.Contains(expected)) throw new Exception($"The Ante screen must show \"{expected}\".");
+        for (var slot = 1; slot <= 3; slot++)
+        {
+            var panel = ante.GetVisualDescendants().OfType<Border>().Single(b => b.Name == $"AntePanel{slot}");
+            var reward = slot == 3 ? "REWARD $7+" : "REWARD $5+";
+            if (!panel.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == reward))
+                throw new Exception($"Ante panel {slot} must show {reward}.");
+        }
         if (texts.Count(t => t == threshold) != 3) throw new Exception("Every match panel must show the threshold.");
         if (current == 2 && (Status(1) != "PLAYED" || Status(3) != "UPCOMING")) throw new Exception("Panels around the current match must read PLAYED and UPCOMING.");
         if (current == 1 && (Status(2) != "UPCOMING" || Status(3) != "UPCOMING")) throw new Exception("Later panels must read UPCOMING.");

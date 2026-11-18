@@ -69,7 +69,7 @@ public sealed record CampaignRun(
     [JsonIgnore] public int OpponentStartingScore => 0;
 
     // What each of an Ante's three matches pays before the margin bonus, and what losing it costs.
-    public static int BaseReward(int matchInAnte) => matchInAnte switch { 1 => 5, 2 => 6, _ => 8 };
+    public static int BaseReward(int matchInAnte) => matchInAnte == MatchesPerAnte ? 7 : 5;
     // A loss costs 1 life (boss 2) in Antes 1 to 3 and one more than that afterwards. With three lives
     // a boss lost after Ante 3 always ends the run, so the Ante 5 boss cannot be skipped by losing it.
     public const int LastEasyAnte = 3;
@@ -99,8 +99,8 @@ public sealed record CampaignRun(
         From(CampaignPhase.InMatch);
         var livesLost = won ? 0 : LivesAtStake(MatchInAnte, Ante);
         var baseReward = won ? BaseReward(MatchInAnte) : 0;
-        var margin = playerScore - opponentScore;
-        var marginBonus = won ? margin >= 10 ? 6 : margin >= 5 ? 4 : margin >= 1 ? 2 : 0 : 0;
+        var winningMargin = won ? (long)playerScore - opponentScore : 0;
+        var marginBonus = winningMargin switch { >= 10 => 3, >= 5 => 2, >= 1 => 1, _ => 0 };
         var payout = baseReward + marginBonus;
         var interest = Math.Min(InterestCap, (Money + payout + matchEndIncome) / InterestStep);
         var money = Money + payout + matchEndIncome + interest;

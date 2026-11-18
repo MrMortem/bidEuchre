@@ -335,8 +335,8 @@ currently in your hand when it is your turn to bid, name the contract, exchange 
 Stored consumables may still be discarded in the normal shop or pre-match screen.
 Using one does not end your turn.
 
-Win rewards are $5/$6/$8 for Small/Medium/Boss matches, plus $2/$4/$6 for victory
-margins of 1–4/5–9/10+. Losses keep card and Joker earnings. Interest is $1 per $5
+Small and Medium wins pay $5, and Boss wins pay $7. Add $1 for a winning margin
+of 1–4 points, $2 for 5–9, or $3 for 10 or more. Losses keep card and Joker earnings. Interest is $1 per $5
 held after rewards, capped at $5. Version 3 saves commit the hand, auction, pending
 choices, effects, physical card order and arrangement policy atomically with campaign
 resources after accepted actions. Closing the window preserves the match; Continue
