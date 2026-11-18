@@ -27,8 +27,8 @@ internal static class CampaignRunTests
     public static void Stakes()
     {
         Assert.Equal(5, CampaignRun.BaseReward(1));
-        Assert.Equal(6, CampaignRun.BaseReward(2));
-        Assert.Equal(8, CampaignRun.BaseReward(3));
+        Assert.Equal(5, CampaignRun.BaseReward(2));
+        Assert.Equal(7, CampaignRun.BaseReward(3));
         Assert.Equal(1, CampaignRun.LivesAtStake(1, 1));
         Assert.Equal(1, CampaignRun.LivesAtStake(2, 1));
         Assert.Equal(2, CampaignRun.LivesAtStake(3, 1));
@@ -57,12 +57,22 @@ internal static class CampaignRunTests
 
     public static void Money()
     {
-        Assert.Equal(13, AtMatch(1).ApplyResult(true, 24, 0).Outcome.Money);
+        foreach (var (match, winBase) in new[] { (1, 5), (2, 5), (3, 7) })
+        foreach (var (margin, bonus) in new[] { (-1, 0), (0, 0), (1, 1), (4, 1), (5, 2), (9, 2), (10, 3), (24, 3) })
+        {
+            var won = margin > 0;
+            var outcome = AtMatch(match).ApplyResult(won, 20 + margin, 20).Outcome;
+            var expectedBase = won ? winBase : 0;
+            Assert.Equal(expectedBase, outcome.BaseReward);
+            Assert.Equal(bonus, outcome.MarginBonus);
+            Assert.Equal(expectedBase + bonus, outcome.Payout);
+        }
+
         var (paid, o) = AtMatch(1, money: 12).ApplyResult(true, 24, 20);
-        Assert.Equal(7, o.Payout);
+        Assert.Equal(6, o.Payout);
         Assert.Equal(3, o.Interest);
-        Assert.Equal(22, o.Money);
-        Assert.Equal(22, paid.Money);
+        Assert.Equal(21, o.Money);
+        Assert.Equal(21, paid.Money);
         var (_, lost) = AtMatch(1, money: 23).ApplyResult(false, 13);
         Assert.Equal(0, lost.Payout);
         Assert.Equal(4, lost.Interest);
