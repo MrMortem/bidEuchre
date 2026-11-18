@@ -65,9 +65,11 @@ internal static class CuratedArtTests
         // Catch a ticket falling back to old square artwork or being stretched in any shared surface.
         foreach (var tarot in FeatureCatalog.All.Where(feature => feature.Category == FeatureCategory.Tarot))
         {
-            var uri = new Uri("avares://BidEuchre/Pixel/curated-" + tarot.Id.Replace(':', '-') + ".png");
+            var resource = tarot.Key == nameof(TarotId.Chameleon) ? "curated-tarot-system-error" : "curated-" + tarot.Id.Replace(':', '-');
+            var uri = new Uri($"avares://BidEuchre/Pixel/{resource}.png");
             if (!AssetLoader.Exists(uri)) throw new Exception($"{tarot.Name} must have its supplied arcade ticket embedded.");
             var icon = PixelArt.CampaignIcon(tarot, 120);
+            if (PixelArt.CampaignImageName(tarot) != resource) throw new Exception($"{tarot.Name} must use its matching ticket art.");
             // Avalonia's lightweight headless backend substitutes 1x1 bitmaps. Inspect the real embedded PNG.
             using var stream = AssetLoader.Open(uri);
             using var bitmap = SkiaSharp.SKBitmap.Decode(stream);

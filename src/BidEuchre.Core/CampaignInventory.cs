@@ -30,9 +30,19 @@ public enum TarotId { Chameleon = 4, Grindstone = 5, Prospector = 6, DevilishDea
 public static class Tarot
 {
     /// <summary>How many cards a Tarot must be aimed at.</summary>
-    public static int TargetCount(TarotId tarot) => tarot == TarotId.DevilishDeal ? 3
-        : tarot == TarotId.Gambler ? 2
-        : tarot is TarotId.TaxCollector or TarotId.Astronomer ? 0 : 1;
+    public static int TargetCount(TarotId tarot) => tarot switch
+    {
+        TarotId.DevilishDeal => 2,
+        TarotId.Gambler or TarotId.TaxCollector or TarotId.Astronomer => 0,
+        _ => 1
+    };
+
+    public static int MinimumEligibleCards(TarotId tarot) => tarot switch
+    {
+        TarotId.DevilishDeal => 3,
+        TarotId.Gambler => 1,
+        _ => TargetCount(tarot)
+    };
 
     /// <summary>The enhancement a single-target enhancing Tarot gives its target, or null for other Tarots.</summary>
     public static EnhancementId? EnhancementOf(TarotId tarot) => tarot switch
@@ -42,12 +52,31 @@ public static class Tarot
         TarotId.SpringLoaded => EnhancementId.Bouncy, _ => null
     };
 
-    /// <summary>What the target chosen at <paramref name="position"/> becomes, or null when the
-    /// result is random or the Tarot does not change that card.</summary>
-    public static CardState? Preview(TarotId tarot, CardState card, int position) =>
-        tarot == TarotId.DevilishDeal ? position == 2 ? card with { Enhancement = EnhancementId.Cursed } : null
-        : tarot == TarotId.Gambler ? card with { Enhancement = EnhancementId.Lucky }
-        : EnhancementOf(tarot) is { } enhancement ? card with { Enhancement = enhancement } : null;
+    /// <summary>What a chosen target becomes when the result is known in advance.</summary>
+    public static CardState? Preview(TarotId tarot, CardState card) =>
+        EnhancementOf(tarot) is { } enhancement ? card with { Enhancement = enhancement } : null;
+
+    public static void ApplyEnhancements(TarotId tarot, IReadOnlyList<CardId> targets, IReadOnlyList<CardId> eligible,
+        CampaignRandom random, Action<CardId, EnhancementId> enhance)
+    {
+        if (eligible.Count < MinimumEligibleCards(tarot))
+            throw new GameRuleException("There aren't enough eligible cards to use this Tarot.");
+
+        // Draw by physical ID so rearranging the displayed cards cannot alter a seeded outcome.
+        if (tarot == TarotId.Gambler)
+        {
+            var pool = eligible.OrderBy(id => id.Value).ToArray();
+            enhance(pool[random.NextInt(pool.Length)], EnhancementId.Lucky);
+        }
+        else if (tarot == TarotId.DevilishDeal)
+        {
+            var pool = eligible.Except(targets).OrderBy(id => id.Value).ToArray();
+            var enhancements = Enum.GetValues<EnhancementId>();
+            foreach (var id in targets) enhance(id, enhancements[random.NextInt(enhancements.Length)]);
+            enhance(pool[random.NextInt(pool.Length)], EnhancementId.Cursed);
+        }
+        else enhance(targets[0], EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot."));
+    }
 }
 public sealed record JokerState(JokerId Id, int Value = 0);
 public sealed record CampaignInventory(JokerState[] Jokers, TarotId[] Tarot, GumballId[] Unlocks)

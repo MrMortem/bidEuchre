@@ -468,12 +468,12 @@ public sealed partial class MainWindow : Window
     }
 
     // What a chosen card will look like once the item is used, when that is certain.
-    private static CampaignCardView Preview(ItemTargeting targeting, CampaignCardView card, int position)
+    private static CampaignCardView Preview(ItemTargeting targeting, CampaignCardView card)
     {
         var state = new CardState(card.Id, card.Face, card.Enhancement, card.Sigil);
         var after = targeting.Category == FeatureCategory.Sigil
             ? state with { Sigil = Enum.Parse<SigilId>(targeting.Definition.Key) }
-            : Tarot.Preview(Enum.Parse<TarotId>(targeting.Definition.Key), state, position);
+            : Tarot.Preview(Enum.Parse<TarotId>(targeting.Definition.Key), state);
         return after is null ? card : new(after.Id, after.Face, after.Enhancement, after.Sigil);
     }
 
@@ -488,11 +488,14 @@ public sealed partial class MainWindow : Window
             1 => count == 0 ? "Press a card in your hand." : "Press another card to change it.",
             var n => $"Press {n} cards in your hand · {count} of {n} chosen."
         };
-        if (targeting.Definition.Key == nameof(TarotId.DevilishDeal)) step += " The third card you press becomes Cursed.";
+        var minimum = targeting.Category == FeatureCategory.Sigil ? 1
+            : Tarot.MinimumEligibleCards(Enum.Parse<TarotId>(targeting.Definition.Key));
+        var enoughCards = campaign.Players[0].VisibleCards.Count >= minimum;
+        if (!enoughCards) step = $"You need at least {minimum} cards in your hand.";
         _actionHelp.Text = $"{targeting.Definition.Description}\n{step}";
         var use = ActionButton($"Use {name}");
         use.Name = "UseItem";
-        use.IsEnabled = count == targeting.Required;
+        use.IsEnabled = enoughCards && count == targeting.Required;
         use.Click += async (_, _) =>
         {
             CampaignCommand command = targeting.Category == FeatureCategory.Sigil

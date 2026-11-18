@@ -272,8 +272,10 @@ your partner; a round is one six-trick hand.
 
 During a match, stored Arcade Tickets (Tarots) and Sigils may be used on
 your own turn. Any card they affect must currently be in your hand; cards already
-played and cards held by other players are not eligible. Gambler makes exactly two distinct cards you select from your current hand Lucky. Effects that do not target cards retain their
-normal behavior. Using a consumable does not end your turn.
+played and cards held by other players are not eligible. Gambler makes one random
+card in your hand Lucky. Devilish Deal gives two selected hand cards random
+enhancements and curses one other random hand card. Using a consumable does not
+end your turn.
 
 Every shop has a vending machine with one random soda for $8. Each purchase adds a permanent upgrade for the current run. Rerolls preserve the machine's sold status. The initial pool contains seven base flavors. Once you own a base, its upgrade can be drawn. Each flavor can be acquired once.
 
@@ -317,7 +319,9 @@ you return to the game later, the same four Jokers await you.
 
 Shop rewards provide a separate opportunity: applying an Arcade prize,
 or using a newly printed Fortune Teller ticket, displays six random cards from
-the shared deck. Only those six can be affected, including both cards selected for Gambler.
+the shared deck. Only those six can be affected. Gambler makes one of them Lucky
+at random. Devilish Deal gives two selected cards random enhancements and curses
+a random third card from the six.
 All tickets in one print share the same six cards. Opening the six-card menu commits
 the chosen prize or ticket, and you must apply that item before Done becomes
 available. There is no Back or Cancel. Unfinished Sigil purchases from older saves

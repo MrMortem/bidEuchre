@@ -24,7 +24,8 @@ public sealed partial class GameEngine
         if (request.Slot < 0 || request.Slot >= inventory.Tarot.Length) throw new GameRuleException("No Tarot in that slot.");
         var tarot = inventory.Tarot[request.Slot]; var targets = request.Targets?.ToArray() ?? throw new GameRuleException("Choose Tarot targets.");
         var required = Tarot.TargetCount(tarot);
-        if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !_hands[0].Contains(TokenFor(id)))) throw new GameRuleException("Choose the required distinct cards from your hand.");
+        var eligible = _hands[0].Select(IdFor).ToArray();
+        if (targets.Length != required || targets.Distinct().Count() != required || targets.Any(id => !eligible.Contains(id))) throw new GameRuleException("Choose the required distinct cards from your hand.");
         // Validate everything before RNG, consumption, or permanent mutations.
         void Enhance(CardId id, EnhancementId e) => ChangeCard(id, c => c with { Enhancement = e });
         switch (tarot)
@@ -33,17 +34,10 @@ public sealed partial class GameEngine
             case TarotId.Astronomer:
                 var grant = GumballGrants.Pull(inventory, _campaignRandom.State);
                 inventory = grant.Inventory; _campaignRandom = new(grant.RandomState);
-                _events.Add($"Astronomer granted {FeatureCatalog.Get(FeatureCategory.Gumball, grant.Id.ToString()).Name} (copy {inventory.GumballCopies(grant.Id)}).");
+                _events.Add($"Sweet Tooth granted {FeatureCatalog.Get(FeatureCategory.Gumball, grant.Id.ToString()).Name} (copy {inventory.GumballCopies(grant.Id)}).");
                 break;
-            case TarotId.Gambler:
-                foreach (var id in targets) Enhance(id, EnhancementId.Lucky); break;
-            case TarotId.DevilishDeal:
-                var enhancements = Enum.GetValues<EnhancementId>();
-                foreach (var id in targets.Take(2))
-                    Enhance(id, enhancements[_campaignRandom.NextInt(enhancements.Length)]);
-                Enhance(targets[2], EnhancementId.Cursed); break;
             default:
-                Enhance(targets[0], Tarot.EnhancementOf(tarot) ?? throw new GameRuleException("Unknown Tarot.")); break;
+                Tarot.ApplyEnhancements(tarot, targets, eligible, _campaignRandom, Enhance); break;
         }
         _resources = _resources with { Inventory = inventory with { Tarot = inventory.Tarot.Where((_, i) => i != request.Slot).ToArray() } };
         _events.Add($"Used {FeatureCatalog.Get(FeatureCategory.Tarot, tarot.ToString()).Name}.");

@@ -14,9 +14,11 @@ internal static class SettledCatalogueTests
         Assert.True(FeatureCatalog.All.Where(f => f.Category == FeatureCategory.Tarot).Select(f => f.Key).ToHashSet().SetEquals(Tarots));
         Assert.True(Enum.GetValues<SigilId>().Select(x => (int)x).SequenceEqual(new[] { 1, 2, 3, 4, 6, 8, 9, 10 }), "Saved Sigil values cannot shift.");
         Assert.True(Enum.GetValues<TarotId>().Select(x => (int)x).SequenceEqual(new[] { 4, 5, 6, 7, 8, 11, 12, 14, 15 }), "Saved Tarot values cannot shift.");
-        Assert.True(FeatureCatalog.All.Where(f => f.Category == FeatureCategory.Tarot).Select(f => f.Name).ToHashSet().SetEquals(new[] { "Festival", "Stone mason", "Prospector", "Devilish Deal", "Gambler", "Traitor", "Astronomer", "Taxes", "Ectoplasm" }));
+        Assert.True(FeatureCatalog.All.Where(f => f.Category == FeatureCategory.Tarot).Select(f => f.Name).ToHashSet().SetEquals(new[] { "System Error", "Stone mason", "Prospector", "Devilish Deal", "Gambler", "Traitor", "Sweet Tooth", "Taxes", "Ectoplasm" }));
         Assert.Equal("Safety Net", FeatureCatalog.Get(FeatureCategory.Gumball, "Lowballer").Name);
         Assert.Equal("Chameleon", FeatureCatalog.Get(FeatureCategory.Sigil, "Chameleon").Name);
+        Assert.Equal("tarot:chameleon", FeatureCatalog.Get(FeatureCategory.Tarot, "Chameleon").Id);
+        Assert.Equal("tarot:astronomer", FeatureCatalog.Get(FeatureCategory.Tarot, "Astronomer").Id);
     }
 
     public static void MigrationAndUnknownIds()
@@ -28,7 +30,7 @@ internal static class SettledCatalogueTests
             {
                 Resources = CampaignSnapshot.Create(73) with
                 {
-                    Inventory = new([], [TarotId.Chameleon, TarotId.Grindstone], [GumballId.Lowballer]) { Sigils = [SigilId.Bear, SigilId.Chameleon] },
+                    Inventory = new([], [TarotId.Chameleon, TarotId.Astronomer], [GumballId.Lowballer]) { Sigils = [SigilId.Bear, SigilId.Chameleon] },
                     GeneratedTarot = [[TarotId.TaxCollector], [TarotId.SpringLoaded], [TarotId.Prospector], [TarotId.Traitor]]
                 },
                 Shop = new(3, [new("kept", FeatureCategory.Tarot, "Chameleon", 3, true), new("sigil", FeatureCategory.Sigil, "Bear", 3)])
@@ -81,7 +83,7 @@ internal static class SettledCatalogueTests
     {
         foreach (var (tarot, enhancement, name) in new[]
         {
-            (TarotId.Chameleon, EnhancementId.Wild, "Festival"),
+            (TarotId.Chameleon, EnhancementId.Wild, "System Error"),
             (TarotId.Grindstone, EnhancementId.Stone, "Stone mason"),
             (TarotId.SpringLoaded, EnhancementId.Bouncy, "Ectoplasm")
         })

@@ -241,8 +241,8 @@ Each card supports one enhancement and one Sigil; replacing either preserves
 the other. The campaign includes 8 enhancements, 32 Jokers, 8 Gumball bidding
 unlocks, 8 Sigils, and 9 Tarot consumables. The active Sigils are Bear, Eagle,
 Fish, Spider, Frog, Duck, Vulture, and Chameleon. The nine Tarot Cards are
-Festival (Wild), Stone mason (Stone), Prospector (Golden), Devilish Deal,
-Gambler, Traitor (Silver), Astronomer, Taxes, and Ectoplasm (Bouncy).
+System Error (Wild), Stone mason (Stone), Prospector (Golden), Devilish Deal,
+Gambler, Traitor (Silver), Sweet Tooth, Taxes, and Ectoplasm (Bouncy).
 Safety Net unlocks bidding 2. The Chameleon Sigil keeps its separate identity.
 Emerald and Stinky enhancements; Coin, Snake, Owl, and Peacock Sigils; and
 Merchant, Beggar, Love Potion, Nightshade, Clover Tonic, Crystal Elixir, and
@@ -276,7 +276,7 @@ gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Si
 four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
 gumball rolls out and permanently unlocks a random bidding option you do not
 have yet. After all eight unique bids are unlocked, pulls grant random duplicates.
-Astronomer uses the same rule and grants its gumball immediately, without a held
+Sweet Tooth uses the same rule and grants its gumball immediately, without a held
 Planet card. Each extra copy awards +1 fixed point after hand multipliers when
 you successfully make its matching bid; matching types such as Alone and High/Low
 stack once each. Failed, unrelated and partner-made bids earn no duplicate bonus.
@@ -316,7 +316,9 @@ leaving the shop.
 
 An Arcade prize or newly printed ticket may be applied immediately without a free inventory slot.
 These shop opportunities show six random cards from the shared deck, and only
-those cards may be changed. Gambler lets you choose exactly two of those six to become Lucky.
+those cards may be changed. Gambler makes one of those six cards Lucky at random.
+Devilish Deal gives two selected cards random enhancements and curses a random
+third card from the same six.
 Opening this six-card menu commits the chosen prize or printed ticket, and it must
 be used before pressing Done. An unfinished Sigil purchase from an older save follows the same rule.
 There is no Back or Cancel. You may also use any stored Tarot on the same six cards,

@@ -94,8 +94,8 @@ internal static class CampaignShopSessionTests
         Assert.Equal(7, purchased.Money);
         RejectedUnchanged(purchased, () => CampaignShop.UsePurchased(purchased, [new(0)]));
 
-        var gambled = CampaignShop.UseHeldTarot(purchased, 0, [new(4), new(2)], purchased.Resources.Revision);
-        Assert.True(gambled.Resources.Deck.Where(c => c.Enhancement == EnhancementId.Lucky).Select(c => c.Id.Value).ToHashSet().SetEquals([2, 4]));
+        var gambled = CampaignShop.UseHeldTarot(purchased, 0, [], purchased.Resources.Revision);
+        Assert.Contains(gambled.Resources.Deck.Single(c => c.Enhancement == EnhancementId.Lucky).Id, Six());
         Assert.Equal(purchased.Resources.Revision + 1, gambled.Resources.Revision);
         // The held Tax Collector sees the seven dollars left after payment, not the old ten-dollar wallet.
         var taxed = CampaignShop.UseTarot(gambled, 0, [], gambled.Resources.Revision);
@@ -103,7 +103,7 @@ internal static class CampaignShopSessionTests
         Assert.Equal(14, taxed.Resources.Wallets[0]);
         Assert.Equal(0, taxed.Resources.Inventory.Tarot.Length);
         Assert.Equal(gambled.Resources.Revision + 1, taxed.Resources.Revision);
-        Assert.Equal(initial.Resources.RandomState, taxed.Resources.RandomState);
+        Assert.Equal(gambled.Resources.RandomState, taxed.Resources.RandomState);
         var finished = CampaignShop.FinishUse(taxed, taxed.Resources.Revision);
         Assert.True(finished.Shop!.UseSession is null);
         Assert.Equal(taxed.Resources.Revision + 1, finished.Resources.Revision);
@@ -131,10 +131,10 @@ internal static class CampaignShopSessionTests
         RejectedUnchanged(begun, () => CampaignShop.KeepTicket(begun, "ticket", ticket));
 
         var gambler = CampaignShop.BeginTicketUse(Waiting(Stock(), TarotId.Gambler), "ticket", TarotId.Gambler);
-        foreach (var invalid in new CardId[][] { [], [new(1)], [new(1), new(2), new(3)], [new(1), new(1)], [new(1), new(6)] })
+        foreach (var invalid in new CardId[][] { [new(1)], [new(5), new(0)], [new(1), new(2), new(3)], [new(1), new(1)], [new(1), new(6)] })
             RejectedUnchanged(gambler, () => CampaignShop.UsePurchased(gambler, invalid));
-        var used = CampaignShop.UsePurchased(gambler, [new(5), new(0)], gambler.Resources.Revision);
-        Assert.True(used.Resources.Deck.Where(c => c.Enhancement == EnhancementId.Lucky).Select(c => c.Id.Value).ToHashSet().SetEquals([0, 5]));
+        var used = CampaignShop.UsePurchased(gambler, [], gambler.Resources.Revision);
+        Assert.Contains(used.Resources.Deck.Single(c => c.Enhancement == EnhancementId.Lucky).Id, Six());
         Assert.Equal(10, used.Money);
         RejectedUnchanged(used, () => CampaignShop.UsePurchased(used, [new(5), new(0)]));
         Assert.Equal(CampaignPhase.Intro, CampaignShop.FinishUse(used).LeaveShop().Phase);
@@ -149,14 +149,15 @@ internal static class CampaignShopSessionTests
             var begun = CampaignShop.BeginSigilUse(initial, "sigil");
             CardId[] targets = tarot switch
             {
-                TarotId.Gambler => [new(3), new(1)], TarotId.DevilishDeal => [new(4), new(2), new(0)],
-                TarotId.TaxCollector or TarotId.Astronomer => [], _ => [new(5)]
+                TarotId.DevilishDeal => [new(4), new(2)],
+                TarotId.Gambler or TarotId.TaxCollector or TarotId.Astronomer => [], _ => [new(5)]
             };
             var used = CampaignShop.UseHeldTarot(begun, 0, targets);
             Assert.Equal(0, used.Resources.Inventory.Tarot.Length);
             Assert.True(used.Resources.Inventory.Sigils.SequenceEqual([SigilId.Bear]));
             Assert.True(used.Resources.Inventory.Jokers.SequenceEqual(initial.Resources.Inventory.Jokers));
-            Assert.True(used.Resources.Deck.Where(c => !targets.Contains(c.Id)).SequenceEqual(initial.Resources.Deck.Where(c => !targets.Contains(c.Id))));
+            var eligible = tarot is TarotId.Gambler or TarotId.DevilishDeal ? Six() : targets;
+            Assert.True(used.Resources.Deck.Where(c => !eligible.Contains(c.Id)).SequenceEqual(initial.Resources.Deck.Where(c => !eligible.Contains(c.Id))));
             Assert.False(used.Shop!.UseSession!.PurchasedItemUsed);
             switch (tarot)
             {
@@ -167,12 +168,12 @@ internal static class CampaignShopSessionTests
                     break;
                 case TarotId.TaxCollector: Assert.Equal(14, used.Money); break;
                 case TarotId.DevilishDeal:
-                    Assert.Equal(EnhancementId.Cursed, used.Resources.Deck[0].Enhancement!.Value);
+                    Assert.Equal(EnhancementId.Cursed, used.Resources.Deck.Single(c => eligible.Contains(c.Id) && !targets.Contains(c.Id) && c.Enhancement is not null).Enhancement!.Value);
                     Assert.True(used.Resources.Deck[4].Enhancement is not null && used.Resources.Deck[2].Enhancement is not null);
                     Assert.Equal(Snapshot(used), Snapshot(CampaignShop.UseHeldTarot(begun, 0, targets)));
                     break;
                 case TarotId.Gambler:
-                    Assert.True(used.Resources.Deck.Where(c => c.Enhancement == EnhancementId.Lucky).Select(c => c.Id.Value).ToHashSet().SetEquals([1, 3]));
+                    Assert.Contains(used.Resources.Deck.Single(c => c.Enhancement == EnhancementId.Lucky).Id, eligible);
                     break;
                 default: Assert.True(used.Resources.Deck[5].Enhancement is not null); break;
             }
@@ -212,7 +213,7 @@ internal static class CampaignShopSessionTests
         }
         foreach (var targets in new CardId[][] { [], [new(0), new(1)], [new(6)], [new(99)] })
             RejectedUnchanged(begun, () => CampaignShop.UsePurchased(begun, targets));
-        foreach (var targets in new CardId[][] { [], [new(0)], [new(0), new(0)], [new(0), new(6)], [new(0), new(99)] })
+        foreach (var targets in new CardId[][] { [new(0)], [new(0), new(0)], [new(0), new(6)], [new(0), new(99)] })
             RejectedUnchanged(begun, () => CampaignShop.UseHeldTarot(begun, 0, targets));
         RejectedUnchanged(begun, () => CampaignShop.UseHeldTarot(begun, -1, [new(0), new(1)]));
         RejectedUnchanged(begun, () => CampaignShop.UseHeldTarot(begun, 1, [new(0), new(1)]));

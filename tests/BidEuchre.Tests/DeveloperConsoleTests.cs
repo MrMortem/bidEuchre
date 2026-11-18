@@ -69,14 +69,15 @@ internal static class DeveloperConsoleTests
     {
         var (console, host) = Create();
         var listed = await console.ExecuteAsync("list tarot");
-        foreach (var name in new[] { "Festival", "Stone mason", "Ectoplasm", "Taxes" })
+        foreach (var name in new[] { "System Error", "Sweet Tooth", "Stone mason", "Ectoplasm", "Taxes" })
             Assert.True(listed.Any(line => line.Text.StartsWith(name + " ")), $"The developer catalogue must display {name}.");
         foreach (var retired in new[] { "love potion", "nightshade", "clover tonic", "crystal elixir", "glassblower", "999" })
             Assert.True(HasError(await console.ExecuteAsync($"tarot add {retired}")));
         foreach (var retired in new[] { "coin", "snake", "owl", "peacock", "999" })
             Assert.True(HasError(await console.ExecuteAsync($"sigil add {retired}")));
         Assert.Equal(0, host.Run!.Resources.Inventory.ItemCount);
-        await console.ExecuteAsync("tarot add festival 2");
+        await console.ExecuteAsync("tarot add system error");
+        await console.ExecuteAsync("tarot add festival");
         await console.ExecuteAsync("sigil add bear");
         Assert.Equal(3, host.Run!.Resources.Inventory.ItemCount);
         Assert.True(HasError(await console.ExecuteAsync("tarot add prospector 2")), "four item slots");

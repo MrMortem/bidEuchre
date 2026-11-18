@@ -468,6 +468,7 @@ public sealed class DeveloperConsole(IDeveloperHost host)
         static string Norm(string text) => new string(text.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
         var q = Norm(query);
         if (q.Length == 0) throw new DeveloperCommandException("Name something.");
+        if (category == FeatureCategory.Tarot && q == "festival") return nameof(TarotId.Chameleon);
         var entries = FeatureCatalog.All.Where(f => f.Category == category).ToArray();
         FeatureDefinition[] Pick(Func<string, bool> test) => entries.Where(f => test(Norm(f.Key)) || test(Norm(f.Name))).ToArray();
         foreach (var matches in new[] { Pick(n => n == q), Pick(n => n.StartsWith(q)), Pick(n => n.Contains(q)) })

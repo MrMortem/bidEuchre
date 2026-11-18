@@ -146,7 +146,7 @@ internal static class CampaignShopUiTests
         GumballDuplicateUiTests.Run("Retired");
         Console.WriteLine("PASS  Retired gumball purchases remain sold and render without restoring the removed bid");
         Console.WriteLine("PASS  Duplicate gumball pulls save their count and identify the reward after all active unlocks");
-        Console.WriteLine("PASS  Newly printed and inventory Astronomers share a committed purchase opportunity with all unlocks and full inventory");
+        Console.WriteLine("PASS  Newly printed and inventory Sweet Tooth tickets share a committed purchase opportunity with all unlocks and full inventory");
         SpectralTicketChoice();
         PrintedTicketTargets();
         CampaignShopUseUiTests.Run();
@@ -189,13 +189,10 @@ internal static class CampaignShopUiTests
                     .Select(b => int.Parse(b.Name![8..])).SequenceEqual(new[] { 1, 4, 7, 10, 13, 16 }), "Reloading a committed ticket must retain the same six physical cards.");
                 var required = CampaignShop.TarotTargets(chosen);
                 Require(Find(window, "ConfirmDeckChoice").IsEnabled == (required == 0), "Confirmation must require the appropriate number of fresh card choices.");
-                var targets = chosen == TarotId.Gambler ? new[] { offered[1], offered[4] } : offered.Take(required).ToArray();
+                var targets = offered.Take(required).ToArray();
                 foreach (var target in targets) Click(Find(window, $"DeckCard{target.Value}"));
                 if (chosen == TarotId.Gambler)
-                {
-                    Require(offered.All(id => Find(window, $"DeckCard{id.Value}").IsEnabled == (id.Value is 4 or 13)), "Gambler must enable only the selected cards for deselection at two targets.");
-                    Capture(window, "shop-gambler-two-selected");
-                }
+                    Require(offered.All(id => !Find(window, $"DeckCard{id.Value}").IsEnabled), "Gambler must choose its own target.");
                 var confirm = Find(window, "ConfirmDeckChoice");
                 Require(confirm.IsEnabled, "The offered target count must enable ticket confirmation.");
                 Click(confirm);
@@ -205,12 +202,12 @@ internal static class CampaignShopUiTests
                 var saved = CampaignStore.Load(path)!;
                 Require(saved.Resources.Inventory.ItemCount == 0 && Find(window, "FinishShopUse").IsEnabled, "Using the ticket must consume the purchase without storing a card and enable Done.");
                 var changed = saved.Resources.Deck.Where(c => c.Enhancement is not null).ToArray();
-                var expected = chosen == TarotId.TaxCollector ? 0 : chosen == TarotId.Gambler ? 2 : CampaignShop.TarotTargets(chosen);
+                var expected = chosen switch { TarotId.Gambler => 1, TarotId.DevilishDeal => 3, _ => required };
                 Require(changed.Length == expected && changed.All(c => offered.Contains(c.Id)), "Ticket effects must modify only the six offered cards.");
                 Require(saved.Money == (chosen == TarotId.TaxCollector ? 44 : 24), "Paid tickets must apply without charging again.");
                 if (chosen == TarotId.Prospector) Require(changed.Single().Id.Value == 1 && changed.Single().Enhancement == EnhancementId.Golden, "Prospector must enhance the exact selected offered card.");
-                if (chosen == TarotId.Gambler) Require(changed.Select(c => c.Id.Value).SequenceEqual(new[] { 4, 13 }) && changed.All(c => c.Enhancement == EnhancementId.Lucky), "Gambler must make exactly the selected two physical cards Lucky.");
-                if (chosen == TarotId.DevilishDeal) Require(saved.Resources.Deck.Single(c => c.Id.Value == 7).Enhancement == EnhancementId.Cursed, "Devilish Deal must preserve target order for its cursed third card.");
+                if (chosen == TarotId.Gambler) Require(changed.Single().Enhancement == EnhancementId.Lucky, "Gambler must make one offered card Lucky.");
+                if (chosen == TarotId.DevilishDeal) Require(changed.Single(c => !targets.Contains(c.Id)).Enhancement == EnhancementId.Cursed, "Devilish Deal must curse a third card outside the selection.");
                 Click(Find(window, "FinishShopUse"));
                 Require(Find(window, "CampaignNextMatch").IsEnabled, "After Done, the normal shop can be left.");
             }
@@ -385,6 +382,7 @@ internal static class CampaignShopUiTests
                     }
                     Click(Find(window, "ConfirmDeckChoice"));
                     Require(flow.Run!.Resources.Inventory.ItemCount == 0, "Using a printed ticket must not take a slot.");
+                    WaitFor(() => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "FinishShopUse" && b.IsEnabled));
                     Click(Find(window, "FinishShopUse"));
                 }
                 var after = CampaignStore.Load(path)!.Shop!.Offers.Single(o => o.Category == FeatureCategory.Tarot);

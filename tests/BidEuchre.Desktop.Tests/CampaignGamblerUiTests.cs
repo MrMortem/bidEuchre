@@ -30,8 +30,6 @@ internal static class CampaignGamblerUiTests
     private static void Await(Task task) { Until(() => task.IsCompleted); task.GetAwaiter().GetResult(); }
     private static T Await<T>(Task<T> task) { Await((Task)task); return task.GetAwaiter().GetResult(); }
     private static Button Find(MainWindow window, string name) => window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name);
-    private static Button HandCard(MainWindow window, CardId id) => window.GetVisualDescendants().OfType<Button>().Single(button =>
-        ToolTip.GetTip(button) is Control tip && tip.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == $"Card #{id.Value + 1} of the shared deck"));
     private static void Click(MainWindow window, Button button)
     {
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -59,35 +57,21 @@ internal static class CampaignGamblerUiTests
             var initial = Await(session.GetViewAsync(0))!.Campaign!;
             var hand = initial.Players[0].VisibleCards.Select(card => card.Id).ToArray();
             Require(hand.Length == 6, "A held Gambler starts with six cards in the live hand.");
-            var selected = new[] { hand[1], hand[4] };
             var before = File.ReadAllText(path);
-
             Click(window, Find(window, "ItemTarot0"));
-            Require(!Find(window, "UseItem").IsEnabled, "Held Gambler must not confirm without targets.");
-            Click(window, HandCard(window, selected[0]));
-            Require(!Find(window, "UseItem").IsEnabled, "Held Gambler must not confirm with just one target.");
-            Click(window, HandCard(window, selected[0]));
-            Require(!Find(window, "UseItem").IsEnabled, "The same physical hand card cannot count as two targets.");
-            Click(window, HandCard(window, selected[0]));
-            Click(window, HandCard(window, selected[1]));
-            Require(Find(window, "UseItem").IsEnabled, "Held Gambler must confirm after selecting two distinct cards.");
-            Require(hand.All(id => HandCard(window, id).IsEnabled == selected.Contains(id)), "At two selected hand cards, only the selected cards must remain enabled for deselection.");
-            Click(window, HandCard(window, selected[0]));
-            Require(!Find(window, "UseItem").IsEnabled && hand.All(id => HandCard(window, id).IsEnabled), "Deselecting a target must reopen the other card choices.");
+            Require(Find(window, "UseItem").IsEnabled, "Held Gambler needs no selected cards.");
             Click(window, Find(window, "CancelItem"));
             Require(File.ReadAllText(path) == before, "Canceling held Gambler must preserve its inventory, cards, and RNG.");
 
             Click(window, Find(window, "ItemTarot0"));
-            Require(!Find(window, "UseItem").IsEnabled, "Reopening held Gambler must clear the canceled choices.");
-            foreach (var id in selected) Click(window, HandCard(window, id));
             Click(window, Find(window, "UseItem"));
             Until(() => flow.Run!.Resources.Inventory.Tarot.Length == 0 && !Field<bool>(window, "_refreshing"));
             var saved = CampaignStore.Load(path)!;
             var lucky = saved.Resources.Deck.Where(card => card.Enhancement == EnhancementId.Lucky).Select(card => card.Id).ToArray();
-            Require(lucky.Length == 2 && lucky.All(selected.Contains), "Held Gambler must make exactly the two selected physical hand cards Lucky.");
+            Require(lucky.Length == 1 && hand.Contains(lucky[0]), "Held Gambler must make one random current hand card Lucky.");
             var after = Await(session.GetViewAsync(0))!.Campaign!;
-            Require(after.Players[0].VisibleCards.Where(card => selected.Contains(card.Id)).All(card => card.Enhancement == EnhancementId.Lucky), "Both selected cards must remain Lucky in the live hand.");
-            Console.WriteLine("PASS  Held Gambler requires two distinct hand cards, restores choices after deselection, cancels unchanged, and enhances exactly the chosen IDs");
+            Require(after.Players[0].VisibleCards.Single(card => card.Id == lucky[0]).Enhancement == EnhancementId.Lucky, "The saved Lucky card must match the live hand.");
+            Console.WriteLine("PASS  Held Gambler can be canceled and makes one random hand card Lucky without selections.");
         }
         finally
         {

@@ -274,8 +274,8 @@ internal static class CampaignArcadeTests
         Reject(session, () => CampaignShop.FinishUse(session));
         Reject(session, () => session.LeaveShop());
         Reject(session, () => CampaignArcade.PlayRoulette(session, 7));
-        session = CampaignShop.UseHeldTarot(RoundTrip(session), 0, pending.TargetCards.Take(2).ToArray());
-        Assert.True(pending.TargetCards.Take(2).All(id => session.Resources.Deck.Single(c => c.Id == id).Enhancement == EnhancementId.Lucky));
+        session = CampaignShop.UseHeldTarot(RoundTrip(session), 0, []);
+        Assert.Contains(session.Resources.Deck.Single(c => c.Enhancement == EnhancementId.Lucky).Id, pending.TargetCards);
         session = CampaignShop.UsePurchased(session, [pending.TargetCards[0]], session.Resources.Revision);
         session = CampaignShop.UseHeldTarot(session, 0, [pending.TargetCards[2]], session.Resources.Revision);
         session = CampaignShop.FinishUse(RoundTrip(session), session.Resources.Revision);
