@@ -39,19 +39,36 @@ internal static class ScoreHistoryControls
 
     public static IReadOnlyList<string> Events(GameView view) => view.PublicEvents.Count > 0 ? view.PublicEvents : view.Events;
 
+    public static IEnumerable<string> PokerWinners(GameView view, PokerRoundResult poker) =>
+        poker.Winners.Select(winner => $"{view.Players[winner.Seat].Name} · {winner.Category}");
+
     private static Control Hand(GameView view, HandResult hand)
     {
-        var team = hand.Bidder % 2;
-        var tricks = team == 0 ? $"{hand.BiddingTeamTricks}–{hand.DefendingTeamTricks}" : $"{hand.DefendingTeamTricks}–{hand.BiddingTeamTricks}";
-        var mode = hand.Contract.Mode == ContractMode.Trump ? hand.Contract.Trump.ToString() : hand.Contract.Mode.ToString();
-        var bid = hand.Contract.Bid switch { BidLevel.PartnersBest => "Partner's Best", BidLevel.Alone => "Alone", _ => ((int)hand.Contract.Bid).ToString() };
         var panel = new StackPanel { Spacing = 5 };
-        panel.Children.Add(Line($"Hand {hand.HandNumber} · {view.Players[hand.Bidder].Name} · {bid} · {mode} · {(hand.MadeContract ? "MADE" : "SET")}", Gold, true));
-        panel.Children.Add(Line($"TRICKS · Team 1–Team 2: {tricks}", Muted));
+        if (hand.PokerResult is { } poker)
+        {
+            panel.Children.Add(Line($"Hand {hand.HandNumber} · Poker", Gold, true));
+            foreach (var winner in PokerWinners(view, poker)) panel.Children.Add(Line(winner, Ink));
+        }
+        else if (hand.Contract is { } contract)
+        {
+            var tricks = hand.Bidder % 2 == 0 ? $"{hand.BiddingTeamTricks}–{hand.DefendingTeamTricks}" : $"{hand.DefendingTeamTricks}–{hand.BiddingTeamTricks}";
+            var mode = contract.Mode == ContractMode.Trump ? contract.Trump.ToString() : contract.Mode.ToString();
+            var bid = contract.Bid switch { BidLevel.PartnersBest => "Partner's Best", BidLevel.Alone => "Alone", _ => ((int)contract.Bid).ToString() };
+            panel.Children.Add(Line($"Hand {hand.HandNumber} · {view.Players[hand.Bidder].Name} · {bid} · {mode} · {(hand.MadeContract ? "MADE" : "SET")}", Gold, true));
+            panel.Children.Add(Line($"TRICKS · Team 1–Team 2: {tricks}", Muted));
+        }
         foreach (var part in hand.ScoreBreakdowns)
         {
             var names = string.Join(" + ", view.Players.Where(player => player.Team == part.Team).Select(player => player.Name));
             panel.Children.Add(Line($"Team {part.Team + 1} · {names}: {Signed(part.FinalDelta)}", part.Team == 0 ? Green : Gold, true));
+            if (hand.PokerResult is not null)
+            {
+                if (part.PokerPoints != 0) panel.Children.Add(Line($"Poker {Signed(part.PokerPoints)}", Ink));
+                foreach (var bonus in part.GumballBonuses.Where(bonus => bonus.Id == GumballId.Poker))
+                    panel.Children.Add(Line($"Poker copies {Signed(bonus.Points)}", Muted));
+                continue;
+            }
             panel.Children.Add(Line($"contract {Signed(part.ContractPoints)} · cards {Signed(part.CardPoints)} · Jokers {Signed(part.JokerPoints)} · trick modifiers {Signed(part.TrickModifierPoints)}", Ink));
             var subtotal = part.ContractPoints + part.CardPoints + part.JokerPoints + part.TrickModifierPoints;
             panel.Children.Add(Line($"Subtotal {Signed(subtotal)} · hand ×{part.HandMultiplier} = {Signed(subtotal * part.HandMultiplier)}", Muted));

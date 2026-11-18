@@ -19,7 +19,7 @@ internal static class CollectionPage
     private static readonly Category[] Categories =
     [
         new("Jokers", "Jokers", "Passive effects that work while you hold the Joker.", FeatureCategory.Joker),
-        new("Tarot", "Tarot cards", "One-time effects that change your cards or your run.", FeatureCategory.Tarot),
+        new("Tarot", "Arcade tickets", "One-time effects that change your cards or your run.", FeatureCategory.Tarot),
         new("Gumballs", "Gumballs", "Unlock new ways to bid during a campaign.", FeatureCategory.Gumball),
         new("PlayingCards", "Playing cards", "The 24-card deck: 9 through Ace in all four suits.", null),
         new("Enhancements", "Card enhancements", "Permanent card effects, previewed on the Ace of Spades.", FeatureCategory.Enhancement),
@@ -86,12 +86,29 @@ internal static class CollectionPage
             }
         }
 
+        CancellationTokenSource? queuedCategory = null;
+        async void SelectWhenReady(Category category)
+        {
+            queuedCategory?.Cancel();
+            using var request = new CancellationTokenSource();
+            queuedCategory = request;
+            try
+            {
+                await PixelArt.PreloadAsync(ScreenArtwork.Collection(category.Feature), request.Token);
+                if (!request.IsCancellationRequested) Select(category);
+            }
+            finally
+            {
+                if (ReferenceEquals(queuedCategory, request)) queuedCategory = null;
+            }
+        }
+
         foreach (var category in Categories)
         {
             var count = category.Feature is { } feature
                 ? FeatureCatalog.All.Count(item => item.Category == feature) : GameRules.CreateDeck().Count;
             var button = MenuParts.Button(category.Name, false, motion, $"Collection{category.Key}",
-                () => Select(category), stay: true, width: 184);
+                () => SelectWhenReady(category), stay: true, width: 184);
             button.Tag = category;
             button.Padding = new Thickness(12, 12);
             var label = Label(category.Name, null, 13);
@@ -145,6 +162,7 @@ internal static class CollectionPage
                 Place(Label("ALL ITEMS · SCROLL TO EXPLORE · ESC TO RETURN", Muted, 10), row: 2)
             }
         };
+        content.DetachedFromVisualTree += (_, _) => queuedCategory?.Cancel();
         content.KeyDown += (_, args) =>
         {
             if (args.Key != Key.Escape) return;
@@ -167,7 +185,7 @@ internal static class CollectionPage
 
     private static Border CardPreview(Card card, EnhancementId? enhancement = null) => new()
     {
-        Width = 88, Height = 124, ClipToBounds = true, CornerRadius = new CornerRadius(5),
+        Width = 88, Height = 124, ClipToBounds = enhancement is null, CornerRadius = new CornerRadius(5),
         HorizontalAlignment = HorizontalAlignment.Center, Child = PixelArt.CardContent(card, enhancement)
     };
 

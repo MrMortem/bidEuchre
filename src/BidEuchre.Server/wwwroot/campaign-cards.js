@@ -2,6 +2,16 @@
 window.CampaignCards = (() => {
   const e = value => escapeHtml(value);
   const words = value => splitWords(value);
+  const curated = {
+    Joker:['ThreesCompany','HighRoller','LoverBoy','SnakeEyes','TwinFlame','Clubhouse','TheUndertaker','RollerCoaster',
+      'DejaVu','LastLaugh','VowofSilence','CureAll','TrendSetter','Contrarian','ConsolationPrize','RoyalCouncil',
+      'DeepDigger','LuckyDuck','ProtectiveBubble','PennyPincher','Bully','PeoplePleaser','Millionaire','KingMidas',
+      'StickyFingers','Medusa','CheeseTouch','OneUp','Cheater','Alpha','SlickWilly','DoubleDown'],
+    Tarot:['Chameleon','Grindstone','Prospector','DevilishDeal','Gambler','Traitor','Astronomer','SpringLoaded','TaxCollector'],
+    Sigil:['Bear','Chameleon','Duck','Eagle','Fish','Frog','Spider','Vulture'],
+    Gumball:['Chaos','HighLow','Alone','Duelist','Poker','PartnersBest','Lowballer','Telepath'],
+    Enhancement:['Lucky','Golden','Wild','Cursed','Stone','Silver','Glass','Bouncy']
+  };
   function feature(state, category, key) {
     return state.catalog?.find(f => f.category === category && (f.key === key || f.id === key))
       ?? { name:words(key || category), description:'', id:'', key, category };
@@ -10,11 +20,15 @@ window.CampaignCards = (() => {
     if (!feature.id) return '';
     const [category, slug] = feature.id.split(':');
     if (!/^[a-z-]+$/.test(category) || !/^[a-z0-9-]+$/.test(slug)) return '';
-    const curated = {Sigil:['Bear','Chameleon','Duck','Eagle','Fish','Frog','Spider','Vulture'],
-      Gumball:['Chaos','HighLow','Alone']};
+    // Card-shaped surfaces show a Sigil as its collector card; playing-card badges keep the square icon.
+    if (feature.category === 'Sigil' && curated.Sigil.includes(feature.key)) return collectorArt(feature.key);
     return curated[feature.category]?.includes(feature.key)
       ? '/pixel/curated-' + category + '-' + slug + '.png'
       : '/pixel/campaign-placeholders/' + (category==='gumball'?'planet':category) + '/' + slug + '.png';
+  }
+  /** Collector card art for a Sigil name, 'Legendary' or 'Pack'. */
+  function collectorArt(key) {
+    return /^[A-Za-z]+$/.test(key || '') ? '/pixel/curated-collector-' + key.toLowerCase() + '.png' : '';
   }
   function label(card, index = null) {
     const rank = {Nine:'9',Ten:'10',Jack:'Jack',Queen:'Queen',King:'King',Ace:'Ace'}[card.face.rank] || cardRank(card.face);
@@ -22,13 +36,13 @@ window.CampaignCards = (() => {
       + (card.enhancement ? ', ' + words(card.enhancement) + ' enhancement' : '')
       + (card.sigil ? ', ' + words(card.sigil) + ' sigil' : '');
   }
-  function html(card, {interactive=false, index=null, selected=false, focusKey=''} = {}) {
+  function html(card, {interactive=false, index=null, selected=false, focusKey='', pokerWinner=false} = {}) {
     const tag = interactive ? 'button' : 'span';
-    const enhancement = String(card.enhancement || 'white').toLowerCase();
-    const background = /^[a-z]+$/.test(enhancement) ? '/pixel/card-background-' + enhancement + '.png' : '/pixel/card-background-white.png';
-    const sigil = card.sigil ? '<span class="campaign-sigil" aria-hidden="true">' + e(words(card.sigil)) + '</span>' : '';
-    return '<' + tag + (interactive ? ' type="button"' : ' role="img"') + ' class="playing-card campaign-card ' + (interactive?'legal ':'') + (selected?'selected':'') + '" data-card-id="' + card.id + '"'
-      + ' data-focus-key="' + e(focusKey || 'card:'+card.id) + '" aria-label="' + e(label(card,index)) + '"' + (interactive ? ' aria-pressed="'+selected+'"' : '')
+    const enhanced = curated.Enhancement.includes(card.enhancement);
+    const background = enhanced ? '/pixel/curated-enhancement-' + card.enhancement.toLowerCase() + '.png' : '/pixel/card-background-white.png';
+    const sigil = curated.Sigil.includes(card.sigil) ? '<img class="campaign-sigil" src="/pixel/curated-sigil-' + card.sigil.toLowerCase() + '.png" alt="" aria-hidden="true">' : '';
+    return '<' + tag + (interactive ? ' type="button"' : ' role="img"') + ' class="playing-card campaign-card ' + (enhanced?'campaign-card-enhanced ':'') + (interactive?'legal ':'') + (selected?'selected ':'') + (pokerWinner?'campaign-poker-winning-card':'') + '" data-card-id="' + card.id + '"'
+      + ' data-focus-key="' + e(focusKey || 'card:'+card.id) + '" aria-label="' + e(label(card,index)+(pokerWinner?', winning Poker hand':'')) + '"' + (interactive ? ' aria-pressed="'+selected+'"' : '')
       + ' style="--card-background:url(&quot;'+background+'&quot;)">' + cardFaceHtml(card.face) + sigil
       + (card.enhancement ? '<span class="campaign-enhancement" aria-hidden="true">'+e(words(card.enhancement))+'</span>' : '') + '</'+tag+'>';
   }
@@ -57,11 +71,11 @@ window.CampaignCards = (() => {
   function targets({title,cards,count,invoke,onConfirm,description=''}) {
     const chosen = new Set();
     const inspect = count == null;
-    const dialog = modal(title,(description?'<p class="campaign-prose">'+e(description)+'</p>':'')+'<p class="campaign-prose">'+(inspect ? 'Your shared deck. Card effects remain between matches.' : 'Choose exactly '+count+' distinct '+(count===1?'card':'cards')+'.')+'</p>'
-      + '<p id="campaign-selection-status" role="status"></p><div class="campaign-deck-grid">'+cards.map((card,index)=>'<div>'+html(card,{interactive:!inspect,index})+'<small>'+e(label(card))+'</small></div>').join('')+'</div>'
-      + '<div class="campaign-actions"><button class="button quiet" data-cancel>Cancel</button>'+(inspect?'':'<button class="button primary" data-confirm>Confirm targets</button>')+'</div>',invoke);
+    const dialog = modal(title,(description?'<p class="campaign-prose">'+e(description)+'</p>':'')+'<p class="campaign-prose">'+(inspect ? 'Your shared deck. Card effects remain between matches.' : count===0 ? 'Confirm to use this item.' : 'Choose exactly '+count+' distinct '+(count===1?'card':'cards')+'.')+'</p>'
+      + '<p id="campaign-selection-status" role="status"></p><div class="campaign-deck-grid">'+cards.map((card,index)=>'<div>'+html(card,{interactive:!inspect&&count>0,index})+'<small>'+e(label(card))+'</small></div>').join('')+'</div>'
+      + '<div class="campaign-actions"><button class="button quiet" data-cancel>Cancel</button>'+(inspect?'':'<button class="button primary" data-confirm>'+(count===0?'Use item':'Confirm targets')+'</button>')+'</div>',invoke);
     const update = () => {
-      dialog.querySelector('#campaign-selection-status').textContent = inspect ? '' : chosen.size+' / '+count+' selected';
+      dialog.querySelector('#campaign-selection-status').textContent = inspect||count===0 ? '' : chosen.size+' / '+count+' selected';
       dialog.querySelectorAll('button[data-card-id]').forEach(button=>{
         const selected=chosen.has(Number(button.dataset.cardId));
         button.dataset.cardLabel??=button.getAttribute('aria-label');
@@ -106,5 +120,5 @@ window.CampaignCards = (() => {
     dialog.querySelector('[data-save]').onclick=()=>{dialog.close();onConfirm(ordered.map(card=>card.id));};
     render();
   }
-  return {html,label,feature,art,targets,order,modal,close};
+  return {html,label,feature,art,collectorArt,targets,order,modal,close};
 })();

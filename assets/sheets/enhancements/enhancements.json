@@ -1,0 +1,276 @@
+{
+  "frames": {
+    "enhancement:lucky": {
+      "index": 0,
+      "name": "Lucky",
+      "key": "Lucky",
+      "row": 0,
+      "column": 0,
+      "frame": {
+        "x": 16,
+        "y": 16,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-lucky.png",
+      "sha256": "8c2952a7d29b5d12c188c8140fea42e2876e354ae1f3609945c34a8e803f900b",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-lucky.png",
+      "sourceSha256": "c31fb3bbac165f137fcd14eb85b296d7272bd00416d94bb160fa9f8c8ae48e32",
+      "originalSourceSha256": "ffe4bfb7af83a97564631d82194e7faf5686714e04eb677d02873e6d85e5c96b",
+      "originalSourceName": "Lucky.png"
+    },
+    "enhancement:golden": {
+      "index": 1,
+      "name": "Golden",
+      "key": "Golden",
+      "row": 0,
+      "column": 1,
+      "frame": {
+        "x": 172,
+        "y": 16,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-golden.png",
+      "sha256": "638fb1ba66ad5e84c01d82a3d28dc7d6f4b11a5b180bb22f0a9c878793f4867b",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-golden.png",
+      "sourceSha256": "4314ab0f5b38f95c7fd8b62307ed70f2a27fc1554e37605144f0527203ea06ff",
+      "originalSourceSha256": "c19fec9829eb709a0d35b64b5c0de7106a1fc70404adfe290df248bb717299ca",
+      "originalSourceName": "Gold Card (2).png"
+    },
+    "enhancement:wild": {
+      "index": 2,
+      "name": "Wild",
+      "key": "Wild",
+      "row": 0,
+      "column": 2,
+      "frame": {
+        "x": 328,
+        "y": 16,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-wild.png",
+      "sha256": "07ffd1111a22e69b6d971b00bd41bbf7f2bb9fb95ad1ce6e3a667e7f92821127",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-wild.png",
+      "sourceSha256": "77bfa22456440f55a5588f466c7d2ab292db106ef2e99c1a88b3dae6143a6e0f",
+      "originalSourceSha256": "1910efd3fc989770d453b3858c094f5c6f455e1d2085f799dbd2779c051cfb89",
+      "originalSourceName": "Wild Card (2).png"
+    },
+    "enhancement:cursed": {
+      "index": 3,
+      "name": "Cursed",
+      "key": "Cursed",
+      "row": 0,
+      "column": 3,
+      "frame": {
+        "x": 484,
+        "y": 16,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-cursed.png",
+      "sha256": "f3e864a4a7b93e0f2b95f50998db37848eafd14c424dcd5ec960ee8b7791b741",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-cursed.png",
+      "sourceSha256": "bae1131f53a8428b874579784ccc12e9b053fdeab1a4dc08ece63e4f3b92b612",
+      "originalSourceSha256": "b22ab5c4a5c22e98060a08cc2fe11705d8ddf1499d9f929f3d8bb33d4c3f3d0b",
+      "originalSourceName": "Curse Card (2).png"
+    },
+    "enhancement:stone": {
+      "index": 4,
+      "name": "Stone",
+      "key": "Stone",
+      "row": 1,
+      "column": 0,
+      "frame": {
+        "x": 16,
+        "y": 224,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-stone.png",
+      "sha256": "c09d4340356633823297f2b1a9147315d4983a61233b5ff9dbffa0147e474471",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-stone.png",
+      "sourceSha256": "24318070cadf25f2850e231a19d3fcf49c4b32120638f8166eefef5c211d166a",
+      "originalSourceSha256": "87779c61bdd4c29f931d5b59b7e7b933e21996b6c891f15f5d59c45358bdbf58",
+      "originalSourceName": "Stone BG (2).png"
+    },
+    "enhancement:silver": {
+      "index": 5,
+      "name": "Silver",
+      "key": "Silver",
+      "row": 1,
+      "column": 1,
+      "frame": {
+        "x": 172,
+        "y": 224,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-silver.png",
+      "sha256": "f35cdf859753b35a0bdd9e987b8caf06bb4e44ab6c2b2cf79fa880883f5575fc",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-silver.png",
+      "sourceSha256": "3e101ef5797ac2a206a1ebab364f62f83d3bfcc4027c5145238c51cca59ba7dd",
+      "originalSourceSha256": "f8b984c3406474f92c1c90d32aab6d60d975f773b26be3cf1015989208a0c74f",
+      "originalSourceName": "Silver Card (2).png"
+    },
+    "enhancement:glass": {
+      "index": 6,
+      "name": "Glass",
+      "key": "Glass",
+      "row": 1,
+      "column": 2,
+      "frame": {
+        "x": 328,
+        "y": 224,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-glass.png",
+      "sha256": "7265986d5b1c5d08397fe836680bf6406f7bc4721f7b682824d6d3601e1b73be",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-glass.png",
+      "sourceSha256": "7265986d5b1c5d08397fe836680bf6406f7bc4721f7b682824d6d3601e1b73be",
+      "originalSourceSha256": "5b68d96d8b8a75c12b167a6c4fb2f58b922f67a7697ac70b28b100c0078f2642",
+      "originalSourceName": "Glass Card (2).png"
+    },
+    "enhancement:bouncy": {
+      "index": 7,
+      "name": "Bouncy",
+      "key": "Bouncy",
+      "row": 1,
+      "column": 3,
+      "frame": {
+        "x": 484,
+        "y": 224,
+        "w": 124,
+        "h": 176
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 124,
+        "h": 176
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "file": "sprites/enhancement-bouncy.png",
+      "sha256": "b12783469e32bcffb2d16e5cdd98c17dc7e8849ea5a4006e72cc672ed8b10bac",
+      "sourceFile": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-enhancement-bouncy.png",
+      "sourceSha256": "cc8b16219df06ec27e1169b2acc8106350a72a5b91ade0f2b173871c788cb3c5",
+      "originalSourceSha256": "24801a4f5c292083ed473a809924ab4c1aa77ed8f5c0742872e60dc962f3b63c",
+      "originalSourceName": "Bouncy Card (2).png"
+    }
+  },
+  "meta": {
+    "image": "enhancements.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 624,
+      "h": 416
+    },
+    "count": 8,
+    "columns": 4,
+    "rows": 2,
+    "cellWidth": 156,
+    "cellHeight": 208,
+    "padding": 16,
+    "scale": "1",
+    "origin": "top-left",
+    "order": "active game catalogue; left to right, then top to bottom",
+    "sha256": "0b192d807a17ac742f5fb435b406af5766abc6896fde407362db4ab43dbdb5d3",
+    "sourceManifest": "../../curated-source/2026-11-16-enhancement-sheet-inputs/curated-art.json",
+    "sourceManifestSha256": "b758cc3d79d80c4c6240c8d5d000a3303f774570a460edbd12bf7da62445c998",
+    "filter": "nearest",
+    "mipmaps": false,
+    "alpha": "straight (unpremultiplied)",
+    "note": "Original 124x176 game substrates. Only perimeter matte is removed from seven opaque cards. Glass retains its original internal transparency. No labels or checkerboard in the atlas; game assets are unchanged."
+  }
+}

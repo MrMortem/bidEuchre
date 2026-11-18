@@ -1,0 +1,126 @@
+{
+  "count": 8,
+  "preservation": "Existing game assets and source files are unchanged. Every retained sprite RGBA pixel is preserved; masks cannot enter the protected interior. Glass is copied without any edits.",
+  "entries": [
+    {
+      "id": "enhancement:lucky",
+      "name": "Lucky",
+      "removedExteriorPixels": 1436,
+      "protectedInterior": {
+        "x": 8,
+        "y": 8,
+        "w": 108,
+        "h": 160
+      },
+      "transparentPixels": 1436,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected dark exterior; maximum RGB 32"
+    },
+    {
+      "id": "enhancement:golden",
+      "name": "Golden",
+      "removedExteriorPixels": 1241,
+      "protectedInterior": {
+        "x": 8,
+        "y": 8,
+        "w": 108,
+        "h": 160
+      },
+      "transparentPixels": 1241,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected dark exterior; maximum RGB 50"
+    },
+    {
+      "id": "enhancement:wild",
+      "name": "Wild",
+      "removedExteriorPixels": 1386,
+      "protectedInterior": {
+        "x": 8,
+        "y": 8,
+        "w": 108,
+        "h": 160
+      },
+      "transparentPixels": 1386,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected light exterior; minimum RGB 180"
+    },
+    {
+      "id": "enhancement:cursed",
+      "name": "Cursed",
+      "removedExteriorPixels": 1514,
+      "protectedInterior": {
+        "x": 8,
+        "y": 8,
+        "w": 108,
+        "h": 160
+      },
+      "transparentPixels": 1514,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected dark exterior; maximum RGB 32"
+    },
+    {
+      "id": "enhancement:stone",
+      "name": "Stone",
+      "removedExteriorPixels": 1190,
+      "protectedInterior": {
+        "x": 7,
+        "y": 7,
+        "w": 110,
+        "h": 162
+      },
+      "transparentPixels": 1190,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected dark exterior; maximum RGB 20"
+    },
+    {
+      "id": "enhancement:silver",
+      "name": "Silver",
+      "removedExteriorPixels": 1135,
+      "protectedInterior": {
+        "x": 8,
+        "y": 8,
+        "w": 108,
+        "h": 160
+      },
+      "transparentPixels": 1135,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected dark exterior; maximum RGB 32"
+    },
+    {
+      "id": "enhancement:glass",
+      "name": "Glass",
+      "removedExteriorPixels": 0,
+      "protectedInterior": {
+        "x": 0,
+        "y": 0,
+        "w": 124,
+        "h": 176
+      },
+      "transparentPixels": 12464,
+      "partialAlphaPixels": 9360,
+      "retainedPixelsUnchanged": true,
+      "mask": "none; exact original PNG including internal transparency"
+    },
+    {
+      "id": "enhancement:bouncy",
+      "name": "Bouncy",
+      "removedExteriorPixels": 1934,
+      "protectedInterior": {
+        "x": 8,
+        "y": 8,
+        "w": 108,
+        "h": 160
+      },
+      "transparentPixels": 1934,
+      "partialAlphaPixels": 0,
+      "retainedPixelsUnchanged": true,
+      "mask": "perimeter-connected dark exterior; maximum RGB 32"
+    }
+  ]
+}

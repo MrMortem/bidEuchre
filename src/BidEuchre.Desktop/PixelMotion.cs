@@ -6,7 +6,6 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
-using System.Diagnostics;
 using BidEuchre.App;
 using BidEuchre.Core;
 
@@ -16,10 +15,14 @@ namespace BidEuchre.Desktop;
 internal sealed class PixelMotion
 {
     public bool Enabled { get; private set; } = true;
+    /// <summary>Reduced motion: informational movement stays, ambient sway and shaking stop.</summary>
+    public bool Reduced { get; private set; }
+    /// <summary>Whether decorative, continuous movement should run.</summary>
+    public bool Lively => Enabled && !Reduced;
     private readonly HashSet<CancellationTokenSource> _active = [];
 
     public SuitBackdropMotion Backdrop { get; } = new();
-    public static double Now => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
+    public static double Now => AnimationClock.Now;
     public void SetContract(Contract? contract)
     {
         Backdrop.SetContract(contract, Now);
@@ -27,15 +30,22 @@ internal sealed class PixelMotion
     }
 
     private readonly Dictionary<Control, Action> _ambient = [];
-    private readonly DispatcherTimer _ambientTimer;
+    private IDisposable? _ambientFrames;
 
-    public PixelMotion()
+    private void UpdateAmbientSubscription()
     {
-        _ambientTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
-        _ambientTimer.Tick += (_, _) =>
+        if (Enabled && _ambient.Count > 0)
         {
-            foreach (var update in _ambient.Values) update();
-        };
+            _ambientFrames ??= AnimationClock.Shared.Subscribe(_ =>
+            {
+                foreach (var update in _ambient.Values) update();
+            });
+        }
+        else
+        {
+            _ambientFrames?.Dispose();
+            _ambientFrames = null;
+        }
     }
 
     // A dedicated wrapper keeps the fan, deal flight and selection lift independent.
@@ -62,9 +72,9 @@ internal sealed class PixelMotion
             lastTime = seconds;
             var angle = phaseAngle;
             var shift = offset?.Invoke(wrapper) ?? default;
-            rotate.Angle = Enabled ? Math.Sin(angle) * (background ? 1.8 : .85) : 0;
+            rotate.Angle = Lively ? Math.Sin(angle) * (background ? 1.8 : .85) : 0;
             lift.X = shift.X;
-            lift.Y = shift.Y + (Enabled ? Math.Cos(angle) * (background ? 4 : 1.8) : 0);
+            lift.Y = shift.Y + (Lively ? Math.Cos(angle) * (background ? 4 : 1.8) : 0);
         }
         // Layout can complete after attachment, including while the motion timer
         // is stopped. Static contract positions must also follow window resizing.
@@ -77,17 +87,26 @@ internal sealed class PixelMotion
     /// whenever motion is switched, so it can settle into a still pose.</summary>
     public void Ambient(Control control, Action update)
     {
-        control.AttachedToVisualTree += (_, _) =>
+        void Attach()
         {
             _ambient[control] = update;
             update();
-            if (Enabled) _ambientTimer.Start();
-        };
+            UpdateAmbientSubscription();
+        }
+        control.AttachedToVisualTree += (_, _) => Attach();
+        if (control.IsAttachedToVisualTree()) Attach();
         control.DetachedFromVisualTree += (_, _) =>
         {
             _ambient.Remove(control);
-            if (_ambient.Count == 0) _ambientTimer.Stop();
+            UpdateAmbientSubscription();
         };
+    }
+
+    public void SetReduced(bool reduced)
+    {
+        if (Reduced == reduced) return;
+        Reduced = reduced;
+        foreach (var update in _ambient.Values) update();
     }
 
     public void SetEnabled(bool enabled)
@@ -95,8 +114,7 @@ internal sealed class PixelMotion
         Enabled = enabled;
         if (!enabled) Cancel();
         foreach (var update in _ambient.Values) update();
-        if (enabled && _ambient.Count > 0) _ambientTimer.Start();
-        else _ambientTimer.Stop();
+        UpdateAmbientSubscription();
     }
 
     public void Cancel()

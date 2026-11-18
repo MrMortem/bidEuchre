@@ -17,6 +17,7 @@ public sealed partial class GameEngine
     private int? _duelOpponent;
     private bool _duelistUsedThisMatch;
     private bool _pokerRevealed;
+    private PokerRoundResult? _pokerResult;
     private bool _telepathDone;
     private readonly int[] _cardPoints = new int[2];
     private readonly int[] _jokerPoints = new int[2];
@@ -68,7 +69,7 @@ public sealed partial class GameEngine
         _variant = null; _pendingBidVariant = null; _pendingChoice = null; _pendingActor = null; _duelOpponent = null;
         _campaignTrickHistory.Clear(); _trickPoints.Clear();
         _rollerValue = 0; _firstHumanRoundCard = false;
-        _pokerRevealed = false; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
+        _pokerRevealed = false; _pokerResult = null; _telepathDone = false; _reveals.Clear(); _wildSuits.Clear(); _stickyTriggered.Clear();
         Array.Clear(_cardPoints); Array.Clear(_jokerPoints); Array.Clear(_modifierPoints);
         _handWalletStart = _resources.Wallets.ToArray();
         var available = _resources.Deck.Select(c => c.Id).ToList();
@@ -121,7 +122,6 @@ public sealed partial class GameEngine
             case GamePhase.Bidding:
                 if (CanPass) actions.Add(new CampaignCommand.Pass());
                 actions.AddRange(CampaignBids(seat));
-                if (seat == 0 && !Has(JokerId.VowofSilence) && _resources.Inventory.Unlocks.Contains(GumballId.PanicButton)) actions.Add(new CampaignCommand.PanicButton());
                 break;
             case GamePhase.ChoosingContract:
                 foreach (var mode in GetContractModes())
@@ -135,6 +135,9 @@ public sealed partial class GameEngine
                 actions.AddRange(_hands[seat].Select(c => new CampaignCommand.Exchange(IdFor(c)))); break;
             case GamePhase.Playing:
                 actions.AddRange(CampaignLegalPlays(seat)); break;
+            case GamePhase.PokerReveal:
+                if (seat == 0) actions.Add(new CampaignCommand.CompletePoker());
+                break;
         }
         return actions;
     }
@@ -143,18 +146,25 @@ public sealed partial class GameEngine
         if (!IsCampaign) throw new GameRuleException("This is not a campaign table.");
         if (viewerSeat is { } v) GameRules.ValidateSeat(v);
         var players = Enumerable.Range(0, 4).Select(seat => new CampaignPlayerView(seat, _hands[seat].Count,
-            _hands[seat].Where(c => viewerSeat == seat || _pokerRevealed || viewerSeat is { } who && _reveals.Contains((who, IdFor(c))))
+            _hands[seat].Where(c => viewerSeat == seat || _pokerRevealed || _pokerResult is not null || viewerSeat is { } who && _reveals.Contains((who, IdFor(c))))
                 .Select(CardView).ToArray(), !CampaignActive(seat))).ToArray();
         return new(_resources.Revision, DealSerial, viewerSeat, players, viewerSeat is { } actor ? CampaignLegal(actor) : [],
             _currentTrick.Select(p => new CampaignTrickPlay(p.Seat, CardView(p.Card), EffectiveCampaignSuit(p.Card))).ToArray(), _events.ToArray(),
             viewerSeat == 0 ? _resources.Inventory.Copy() : CampaignInventory.Empty, viewerSeat is { } wallet ? _resources.Wallets[wallet] : 0, HandNumber, _targetScore, _pendingChoice)
-        { LastTrick = _campaignTrickHistory.GetValueOrDefault(_completedTricks.Count) ?? [] };
+        {
+            LastTrick = _campaignTrickHistory.GetValueOrDefault(_completedTricks.Count) ?? [],
+            EffectSequence = _effectSequence,
+            ScoringEffects = Array.AsReadOnly(_scoringEffects.ToArray()),
+            PokerResult = _pokerResult
+        };
     }
     /// <summary>Puts a hand in the order its player arranged it. Arranging never costs a turn, and only
     /// Sticky Fingers reads the order: its "leftmost remaining card" is the first card here.</summary>
     public void ArrangeCampaignHand(int seat, IReadOnlyList<CardId> order)
     {
+        ViewRevision++;
         if (!IsCampaign) throw new GameRuleException("This is not a campaign table.");
+        if (Phase == GamePhase.PokerReveal) throw new GameRuleException("The Poker hands have already been revealed.");
         GameRules.ValidateSeat(seat);
         var hand = _hands[seat];
         var arranged = order?.Select(TokenFor).ToArray() ?? throw new GameRuleException("Arrange the cards in your hand.");
@@ -164,6 +174,7 @@ public sealed partial class GameEngine
     }
     public void ExecuteCampaignAction(int seat, CampaignCommand command)
     {
+        ViewRevision++;
         if (!IsCampaign) throw new GameRuleException("Campaign actions require a campaign table.");
         GameRules.ValidateSeat(seat);
         if (command is CampaignCommand.UseTarot tarot) { UseItem(() => ResolveTarot(seat, tarot)); CommitCampaign(); return; }
@@ -181,10 +192,6 @@ public sealed partial class GameEngine
                     if (p.EffectiveSuit is { } suit) _wildSuits[p.Id] = suit;
                     PlayCard(seat, TokenFor(p.Id)); break;
                 case CampaignCommand.Exchange e: ExchangeCard(seat, TokenFor(e.Id)); break;
-                case CampaignCommand.PanicButton:
-                    _scores[0] -= 8; CompletionReason = "Panic Button: your team -8; hand consumed."; _events.Add(CompletionReason);
-                    CurrentSeat = null; GameWinner = DetermineGameWinner(); Phase = GameWinner is null ? GamePhase.HandComplete : GamePhase.GameComplete;
-                    if (GameWinner is not null) CampaignMatchEnd(); break;
                 case CampaignCommand.SwapPartnerCard swap:
                     var other = _hands[2][_campaignRandom.NextInt(_hands[2].Count)]; var token = TokenFor(swap.Id);
                     _hands[0].Remove(token); _hands[2].Remove(other); _hands[0].Add(other); _hands[2].Add(token);
@@ -195,10 +202,11 @@ public sealed partial class GameEngine
                 case CampaignCommand.RevealPartnerCard reveal:
                     _reveals.Add((Bidder!.Value, reveal.Id)); _pendingChoice = null; _pendingActor = null; _telepathDone = true; break;
                 case CampaignCommand.SelectOpponent duel: _duelOpponent = duel.Seat; _pendingChoice = null; _pendingActor = null; break;
+                case CampaignCommand.CompletePoker: CompletePoker(); break;
             }
             AutoPassVow(); CommitCampaign();
         }
-        finally { _dispatchCampaign = false; }
+        finally { _dispatchCampaign = false; _pendingBidVariant = null; }
     }
     private void CommitCampaign()
     { _resources = _resources with { Revision = _resources.Revision + 1, RandomState = _campaignRandom.State }; _campaign!.Replace(ExportCampaignSnapshot()); }
@@ -233,52 +241,46 @@ public sealed partial class GameEngine
     }
     private IEnumerable<CampaignCommand.Play> CampaignLegalPlays(int seat)
     {
-        var hand = _hands[seat]; var following = _currentTrick.Count == 0 ? [] : hand.Where(c => StateFor(c).Enhancement == EnhancementId.Wild || EffectiveCampaignSuit(c) == EffectiveCampaignSuit(_currentTrick[0].Card)).ToArray();
-        var chameleon = _currentTrick.Count > 0 && StateFor(_currentTrick[0].Card).Sigil == SigilId.Chameleon;
-        var off = hand.Except(following).ToArray();
-        var legal = chameleon && off.Length > 0 ? off : following.Length > 0 && !chameleon ? following : hand.ToArray();
+        var hand = _hands[seat];
+        var lead = _currentTrick.FirstOrDefault();
+        var ledSuit = lead is null ? (Suit?)null : EffectiveCampaignSuit(lead.Card);
+        var following = ledSuit is { } led
+            ? hand.Where(card => StateFor(card).Enhancement == EnhancementId.Wild || EffectiveCampaignSuit(card) == led).ToArray()
+            : [];
+        var offSuit = hand.Except(following).ToArray();
+        var chameleon = lead is not null && StateFor(lead.Card).Sigil == SigilId.Chameleon;
+        // Chameleon requires an off-suit card when one is available. Wild counts as following.
+        var legal = chameleon && offSuit.Length > 0 ? offSuit : following.Length > 0 ? following : hand.ToArray();
         foreach (var token in legal)
         {
             var state = StateFor(token);
             if (state.Enhancement == EnhancementId.Wild)
             {
-                var suits = _currentTrick.Count > 0 && following.Contains(token) && (!chameleon || off.Length == 0) ? new[] { EffectiveCampaignSuit(_currentTrick[0].Card) } : Enum.GetValues<Suit>();
-                foreach (var suit in suits) yield return new(state.Id, suit);
+                var suits = ledSuit is { } suit ? [suit] : Enum.GetValues<Suit>();
+                foreach (var choice in suits) yield return new(state.Id, choice);
             }
             else yield return new(state.Id);
         }
     }
-    private Card EffectiveCampaignCard(Card token)
-    {
-        var state = StateFor(token); var face = state.Face;
-        if (state.Sigil == SigilId.Bear) face = face with { Rank = face.Rank == Rank.Ace ? Rank.Nine : (Rank)((int)face.Rank + 1) };
-        if (state.Enhancement == EnhancementId.Wild && _wildSuits.TryGetValue(state.Id, out var suit)) face = face with { Suit = suit };
-        return face;
-    }
+
+    private Suit? DeclaredWildSuit(CardId id) => _wildSuits.TryGetValue(id, out var suit) ? suit : null;
+
     private Suit EffectiveCampaignSuit(Card token)
     {
-        var state = StateFor(token);
-        if (state.Enhancement == EnhancementId.Wild && _wildSuits.TryGetValue(state.Id, out var selected)) return selected;
-        return Contract is null ? EffectiveCampaignCard(token).Suit : GameRules.EffectiveSuit(EffectiveCampaignCard(token), Contract);
+        var card = StateFor(token);
+        return CampaignCardRules.EffectiveSuit(card.Face, card.Enhancement, card.Sigil, Contract, DeclaredWildSuit(card.Id));
     }
+
     private int CampaignTrickWinner()
     {
         var led = EffectiveCampaignSuit(_currentTrick[0].Card);
-        int Strength(CardPlay play)
+        return _currentTrick.MaxBy(play =>
         {
-            var card = EffectiveCampaignCard(play.Card); var suit = EffectiveCampaignSuit(play.Card);
-            if (Contract!.Mode == ContractMode.Trump && suit == Contract.Trump)
-                return card.Rank == Rank.Jack ? StateFor(play.Card).Enhancement == EnhancementId.Wild || card.Suit == Contract.Trump ? 400 : 399 : 200 + (int)card.Rank;
-            if (suit != led) return int.MinValue;
-            return Contract.Mode == ContractMode.Low ? 100 - (int)card.Rank : 100 + (int)card.Rank;
-        }
-        return _currentTrick.MaxBy(Strength)!.Seat;
+            var card = StateFor(play.Card);
+            return CampaignCardRules.TrickPower(card.Face, card.Enhancement, card.Sigil, Contract!, led, DeclaredWildSuit(card.Id));
+        })!.Seat;
     }
-    private void CampaignContractSelected()
-    {
-        RecordContract();
-        if (_variant == GumballId.Poker) ResolvePoker();
-    }
+
     private void RecordContract()
     {
         var key = new ContractKey(Contract!.Mode, Contract.Trump);
@@ -286,7 +288,6 @@ public sealed partial class GameEngine
         _resources = _resources with { PreviousContract = key };
     }
     private void RollChaos() { Contract = Contract! with { Mode = ContractMode.Trump, Trump = (Suit)_campaignRandom.NextInt(4) }; _events.Add($"Chaos trump: {Contract.Trump}."); }
-    private void CampaignOnPlay(int seat, Card token) => ResolvePlayedCard(seat, token);
     private void CampaignOnTrick(int winner, IReadOnlyList<CardPlay> plays)
     {
         _campaignTrickHistory[_completedTricks.Count] = plays.Select(p => new CampaignTrickPlay(p.Seat, CardView(p.Card), EffectiveCampaignSuit(p.Card))).ToArray();
@@ -302,15 +303,51 @@ public sealed partial class GameEngine
         catch
         {
             _resources = before; _campaignRandom = new(before.RandomState); _effectSequence = sequence;
+            _scoringEffects.RemoveAll(effect => effect.Sequence > sequence);
             _events.RemoveRange(eventCount, _events.Count - eventCount); throw;
         }
     }
-    private void ResolvePoker()
+    private sealed record PokerSettlement(PokerRoundResult Result, TeamScoreBreakdown[] Breakdowns,
+        (int[] Deltas, int Team0, int Team1) Score);
+
+    private PokerSettlement PreparePokerShowdown()
     {
-        _pokerRevealed = true;
-        var values = Enumerable.Range(0, 4).Select(s => PokerEvaluator.Best(_hands[s].Select(c => StateFor(c).Face).ToArray())).ToArray();
-        var best = values.Max()!;
-        foreach (var team in Enumerable.Range(0, 4).Where(s => values[s].CompareTo(best) == 0).Select(s => s % 2).Distinct()) _jokerPoints[team] += 4;
-        _events.Add("Poker: all hands revealed; best hand awards 4 points per winning team.");
+        var result = PokerEvaluator.Showdown(_hands.Select(hand => hand.Select(StateFor)));
+        var bonus = result.TeamPoints[0] > 0 ? _resources.Inventory.GumballExtraCopies.GetValueOrDefault(GumballId.Poker) : 0;
+        TeamScoreBreakdown[] breakdowns =
+        [
+            new(0, 0, 0, 0, 0, 1, 0)
+            {
+                PokerPoints = result.TeamPoints[0],
+                GumballBonuses = bonus > 0 ? [new(0, GumballId.Poker, bonus)] : []
+            },
+            new(1, 0, 0, 0, 0, 1, 0) { PokerPoints = result.TeamPoints[1] }
+        ];
+        return new(result, breakdowns, CalculateHandScore(breakdowns));
+    }
+
+    private void RevealPoker(PokerSettlement poker)
+    {
+        _pokerResult = poker.Result;
+        foreach (var winner in poker.Result.Winners)
+            _events.Add($"Poker: {_playerNames[winner.Seat]} revealed {winner.Category}.");
+        foreach (var reward in poker.Breakdowns[0].GumballBonuses)
+            _events.Add($"Poker duplicates: +{reward.Points} points for team 1.");
+        RecordHandScore(poker.Breakdowns, poker.Score, "Poker showdown.", madeContract: false, poker.Result);
+        Phase = GamePhase.PokerReveal;
+        CurrentSeat = 0;
+    }
+
+    private void ClearPokerReveal()
+    {
+        _pokerResult = null;
+        foreach (var hand in _hands) hand.Clear();
+    }
+
+    private void CompletePoker()
+    {
+        ClearPokerReveal();
+        FinishScoredHand();
+        if (Phase == GamePhase.HandComplete) StartNextHand();
     }
 }

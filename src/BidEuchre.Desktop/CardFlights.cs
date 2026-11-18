@@ -25,6 +25,8 @@ internal sealed class CardFlights(Canvas overlay)
     private readonly Dictionary<int, Control> _players = [];
     private CancellationTokenSource? _collection;
     private Action? _collectionDone;
+    private TaskCompletionSource? _collectionFinished;
+    public Task CollectionCompletion => _collectionFinished?.Task ?? Task.CompletedTask;
     private Control? _collectionVisual;
     private HashSet<string> _collectionKeys = [];
     public bool Collecting => _collection is not null;
@@ -60,7 +62,7 @@ internal sealed class CardFlights(Canvas overlay)
         }
     }
 
-    public void EndFrame(bool enabled, int? collectWinner = null, Action? collected = null)
+    public void EndFrame(bool enabled, int? collectWinner = null, Action? collected = null, int holdMilliseconds = 0)
     {
         foreach (var key in _active.Keys.Except(_targets.Keys).ToArray()) Stop(key);
         if (!enabled) { Cancel(); collected?.Invoke(); return; }
@@ -78,8 +80,9 @@ internal sealed class CardFlights(Canvas overlay)
         {
             _collection = new CancellationTokenSource();
             _collectionDone = collected;
+            _collectionFinished = new(TaskCreationOptions.RunContinuationsAsynchronously);
             _collectionKeys = _targets.Keys.ToHashSet();
-            _ = Collect(winner, _collection);
+            _ = Collect(winner, _collection, holdMilliseconds);
         }
     }
 
@@ -95,12 +98,12 @@ internal sealed class CardFlights(Canvas overlay)
         foreach (var target in _targets.Values) target.Card.Opacity = 1;
     }
 
-    private async Task Collect(int winner, CancellationTokenSource source)
+    private async Task Collect(int winner, CancellationTokenSource source, int holdMilliseconds)
     {
         try
         {
-            // Let the fourth card land, then briefly show the result.
-            await Task.Delay(MotionCurves.FlightMilliseconds + MotionCurves.TrickHoldMilliseconds, source.Token);
+            // Let the fourth card land and any scoring cards finish jolting, then briefly show the result.
+            await Tween.Delay(Math.Max(MotionCurves.FlightMilliseconds, holdMilliseconds) + MotionCurves.TrickHoldMilliseconds, source.Token);
             if (!_players.TryGetValue(winner, out var portrait) ||
                 portrait.TranslatePoint(new Point(portrait.Bounds.Width / 2, portrait.Bounds.Height / 2), overlay) is not { } destination) return;
             var cards = new List<(Target Target, Point Center, double Width)>();
@@ -143,15 +146,20 @@ internal sealed class CardFlights(Canvas overlay)
             _collectionVisual = group;
             overlay.Children.Add(group);
             // Squeeze the trick into a loose pile, then sweep it to the winner.
-            var pile = group.Children.Select(child => (Child: child, Left: Canvas.GetLeft(child), Top: Canvas.GetTop(child),
-                X: center.X - left - child.Width / 2, Y: center.Y - top - child.Height / 2)).ToArray();
+            var pile = group.Children.Select(child =>
+            {
+                var transform = new TranslateTransform();
+                child.RenderTransform = transform;
+                return (Shift: transform, X: center.X - left - child.Width / 2 - Canvas.GetLeft(child),
+                    Y: center.Y - top - child.Height / 2 - Canvas.GetTop(child));
+            }).ToArray();
             await Tween.Run(MotionCurves.GatherMilliseconds, source.Token, t =>
             {
                 var pull = MotionCurves.EaseInOut(t) * .4;
                 foreach (var card in pile)
                 {
-                    Canvas.SetLeft(card.Child, card.Left + (card.X - card.Left) * pull);
-                    Canvas.SetTop(card.Child, card.Top + (card.Y - card.Top) * pull);
+                    card.Shift.X = card.X * pull;
+                    card.Shift.Y = card.Y * pull;
                 }
             });
             await Tween.Run(MotionCurves.CollectMilliseconds, source.Token, t =>
@@ -180,10 +188,18 @@ internal sealed class CardFlights(Canvas overlay)
         _collectionKeys.Clear();
         var done = _collectionDone;
         _collectionDone = null;
-        done?.Invoke();
+        var finished = _collectionFinished;
+        _collectionFinished = null;
+        try { done?.Invoke(); }
+        finally { finished?.TrySetResult(); }
     }
 
     private Origin? FindOrigin(string key) => _origins.GetValueOrDefault(key) ?? _origins.GetValueOrDefault(key.Split(':')[0] + ":back");
+    /// <summary>A card leaving a hidden hand starts face down and turns over on the way to the table.</summary>
+    private bool FromHiddenHand(string key) => !_origins.ContainsKey(key) && _origins.ContainsKey(key.Split(':')[0] + ":back");
+
+    /// <summary>Part of the flight in which a hidden card turns over, as fractions of its linear time.</summary>
+    private const double TurnFrom = .12, TurnTo = .58;
 
     private void Stop(string key)
     {
@@ -212,9 +228,10 @@ internal sealed class CardFlights(Canvas overlay)
         var transforms = new TransformGroup { Children = { scale, rotation, shift } };
         var face = target.Face();
         face.Margin = new Thickness(0);
+        var hidden = FromHiddenHand(key);
         var visual = new Viewbox
         {
-            Width = width, Height = height, Child = face, IsHitTestVisible = false,
+            Width = width, Height = height, Child = hidden ? DeckDeal.Back() : face, IsHitTestVisible = false,
             RenderTransformOrigin = new RelativePoint(.5, .5, RelativeUnit.Relative), RenderTransform = transforms
         };
         Canvas.SetLeft(visual, destination.X - width / 2);
@@ -242,6 +259,11 @@ internal sealed class CardFlights(Canvas overlay)
                 rotation.Angle = angle * (1 - eased);
                 // The card rises slightly off the felt in mid-flight.
                 scale.ScaleX = scale.ScaleY = (startScale + (1 - startScale) * eased) * (1 + .05 * lift);
+                if (!hidden) return;
+                // Edge-on halfway through the turn, where the back gives way to the face.
+                var turn = Math.Clamp((t - TurnFrom) / (TurnTo - TurnFrom), 0, 1);
+                if (turn >= .5 && !ReferenceEquals(visual.Child, face)) visual.Child = face;
+                scale.ScaleX *= Math.Max(.02, Math.Abs(Math.Cos(turn * Math.PI)));
             });
         }
         catch (OperationCanceledException) { }

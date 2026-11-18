@@ -60,7 +60,7 @@ public sealed partial class MainWindow
         {
             await session.CompleteContractPresentationAsync(deal);
             if (!ReferenceEquals(session, _session) || _liveSettingsOpen) return;
-            _renderKey = null;
+            _renderedView = null;
             await RefreshGameAsync();
             SyncNativeInput();
         }

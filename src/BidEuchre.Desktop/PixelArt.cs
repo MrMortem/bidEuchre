@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -5,6 +7,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using BidEuchre.App;
 using BidEuchre.Core;
 
 namespace BidEuchre.Desktop;
@@ -12,18 +15,72 @@ namespace BidEuchre.Desktop;
 internal static class PixelArt
 {
     public static readonly FontFamily Font = new("avares://BidEuchre/Pixel#Silkscreen");
-    private static readonly Dictionary<string, Bitmap> Images = new();
+    private static readonly ConcurrentDictionary<string, Lazy<Bitmap>> Images = new();
+    private static readonly SemaphoreSlim PreloadSlot = new(1, 1);
     private static readonly Dictionary<string, IImage> Crops = new();
+
+    private static long _decodedBytes;
+    private static long _decodeTicks;
+    private static int _decodedCount;
+    internal static (int Count, long Bytes, double DecodeMilliseconds) ArtworkMetrics =>
+        (Volatile.Read(ref _decodedCount), Interlocked.Read(ref _decodedBytes),
+            Interlocked.Read(ref _decodeTicks) * 1000d / Stopwatch.Frequency);
+
+    private static Uri Resource(string name) => new($"avares://BidEuchre/Pixel/{name}.png");
 
     private static Bitmap Load(string name)
     {
-        if (!Images.TryGetValue(name, out var image))
+        var entry = Images.GetOrAdd(name, static key => new Lazy<Bitmap>(() => Decode(key)));
+        try { return entry.Value; }
+        catch
         {
-            using var stream = AssetLoader.Open(new Uri($"avares://BidEuchre/Pixel/{name}.png"));
-            Images[name] = image = new Bitmap(stream);
+            Images.TryRemove(new KeyValuePair<string, Lazy<Bitmap>>(name, entry));
+            throw;
         }
+    }
+
+    private static Bitmap Decode(string name)
+    {
+        var started = Stopwatch.GetTimestamp();
+        using var stream = AssetLoader.Open(Resource(name));
+        var image = new Bitmap(stream);
+        Interlocked.Add(ref _decodedBytes, (long)image.PixelSize.Width * image.PixelSize.Height * 4);
+        Interlocked.Add(ref _decodeTicks, Stopwatch.GetTimestamp() - started);
+        Interlocked.Increment(ref _decodedCount);
         return image;
     }
+
+    internal static bool IsArtworkReady(string name) => Images.TryGetValue(name, out var entry) && entry.IsValueCreated;
+
+    internal static Task PreloadAsync(IEnumerable<string> artwork, CancellationToken token = default)
+    {
+        var missing = artwork.Where(name => !IsArtworkReady(name)).Distinct(StringComparer.Ordinal).ToArray();
+        if (missing.Length == 0 || token.IsCancellationRequested) return Task.CompletedTask;
+        return Task.Run(async () =>
+        {
+            try { await PreloadSlot.WaitAsync(token); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            try
+            {
+                foreach (var name in missing)
+                {
+                    if (token.IsCancellationRequested) break;
+                    try { _ = Load(name); }
+                    catch (Exception error) when (error is IOException or ArgumentException or InvalidOperationException)
+                    {
+                        // Speculative decoding should not prevent navigation. A normal load can retry.
+                        Trace.TraceWarning($"Could not preload artwork '{name}': {error.Message}");
+                    }
+                }
+            }
+            finally { PreloadSlot.Release(); }
+        });
+    }
+
+    /// <summary>Collector card art: a Sigil name, "Legendary" or "Pack".</summary>
+    public static Bitmap CollectorImage(string packKey) => Load(CollectorImageName(packKey));
+
+    internal static string CollectorImageName(string packKey) => "curated-collector-" + packKey.ToLowerInvariant();
 
     private static IImage Tile(string name, int column, int row, int columns, int rows)
     {
@@ -63,8 +120,16 @@ internal static class PixelArt
     }
     // A shared logical canvas preserves the cover crop while each suit rocks about
     // its own center. Only the small transparent crop moves; the flames stay still.
-    public static Control TableScene(PixelMotion motion)
+    public static Control TableScene(PixelMotion motion, CampaignRun? run = null)
     {
+        if (run is { Phase: CampaignPhase.InMatch } && BossArenaName(run) is { } arena)
+        {
+            return new Image
+            {
+                Name = "CampaignArena", Source = Load(arena),
+                Stretch = Stretch.UniformToFill, IsHitTestVisible = false, ClipToBounds = true
+            };
+        }
         var scene = new TableScenePanel { IsHitTestVisible = false, ClipToBounds = true };
         scene.Children.Add(new Image { Source = Load("table-flames"), Stretch = Stretch.Fill });
         for (var index = 0; index < TableScenePanel.Suits.Length; index++)
@@ -90,6 +155,12 @@ internal static class PixelArt
         }
         return scene;
     }
+
+    internal static string? BossArenaName(CampaignRun run) => !run.IsBoss ? null : ((run.Ante - 1) % 5) switch
+    {
+        0 => "boss-arena-club", 1 => "boss-arena-diamond", 2 => "boss-arena-heart",
+        3 => "boss-arena-spade", _ => "boss-arena-cursed"
+    };
 
     private sealed class TableScenePanel : Panel
     {
@@ -124,24 +195,40 @@ internal static class PixelArt
 
     public static Image Back(double width = 42, double height = 62) => Sprite(Load("back"), width, height);
 
-    private static bool HasImage(string name) => Images.ContainsKey(name) ||
-        AssetLoader.Exists(new Uri($"avares://BidEuchre/Pixel/{name}.png"));
+    internal static bool HasImage(string name) => IsArtworkReady(name) || AssetLoader.Exists(Resource(name));
 
-    private static string CampaignImageName(FeatureDefinition definition)
+    internal static string CampaignImageName(FeatureDefinition definition)
     {
         var curated = $"curated-{definition.Id.Replace(':', '-')}";
         return HasImage(curated) ? curated : $"campaign/{definition.Id.Replace(':', '/')}";
     }
 
-    public static Image CampaignIcon(FeatureDefinition definition, double size = 64)
+    internal static string CampaignIconName(FeatureDefinition definition)
     {
         var name = CampaignImageName(definition);
-        // New Jokers stay usable in shops and collections while their artwork is pending.
-        if (definition.Category == FeatureCategory.Joker && !HasImage(name)) name = "back";
-        var image = Sprite(Load(name), size, size);
+        // Card-shaped surfaces use a collector card. Playing-card badges use the square sprite.
+        if (definition.Category == FeatureCategory.Sigil && HasImage(CollectorImageName(definition.Key)))
+            return CollectorImageName(definition.Key);
+        return definition.Category == FeatureCategory.Joker && !HasImage(name) ? "back" : name;
+    }
+
+    public static Image CampaignIcon(FeatureDefinition definition, double size = 64)
+    {
+        var image = Sprite(Load(CampaignIconName(definition)), size, size);
+        if (definition.Category is FeatureCategory.Tarot or FeatureCategory.Joker or FeatureCategory.Sigil) image.Stretch = Stretch.Uniform;
         image.HorizontalAlignment = HorizontalAlignment.Center;
         image.VerticalAlignment = VerticalAlignment.Center;
         image.IsHitTestVisible = false;
+        return image;
+    }
+
+    /// <summary>Complete shop artwork, fitted with padding when its source proportions differ from the station.</summary>
+    public static Image Machine(string resource, double width, double height)
+    {
+        var image = Sprite(Load(resource), width, height);
+        image.Stretch = Stretch.Uniform;
+        image.IsHitTestVisible = false;
+        RenderOptions.SetBitmapInterpolationMode(image, BitmapInterpolationMode.HighQuality);
         return image;
     }
 
@@ -168,14 +255,7 @@ internal static class PixelArt
     // Pass another resource name here to reskin a card without changing its face.
     public static Control CardContent(Card card, EnhancementId? enhancement, SigilId? sigil = null)
     {
-        var background = "card-background-white";
-        if (enhancement is { } value)
-        {
-            var slug = value.ToString().ToLowerInvariant();
-            var curated = $"curated-enhancement-{slug}";
-            background = HasImage(curated) ? curated : $"card-background-{slug}";
-        }
-        var grid = (Grid)CardContent(card, background);
+        var grid = (Grid)CardContent(card, CardBackgroundName(enhancement));
         if (sigil is { } seal)
         {
             // Keep the badge in the blank upper-right corner, clear of indices and suit pips.
@@ -195,6 +275,14 @@ internal static class PixelArt
         return grid;
     }
 
+    internal static string CardBackgroundName(EnhancementId? enhancement)
+    {
+        if (enhancement is not { } value) return "card-background-white";
+        var slug = value.ToString().ToLowerInvariant();
+        var curated = $"curated-enhancement-{slug}";
+        return HasImage(curated) ? curated : $"card-background-{slug}";
+    }
+
     public static Control CardContent(Card card, string background = "card-background-white")
     {
         var column = card.Rank switch
@@ -208,7 +296,8 @@ internal static class PixelArt
             Suit.Clubs => 0, Suit.Diamonds => 1, Suit.Hearts => 2, Suit.Spades => 3,
             _ => throw new ArgumentOutOfRangeException(nameof(card))
         };
-        var grid = new Grid { Background = Brushes.White };
+        var curatedEnhancement = background.StartsWith("curated-enhancement-", StringComparison.Ordinal);
+        var grid = new Grid { Background = curatedEnhancement ? Brushes.Transparent : Brushes.White };
         foreach (var source in new[] { (IImage)Load(background), Tile("card-faces", column, row, 6, 4) })
         {
             var layer = new Image { Source = source, Stretch = Stretch.Fill, IsHitTestVisible = false };
@@ -216,7 +305,7 @@ internal static class PixelArt
             grid.Children.Add(layer);
         }
         // A small white halo keeps the original red/black ink readable over dark curated textures.
-        if (background.StartsWith("curated-enhancement-", StringComparison.Ordinal))
+        if (curatedEnhancement)
             ((Image)grid.Children[1]).Effect = new DropShadowEffect
             {
                 Color = Colors.White, BlurRadius = 2, OffsetX = 0, OffsetY = 0, Opacity = 1

@@ -94,6 +94,16 @@ public sealed class WebCampaigns : IAsyncDisposable
         entry.Notice = entry.Corrupt ? "This saved campaign could not be read. It has been preserved. Start a new run or delete it to recover."
             : entry.Run?.LegacyMatchRestart == true ? "This older save has no exact hand. Continue restarts this match without losing a life." : null;
         entry.Loaded = true;
+        // Older shop saves lack eligible-card samples. Upgrade only an active visit;
+        // result and victory continuations still own opening their future shops.
+        lock (entry.State)
+        {
+            if (entry.Run is { Phase: CampaignPhase.Shop, IsOver: false } run && entry.Metadata.LastResult is null)
+            {
+                var opened = CampaignShop.Open(run);
+                if (!ReferenceEquals(opened, run)) Commit(entry, opened);
+            }
+        }
     }
     private static void Check(Entry entry, string expected)
     { lock (entry.State) if (entry.Version != expected) throw CampaignApiException.Stale(); }
@@ -107,6 +117,18 @@ public sealed class WebCampaigns : IAsyncDisposable
     }
     private static void Commit(Entry entry, CampaignRun run)
     { entry.Run = run; Advance(entry); Save(entry); }
+    // Arcade results are revealed only after the complete transaction is durable.
+    // A failed write must not expose a roll, grant a prize, or consume a use session.
+    private static bool NeedsDurableArcadeCommit(CampaignRun before, string action)
+        => action.StartsWith("shop/arcade/", StringComparison.Ordinal) || before.Shop?.Arcade?.Pending is not null
+            || before.Shop?.UseSession is { } session && before.Shop.Offers.Any(o => o.Id == session.OfferId && o.IsArcadePrize);
+    private static void CommitArcade(Entry entry, CampaignRun candidate)
+    {
+        var metadata = entry.Metadata with { StateRevision = checked(entry.Metadata.StateRevision + 1) };
+        if (!CampaignStore.Save(new CampaignSave(3, candidate) { Metadata = metadata }, entry.Path))
+            throw new CampaignApiException(503, "save_unavailable", "Could not save the Arcade action. Nothing was charged or changed. Try again once saving is available.");
+        entry.Run = candidate; entry.Metadata = metadata; entry.Dirty = false;
+    }
     private static bool Checkpoint(Entry entry, int generation, CampaignCheckpoint checkpoint)
     {
         lock (entry.State)
@@ -151,9 +173,14 @@ public sealed class WebCampaigns : IAsyncDisposable
             "commands" => new[] { "expectedRevision", "expectedDealSerial", "command" },
             "next-hand" => ["expectedRevision", "expectedDealSerial"],
             "arrange-hand" => ["expectedRevision", "expectedDealSerial", "orderedCardIds"],
+            "shop/arcade/plinko" => ["lane"], "shop/arcade/roulette" => ["pocket"],
+            "shop/arcade/keep" or "shop/arcade/use" or "shop/arcade/dismiss" => ["playId"],
+            "shop/arcade/pick" => ["playId", "index"],
+            "shop/begin-sigil-use" => ["offerId"], "shop/begin-ticket-use" => ["offerId", "ticketId"], "shop/use-purchased" => ["targetIds"],
             "shop/buy" or "shop/pull" => ["offerId"], "shop/buy-use" => ["offerId", "targetIds"],
+            "shop/print" => ["offerId", "count"], "shop/keep-ticket" => ["offerId", "ticketId"], "shop/use-ticket" => ["offerId", "ticketId", "targetIds"],
             "shop/sell" => ["jokerId"], "items/use" => ["category", "slot", "targetIds"], "items/discard" => ["category", "slot"],
-            "new" or "continue" or "delete" or "start-match" or "forfeit" or "shop/reroll" or "shop/leave" or "result/continue" or "victory/continue" => [],
+            "new" or "continue" or "delete" or "start-match" or "forfeit" or "shop/finish-use" or "shop/reroll" or "shop/leave" or "result/continue" or "victory/continue" => [],
             _ => throw CampaignApiException.Invalid("Unknown campaign action.")
         };
         CampaignWire.Fields(body, ["expectedVersion", .. fields]);
@@ -200,7 +227,8 @@ public sealed class WebCampaigns : IAsyncDisposable
                         if (entry.Metadata.LastResult is not null || before.IsOver) throw CampaignApiException.Phase();
                         var after = BetweenMatches(before, action, body);
                         feedback = CampaignProjection.Feedback(before.Resources.Inventory, after.Resources.Inventory, "Campaign updated.");
-                        Commit(entry, after);
+                        if (NeedsDurableArcadeCommit(before, action)) CommitArcade(entry, after);
+                        else Commit(entry, after);
                     }
                 }
                 if (entry.Run?.Phase != CampaignPhase.InMatch) await StopSession(entry);
@@ -222,11 +250,24 @@ public sealed class WebCampaigns : IAsyncDisposable
         }
         switch (action)
         {
+            case "shop/arcade/plinko": return CampaignArcade.PlayPlinko(run, (int)CampaignWire.Number(body, "lane", 0, CampaignArcade.PlinkoLaneCount - 1));
+            case "shop/arcade/roulette": return CampaignArcade.PlayRoulette(run, (int)CampaignWire.Number(body, "pocket", 1, CampaignArcade.RoulettePocketCount));
+            case "shop/arcade/keep": return CampaignArcade.KeepArcadePrize(run, CampaignWire.Text(body, "playId"));
+            case "shop/arcade/use": return CampaignArcade.BeginArcadePrizeUse(run, CampaignWire.Text(body, "playId"));
+            case "shop/arcade/pick": return CampaignArcade.PickPackCard(run, CampaignWire.Text(body, "playId"), (int)CampaignWire.Number(body, "index", 0, CampaignArcade.PackSize - 1));
+            case "shop/arcade/dismiss": return CampaignArcade.DismissArcadeLoss(run, CampaignWire.Text(body, "playId"));
+            case "shop/begin-sigil-use": return CampaignShop.BeginSigilUse(run, Offer());
+            case "shop/begin-ticket-use": return CampaignShop.BeginTicketUse(run, Offer(), CampaignWire.EnumValue<TarotId>(body, "ticketId"));
+            case "shop/use-purchased": return CampaignShop.UsePurchased(run, Targets());
+            case "shop/finish-use": return CampaignShop.Open(CampaignShop.FinishUse(run));
             case "shop/buy": return CampaignShop.Buy(run, Offer());
             case "shop/pull":
                 if (run.Shop?.Offers.SingleOrDefault(o => o.Id == Offer())?.Category != FeatureCategory.Gumball) throw CampaignApiException.Invalid("Choose a gumball machine.");
                 return CampaignShop.Buy(run, Offer());
             case "shop/buy-use": return CampaignShop.BuyAndUse(run, Offer(), Targets());
+            case "shop/print": return CampaignShop.PrintTickets(run, Offer(), (int)CampaignWire.Number(body, "count", 1, CampaignShop.TicketSpread));
+            case "shop/keep-ticket": return CampaignShop.KeepTicket(run, Offer(), CampaignWire.EnumValue<TarotId>(body, "ticketId"));
+            case "shop/use-ticket": return CampaignShop.UseTicket(run, Offer(), CampaignWire.EnumValue<TarotId>(body, "ticketId"), Targets());
             case "shop/sell": return CampaignShop.SellJoker(run, CampaignWire.EnumValue<JokerId>(body, "jokerId"));
             case "shop/reroll": return CampaignShop.Reroll(run);
             case "items/use":

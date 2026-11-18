@@ -34,8 +34,14 @@ internal static class CampaignResumePersistenceTests
         try
         {
             var game = new GameEngine(["You", "West", "Partner", "East"], 7, new MatchOptions(12) { HandLimit = 1 },
-                new CampaignContext(CampaignSnapshot.Create(7) with { Inventory = new([], [], [GumballId.PanicButton]) }));
-            game.StartGame(3); game.ExecuteCampaignAction(0, new CampaignCommand.PanicButton());
+                new CampaignContext(CampaignSnapshot.Create(7)));
+            game.StartGame(3); game.DeveloperSetScores(-100, 0);
+            for (var step = 0; game.Phase != GamePhase.GameComplete && step < 60; step++)
+            {
+                var seat = game.CampaignActor!.Value;
+                game.ExecuteCampaignAction(seat, game.CreateCampaignView(seat).LegalActions[0]);
+            }
+            Assert.Equal(GamePhase.GameComplete, game.Phase);
             var run = new CampaignRun(Phase: CampaignPhase.InMatch).WithCheckpoint(new(game.ExportCampaignMatchSnapshot()));
             Assert.True(CampaignStore.Save(run, path)); var loaded = CampaignStore.Load(path)!;
             Assert.Equal(GamePhase.GameComplete, loaded.LiveMatch!.Phase); Assert.Equal(3, loaded.Lives);

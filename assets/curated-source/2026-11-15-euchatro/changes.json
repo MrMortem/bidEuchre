@@ -1,0 +1,337 @@
+{
+  "baseline": "../2026-11-14-euchatro/manifest.json",
+  "currentProjectAssets": 75,
+  "newAssets": 37,
+  "updatedAssets": 3,
+  "unchangedAssets": 35,
+  "reuploadedIdenticalAssets": 10,
+  "pulledCategories": {
+    "machines": 2,
+    "gumball": 1,
+    "joker": 32,
+    "enhancement": 1,
+    "tarot": 4
+  },
+  "changes": [
+    {
+      "label": "Fortune Teller (Ticket Dispenser)",
+      "category": "machines",
+      "status": "new",
+      "file": "labeled/machines/fortune-teller-ticket-dispenser.png",
+      "runtimeId": null,
+      "sourceId": "1L4Zv528jnTzdTEDLbdx2o-AGLw2VKeUH"
+    },
+    {
+      "label": "Gumball Machine",
+      "category": "machines",
+      "status": "new",
+      "file": "labeled/machines/gumball-machine.png",
+      "runtimeId": null,
+      "sourceId": "1PBrANgbfufsQe5Dd6Xl1Q6XbeRoWVTmu"
+    },
+    {
+      "label": "Over Achiever",
+      "category": "gumball",
+      "status": "new",
+      "file": "labeled/gumball/gumball-over-achiever.png",
+      "runtimeId": null,
+      "sourceId": "1mO85T5UjYzH-DrXI8jkb4Fmlj65_uqBF"
+    },
+    {
+      "label": "Three's Company",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-threes-company.png",
+      "runtimeId": "joker:threes-company",
+      "sourceId": "1DAQJqrr-RyLcJfYPR7DiQceFaOVfENVU"
+    },
+    {
+      "label": "Cheese Touch",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-cheese-touch.png",
+      "runtimeId": "joker:cheese-touch",
+      "sourceId": "1q8t5zbWYPZVMLwRh-Fz47jjmIJ9oNIau"
+    },
+    {
+      "label": "Bully",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-bully.png",
+      "runtimeId": "joker:bully",
+      "sourceId": "1R4_Sb63J295WG5jpcGDSL-_V68VIVedg"
+    },
+    {
+      "label": "Boomerang",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-boomerang.png",
+      "runtimeId": null,
+      "sourceId": "1bZ0K_hysKov88FfLNO3xWgJjnmi4YcDI"
+    },
+    {
+      "label": "Clubhouse",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-clubhouse.png",
+      "runtimeId": "joker:clubhouse",
+      "sourceId": "1YFtUOtc6TlhrRmibvEEOrg3zLC4fR8s2"
+    },
+    {
+      "label": "Cheater",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-cheater.png",
+      "runtimeId": "joker:cheater",
+      "sourceId": "1r7eCNhGBMqSU8Y4XviDt7PgIcPr9d6Fw"
+    },
+    {
+      "label": "Alpha",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-alpha.png",
+      "runtimeId": "joker:alpha",
+      "sourceId": "1sgewkpKuMdz1mSZg5SlRyHMf8WFZcQD3"
+    },
+    {
+      "label": "Contrarian",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-contrarian.png",
+      "runtimeId": "joker:contrarian",
+      "sourceId": "1j8Gn1qkVh482IPqaDhUN2l6Szhp7dp7X"
+    },
+    {
+      "label": "Cure-All",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-cure-all.png",
+      "runtimeId": "joker:cure-all",
+      "sourceId": "1PxFekUzth7ukm2cPXRjz-SQ7z5F7QjDz"
+    },
+    {
+      "label": "Consolation Prize",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-consolation-prize.png",
+      "runtimeId": "joker:consolation-prize",
+      "sourceId": "1uywR6CsKl1Xm_aQw-56tqCE_PHIEG6wz"
+    },
+    {
+      "label": "D\u00e9j\u00e0 Vu",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-deja-vu.png",
+      "runtimeId": "joker:deja-vu",
+      "sourceId": "1OW8e48tFniomFaUyQzkULM9BRZMg9PAC"
+    },
+    {
+      "label": "King Midas",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-king-midas.png",
+      "runtimeId": "joker:king-midas",
+      "sourceId": "1lb0S8-DuN-xB3QwyEA_Oor2buWDHajpv"
+    },
+    {
+      "label": "High Roller",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-high-roller.png",
+      "runtimeId": "joker:high-roller",
+      "sourceId": "1wfafqTpR7XcJkzgwUo1JTslMBcDvi464"
+    },
+    {
+      "label": "Deep Digger",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-deep-digger.png",
+      "runtimeId": "joker:deep-digger",
+      "sourceId": "1joobgdswMtwdlSFrBTsfiC8T3ALU-g71"
+    },
+    {
+      "label": "Lucky Duck",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-lucky-duck.png",
+      "runtimeId": "joker:lucky-duck",
+      "sourceId": "1ACZkA1_APH_QZ0Xagoipxlo1UC3JouVp"
+    },
+    {
+      "label": "Lover Boy",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-lover-boy.png",
+      "runtimeId": "joker:lover-boy",
+      "sourceId": "17mogr3aHN3S0AIjlRQDtC23165gvxJEK"
+    },
+    {
+      "label": "Last Laugh",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-last-laugh.png",
+      "runtimeId": "joker:last-laugh",
+      "sourceId": "1d0-d0BwyDuS-RaT3ABOOXAvMh2hc59Vc"
+    },
+    {
+      "label": "Medusa",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-medusa.png",
+      "runtimeId": "joker:medusa",
+      "sourceId": "1b13n4zlyyQBHf-uTHEki2nwz68UECwhx"
+    },
+    {
+      "label": "Millionaire",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-millionaire.png",
+      "runtimeId": "joker:millionaire",
+      "sourceId": "1lE2-sxQnOEBjIcSlaWYMmswGpmmw7x3f"
+    },
+    {
+      "label": "One Up",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-one-up.png",
+      "runtimeId": "joker:one-up",
+      "sourceId": "12RF9MTIOw26LV3UUMckLeF5mMD0JGsH1"
+    },
+    {
+      "label": "People Pleaser",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-people-pleaser.png",
+      "runtimeId": "joker:people-pleaser",
+      "sourceId": "1FMTTpm6v8u5ay3qSOTLVRWudWp-nvX7m"
+    },
+    {
+      "label": "Penny Pincher",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-penny-pincher.png",
+      "runtimeId": "joker:penny-pincher",
+      "sourceId": "14wBcu-KfShKPLpducoQ89_WF_ZcR6lgo"
+    },
+    {
+      "label": "Protective Bubble",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-protective-bubble.png",
+      "runtimeId": "joker:protective-bubble",
+      "sourceId": "1V0PsWFsbhZlu-h0-c0nfRxyZbwoajozc"
+    },
+    {
+      "label": "Slick Willy",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-slick-willy.png",
+      "runtimeId": "joker:slick-willy",
+      "sourceId": "1WEq3QXvLepun5v-0-OtBx6oFjPlJqAd_"
+    },
+    {
+      "label": "Snake Eyes",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-snake-eyes.png",
+      "runtimeId": "joker:snake-eyes",
+      "sourceId": "1ZmG3l7DbtuJ7V2ueMpDNFclkEGoivDDM"
+    },
+    {
+      "label": "Royal Council",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-royal-council.png",
+      "runtimeId": "joker:royal-council",
+      "sourceId": "1ap8nUuS6J9vp21oKrFJIAU4upP6hqFXm"
+    },
+    {
+      "label": "Roller Coaster",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-roller-coaster.png",
+      "runtimeId": "joker:roller-coaster",
+      "sourceId": "1oSjSBZve62b1l3_Z8LnEOX8kOQtJVp4n"
+    },
+    {
+      "label": "Trend Setter",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-trend-setter.png",
+      "runtimeId": "joker:trend-setter",
+      "sourceId": "1U6_0p7fsZ43IMhl369Obx5DWak4zMb6w"
+    },
+    {
+      "label": "Sticky Fingers",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-sticky-fingers.png",
+      "runtimeId": "joker:sticky-fingers",
+      "sourceId": "1w7ddEB_mxGSFc0DuOcdGTWmcFRuYWCEv"
+    },
+    {
+      "label": "Twin Flame",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-twin-flame.png",
+      "runtimeId": "joker:twin-flame",
+      "sourceId": "12I8rsjfOBpaDA3sqaB6hp4IChddo8qys"
+    },
+    {
+      "label": "The Undertaker",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-the-undertaker.png",
+      "runtimeId": "joker:the-undertaker",
+      "sourceId": "1ZYGp4haETHzjSB70orkLlxC--wOoZv5s"
+    },
+    {
+      "label": "Vow of Silence",
+      "category": "joker",
+      "status": "new",
+      "file": "labeled/joker/joker-vowof-silence.png",
+      "runtimeId": "joker:vowof-silence",
+      "sourceId": "1IBq1HjkwudWyxrer7tck8GemYFdxDwX9"
+    },
+    {
+      "label": "Wild",
+      "category": "enhancement",
+      "status": "updated",
+      "file": "labeled/enhancement/enhancement-wild.png",
+      "runtimeId": "enhancement:wild",
+      "sourceId": "1bTkmPR7evQ5N97EMLfpzij7wG735jqsd"
+    },
+    {
+      "label": "Devilish Deal (Alternate Artwork)",
+      "category": "tarot",
+      "status": "new",
+      "file": "labeled/tarot/tarot-devilish-deal-alternate.png",
+      "runtimeId": null,
+      "sourceId": "19XXyne7mLegEOUMSXu0VF0vCy80RM3V8"
+    },
+    {
+      "label": "System Error",
+      "category": "tarot",
+      "status": "new",
+      "file": "labeled/tarot/tarot-system-error.png",
+      "runtimeId": null,
+      "sourceId": "1YO6N2ad6r9K7EVv7MT9SXDWtYtCGH0FP"
+    },
+    {
+      "label": "Gambler",
+      "category": "tarot",
+      "status": "updated",
+      "file": "labeled/tarot/tarot-gambler.png",
+      "runtimeId": "tarot:gambler",
+      "sourceId": "1Oe15t9t5UqfO5DqI4YQSiFGcnlwSFnCv"
+    },
+    {
+      "label": "Taxes",
+      "category": "tarot",
+      "status": "updated",
+      "file": "labeled/tarot/tarot-tax-collector.png",
+      "runtimeId": "tarot:tax-collector",
+      "sourceId": "1YMlh-dMvddVWF1qHep-0zmrZLRhuKnPl"
+    }
+  ]
+}

@@ -1,0 +1,521 @@
+{
+  "count": 32,
+  "cleanedCount": 32,
+  "mask": "Perimeter-connected near-white exterior (RGB minimum 224) for opaque mattes; perimeter alpha \u003C= 8 for existing transparent exteriors; detached exterior components removed. Retained RGBA pixels unchanged.",
+  "border": "Shared radius-12 rounded outline, 2px dark stroke, 8px total cream rim. Old perimeter strokes removed by a four-pixel silhouette erosion; connected paper harmonized without changing scene pixels or dark lettering.",
+  "preservation": "Original source files, interior scenes, lettering and existing near-opaque interior alpha are retained. Only the exterior and printed border paper are changed; no resampling.",
+  "entries": [
+    {
+      "id": "joker:threes-company",
+      "name": "Three\u0027s Company",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 506,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22760,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94236,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:high-roller",
+      "name": "High Roller",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 43,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22515,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94250,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:lover-boy",
+      "name": "Lover Boy",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 1021,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22559,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94252,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:snake-eyes",
+      "name": "Snake Eyes",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 229,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22311,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94253,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:twin-flame",
+      "name": "Twin Flame",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 949,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22149,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94257,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:clubhouse",
+      "name": "Clubhouse",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 601,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21899,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94259,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:the-undertaker",
+      "name": "The Undertaker",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 751,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21464,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94264,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:roller-coaster",
+      "name": "Roller Coaster",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 612,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21493,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94264,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:deja-vu",
+      "name": "D\u00E9j\u00E0 Vu",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 1121,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21208,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94264,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:last-laugh",
+      "name": "Last Laugh",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 398,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 23392,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94112,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:vowof-silence",
+      "name": "Vow of Silence",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 941,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 23152,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94130,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:cure-all",
+      "name": "Cure-All",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 89,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22989,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94129,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:trend-setter",
+      "name": "Trend Setter",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 239,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21882,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94172,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:contrarian",
+      "name": "Contrarian",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 371,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21692,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94177,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:consolation-prize",
+      "name": "Consolation Prize",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 400,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21720,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94173,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:royal-council",
+      "name": "Royal Council",
+      "sourceExterior": "transparent",
+      "removedExteriorPixels": 594,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21235,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 94174,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:deep-digger",
+      "name": "Deep Digger",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7684,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21765,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:lucky-duck",
+      "name": "Lucky Duck",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7215,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 20845,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:protective-bubble",
+      "name": "Protective Bubble",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7230,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 20693,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:penny-pincher",
+      "name": "Penny Pincher",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7230,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 20899,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:bully",
+      "name": "Bully",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 4150,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 24225,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:people-pleaser",
+      "name": "People Pleaser",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7477,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21575,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:millionaire",
+      "name": "Millionaire",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7488,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21610,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:king-midas",
+      "name": "King Midas",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 8050,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21937,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:sticky-fingers",
+      "name": "Sticky Fingers",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7618,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21802,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:medusa",
+      "name": "Medusa",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7928,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21750,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:cheese-touch",
+      "name": "Cheese Touch",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7961,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21639,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:one-up",
+      "name": "One Up",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7988,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22001,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:cheater",
+      "name": "Cheater",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 8346,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 22076,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:alpha",
+      "name": "Alpha",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7675,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21649,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:slick-willy",
+      "name": "Slick Willy",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7426,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21561,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    },
+    {
+      "id": "joker:double-down",
+      "name": "Double Down",
+      "sourceExterior": "opaque-matte",
+      "removedExteriorPixels": 7684,
+      "preservedInteriorScene": true,
+      "changedFramePixels": 21909,
+      "transparentPixels": 5404,
+      "partialAlphaPixels": 68,
+      "bounds": {
+        "x": 4,
+        "y": 4,
+        "width": 272,
+        "height": 384
+      }
+    }
+  ]
+}

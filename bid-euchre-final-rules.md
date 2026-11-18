@@ -270,6 +270,46 @@ Scores are evaluated after each hand:
 Campaign rounds use these additional card effects. “Your team” includes you and
 your partner; a round is one six-trick hand.
 
+During a match, stored Arcade Tickets (Tarots) and Sigils may be used on
+your own turn. Any card they affect must currently be in your hand; cards already
+played and cards held by other players are not eligible. Gambler makes exactly two distinct cards you select from your current hand Lucky. Effects that do not target cards retain their
+normal behavior. Using a consumable does not end your turn.
+
+The shop Arcade replaces direct Sigil sales. Plinko and roulette each cost $3,
+once per game per shop visit. Rerolls do not restore plays. Plinko's printed scores
+5–6 win a Collector's Pack, 3–4 win a Tarot ticket, and 1–2 win nothing. Choose one
+of eight drop positions before paying. Roulette has twelve numbered pockets: matching
+your chosen number wins a Collector's Pack, matching only its color wins a Tarot
+ticket, and the opposite color wins nothing. Odd pockets are red; even pockets are
+black. Payments and outcomes, including a pack's three cards, are saved before
+animation. Keep a Tarot prize if inventory has room, or use it immediately even when
+inventory is full. Collect the prize before another play, reroll or shop departure.
+A new shop visit restores both plays.
+
+A Collector's Pack opens to three different cards; choose exactly one. Each card is
+a Sigil shown by its collector title: Strength (Bear), Abundance (Fish), Echo (Frog),
+Lucky (Duck), Deception (Chameleon), Resilient (Eagle), Affliction (Spider) and
+Resourceful (Vulture). A chosen Sigil cannot be kept: it must be applied to one of
+the six offered cards below. Rarely, while a Joker slot is free, one card is
+**Legendary** (a 1 in 50 chance per card, at most one per pack). Choosing it fills
+every empty Joker slot with a random Joker you do not already own.
+
+Shop rewards provide a separate opportunity: applying an Arcade prize,
+or using a newly printed Fortune Teller ticket, displays six random cards from
+the shared deck. Only those six can be affected, including both cards selected for Gambler.
+All tickets in one print share the same six cards. Opening the six-card menu commits
+the chosen prize or ticket, and you must apply that item before Done becomes
+available. There is no Back or Cancel. Unfinished Sigil purchases from older saves
+retain their original six cards and must also be completed.
+While this menu is open, any Tarot already in your inventory may also be used on
+those same six cards, before or after the purchased item. Stored Sigils cannot be
+used in this menu. Effects with no targets can also be used here.
+Closing and reopening the game restores the unfinished menu, the same six cards,
+and all effects already applied without charging again. A paid shop reroll after
+finishing the menu may provide a new selection. Before opening the menu, you may
+instead keep a purchased consumable for a future match if a slot is available.
+Stored consumables cannot otherwise be used in the shop or pre-match screen.
+
 - **Duck Sigil:** When played, 1 in 3 chance to earn +4 points.
 - **Snake Eyes:** If your team wins a trick containing 2 or more Aces, +4 points.
 - **Roller Coaster:** +0 points each round when High/Low is trump. +1 when your
@@ -299,6 +339,16 @@ your partner; a round is one six-trick hand.
 - **Alpha:** You may outbid your partner by matching any eligible unlocked bid,
   including Safety Net, numeric bids, Partner's Best, and Alone. Alpha never
   permits matching an opponent or bypassing a bid's restrictions.
+- **Poker:** Bid exactly 4. If you win the auction, reveal all four hands and
+  compare each player's best five of six current card faces. Highlight the five
+  cards of every tied winning player and award +4 points once per winning team.
+  A tie within one team pays once; a tie across teams pays both teams. After the
+  result is displayed, deal the next round automatically. Do not select trump,
+  play tricks, or apply made/set contract scoring. A Poker showdown counts as
+  one round; show its result before ending a match reached by those points or
+  the round limit. Extra Poker copies add +1 each when your team wins Poker.
+  Wild and Bear abilities do not change the poker comparison; actual copied or
+  transformed faces do. Five of a kind ranks above a straight flush.
 - **Duelist:** Bid 4 or 5 and play alone against one chosen opponent. A failed
   contract loses 2 additional points: −6 for Duelist-4 or −7 for Duelist-5 before
   independent effects. Protective Bubble still cancels the failed contract's
@@ -310,8 +360,8 @@ your partner; a round is one six-trick hand.
 ## 13. Campaign Ante Scoring
 
 Each ante contains three matches, including its boss. Both teams start every
-normal and boss match at 0 points. Evaluate scores only after a complete
-six-trick round. End the match when either team reaches the positive target or
+normal and boss match at 0 points. Evaluate scores after a complete
+six-trick round or a Poker showdown. End the match when either team reaches the positive target or
 negative limit below, or after eight complete rounds; the higher score wins.
 A tie continues through additional complete rounds until a round ends untied.
 

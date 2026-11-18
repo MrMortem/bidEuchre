@@ -11,7 +11,6 @@ window.CampaignTable = (() => {
     switch(command.kind){
       case 'bid':return 'Bid '+({Two:'2',Three:'3',Four:'4',Five:'5',Six:'6',PartnersBest:'Partner’s Best',Alone:'Alone'}[command.level]||words(command.level))+(command.variant?' · '+CampaignCards.feature(state,'Gumball',command.variant).name:'');
       case 'pass':return 'Pass';
-      case 'panic-button':return 'Panic Button';
       case 'choose-contract':return command.mode==='Trump'?'Trump · '+command.trump:command.mode;
       case 'play':return 'Play '+cardName+(command.effectiveSuit?' · as '+command.effectiveSuit:'');
       case 'exchange':return 'Exchange '+cardName;
@@ -26,6 +25,7 @@ window.CampaignTable = (() => {
   }
   function render(state) {
     const t=state.table;if(!t)return CampaignScreens.heading('Loading your table.');
+    if(t.phase==='PokerReveal')return poker(t);
     const commands=t.legalCommands||[],own=t.players.find(p=>p.seat===0);
     const contract=t.contract?words(t.contract.bid)+' · '+t.contract.mode+(t.contract.trump?' · '+t.contract.trump:''):t.highBid?words(t.highBid)+' high bid':'Open auction';
     const actionButtons=commands.map((c,index)=>'<button type="button" class="button '+(c.kind==='pass'?'quiet':'primary')+'" data-campaign-command="'+index+'" data-focus-key="'+e('command:'+JSON.stringify(c))+'" '+(state.capabilities.commands.enabled?'':'disabled')+'>'+e(commandLabel(c,state))+'</button>');
@@ -44,6 +44,27 @@ window.CampaignTable = (() => {
       +'<section class="panel"><h2>Public table log</h2><p>Tricks: Your team '+t.tricksByTeam[0]+' · Opponents '+t.tricksByTeam[1]+'</p><ol class="event-list">'+(t.publicEvents||[]).slice(-15).map(x=>'<li>'+e(x)+'</li>').join('')+'</ol>'
         +(t.auction?.length?'<details><summary>Auction history</summary><ol>'+t.auction.map(a=>'<li>'+e(t.players.find(p=>p.seat===a.seat)?.name||'Player')+': '+e(a.level?words(a.level):a.bid?words(a.bid):'Pass')+'</li>').join('')+'</ol></details>':'')+'</section>'
       +CampaignScreens.history(t.handHistory,t.players.map(p=>p.name))+CampaignScreens.inventory(state);
+  }
+  function poker(table) {
+    const names=table.players.map(p=>p.name);
+    const result=table.pokerResult;
+    const winners=result?.winners||[];
+    const lastHand=table.handHistory?.at(-1);
+    const scoredHand=lastHand?.pokerResult&&lastHand.handNumber===table.handNumber?lastHand:null;
+    const [ourPoints,theirPoints]=scoredHand
+      ? [scoredHand.teamZeroDelta,scoredHand.teamOneDelta] : result?.teamPoints||[0,0];
+    const copies=scoredHand?.scoreBreakdowns?.find(b=>b.team===0)?.gumballBonuses?.find(b=>b.id==='Poker')?.points;
+    return '<section class="panel campaign-poker" aria-labelledby="campaign-poker-title">'
+      +'<h1 id="campaign-poker-title" tabindex="-1">Poker showdown</h1>'
+      +'<div aria-live="polite"><ul class="campaign-poker-winners">'+winners.map(w=>'<li><strong>'+e(names[w.seat])+'</strong> · '+e(w.category)+'</li>').join('')+'</ul>'
+      +'<p class="campaign-poker-award">Your team +'+ourPoints+' · Opponents +'+theirPoints+(copies?' · Includes +'+copies+' Poker copy bonus':'')+'</p></div>'
+      +'<section class="campaign-poker-hands" aria-label="Revealed Poker hands">'+table.players.map(player=>{
+        const winner=winners.find(w=>w.seat===player.seat);
+        return '<article><h2>'+e(player.name)+'</h2><div class="campaign-card-row">'
+          +player.visibleCards.map(card=>CampaignCards.html(card,{pokerWinner:winner?.cardIds.includes(card.id)})).join('')+'</div></article>';
+      }).join('')+'</section></section>'
+      +'<section class="campaign-score panel"><strong>Your team '+table.scores[0]+'</strong><span>Hand '+table.handNumber+'</span><strong>Opponents '+table.scores[1]+'</strong></section>'
+      +CampaignScreens.history(table.handHistory,names);
   }
   function trick(title,plays,t) {
     if(!plays?.length)return '';

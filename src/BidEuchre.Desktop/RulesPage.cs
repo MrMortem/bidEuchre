@@ -19,9 +19,9 @@ internal static class RulesPage
     [
         (FeatureCategory.Joker, "Jokers", "Bought in the shop. Each Joker works for as long as you hold it."),
         (FeatureCategory.Enhancement, "Enhancements", "Permanent changes to a card in your campaign deck."),
-        (FeatureCategory.Sigil, "Sigils", "Placed on a card in your hand on one of your turns. The Sigil stays on that card."),
-        (FeatureCategory.Tarot, "Tarots", "Used on one of your turns for a one-time effect, usually on cards in your hand."),
-        (FeatureCategory.Gumball, "Gumball bids", "Pulls and Astronomer unlock missing bids first, then grant random duplicates. Each extra copy gives +1 point after hand multipliers when you successfully make its matching bid. Matching types stack once each; partner bids do not qualify. Panic Button has no successful contract reward.")
+        (FeatureCategory.Sigil, "Sigils", "Win Collector's Packs in the shop's Arcade. Plinko and Roulette each cost $3 and can each be played once per visit. A pack opens to three cards; choose one. A Sigil card must be applied to one of six offered cards before you leave its menu, and inventory tickets can share those six cards. A rare Legendary card instead fills your empty Joker slots with random Jokers. The Sigil stays on its card."),
+        (FeatureCategory.Tarot, "Arcade tickets", "Print tickets at the Fortune Teller or win them in the Arcade. Held tickets are used during a match on one of your turns; card effects use only cards in your hand. Use Now commits a newly printed ticket or Arcade prize to a six-card menu: apply it before pressing Done. Any inventory ticket can be used before or after the committed item on those same six cards."),
+        (FeatureCategory.Gumball, "Gumball bids", "Pulls and Astronomer unlock missing bids first, then grant random duplicates. Each extra copy gives +1 point after hand multipliers when you successfully make its matching bid. Matching types stack once each; partner bids do not qualify.")
     ];
 
     public static Control Build()

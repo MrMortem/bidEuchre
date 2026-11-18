@@ -81,7 +81,7 @@ internal static class ProtocolBoundaryTests
         {
             Assert.Equal(2, drivers.Sum(d => d.MalformedResponses), "Both exchange decisions must use fallback");
             Assert.True(session.Game.CompletedTricks.Count == 6, "Exchange fallback did not finish the hand");
-            Assert.True(session.Game.HandHistory.Single().Contract.IsPartnersBest);
+            Assert.True(session.Game.HandHistory.Single().Contract is { IsPartnersBest: true });
         }
     }
 

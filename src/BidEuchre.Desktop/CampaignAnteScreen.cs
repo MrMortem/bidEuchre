@@ -19,7 +19,7 @@ internal static class CampaignAnteScreen
     private static readonly (string Name, IBrush Ink)[] Slots = [("SMALL", Green), ("MEDIUM", Gold), ("BOSS", Danger)];
 
     public static Control Build(CampaignRun run, Action start, Action back, string? note, PixelMotion motion,
-        Action<FeatureCategory, int>? useItem = null, Action<FeatureCategory, int>? discardItem = null)
+        Action<FeatureCategory, int>? discardItem = null)
     {
         var header = new StackPanel
         {
@@ -44,14 +44,13 @@ internal static class CampaignAnteScreen
         }
         var shelfTitle = Centered($"YOUR JOKERS {owned.Length}/{CampaignTableControls.JokerSlots}", Muted, 11);
 
-        // Stored Tarots and Sigils can be played on the shared deck before the match starts.
+        // Stored Tarots and Sigils can be inspected or discarded while waiting for the match.
         var inventory = run.Resources.Inventory;
         var items = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
             var ink = CampaignShopScreen.Ink(category);
             var flyout = new Flyout { Placement = PlacementMode.Bottom };
-            var use = MenuParts.Button("Use", true, motion, $"AnteUse{category}{slot}", () => { flyout.Hide(); useItem?.Invoke(category, slot); }, true, ButtonWidth);
             var description = CampaignShopScreen.Label(definition.Description, Ink, 12);
             description.FontFamily = FontFamily.Default;
             flyout.Content = new StackPanel
@@ -60,7 +59,7 @@ internal static class CampaignAnteScreen
                 Children =
                 {
                     CampaignShopScreen.Label(definition.Name, Gold, 14), description,
-                    CampaignShopScreen.Label("Use it now on the shared deck, or keep it for the match.", Muted, 10), use,
+                    CampaignShopScreen.Label("Use during a match on cards in your hand.", Muted, 10),
                     MenuParts.Button("Discard", false, motion, $"AnteDiscard{category}{slot}", () => { flyout.Hide(); discardItem?.Invoke(category, slot); }, true, ButtonWidth)
                 }
             };
@@ -90,7 +89,7 @@ internal static class CampaignAnteScreen
             var current = slot == run.MatchInAnte;
             // The Start button and the status line take the same room, so the panels' rows line up.
             Control top;
-            if (current) top = MenuParts.Button("Start Match", true, motion, "CampaignStartMatch", start, width: ButtonWidth);
+            if (current) top = MenuParts.Button("Start Match", true, motion, "CampaignStartMatch", start, stay: true, width: ButtonWidth);
             else
             {
                 var status = Centered(slot < run.MatchInAnte ? "PLAYED" : "UPCOMING", Muted, 14);
@@ -149,7 +148,7 @@ internal static class CampaignAnteScreen
                 Place(new Border
                 {
                     Padding = new Thickness(8), Background = Paper,
-                    Child = MenuParts.Button("Main Menu", false, motion, "CampaignMainMenu", back, width: ButtonWidth)
+                    Child = MenuParts.Button("Main Menu", false, motion, "CampaignMainMenu", back, stay: true, width: ButtonWidth)
                 }, row: 1)
             }
         };

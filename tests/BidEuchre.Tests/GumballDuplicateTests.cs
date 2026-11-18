@@ -20,7 +20,7 @@ internal static class GumballDuplicateTests
         game.StartGame(3);
         game.ExecuteCampaignAction(0, new CampaignCommand.UseTarot(0, []));
         Assert.Equal(0, game.ExportCampaignSnapshot().Inventory.Tarot.Length);
-        Assert.Equal(9, game.ExportCampaignSnapshot().Inventory.Unlocks.Length);
+        Assert.Equal(CampaignInventory.GumballCount, game.ExportCampaignSnapshot().Inventory.Unlocks.Length);
         var counts = JsonSerializer.SerializeToNode(game.ExportCampaignSnapshot().Inventory)!["GumballExtraCopies"]!.AsObject();
         Assert.Equal(1, counts.Sum(p => p.Value!.GetValue<int>()));
         Assert.Equal(0, game.Scores.Sum());
@@ -42,7 +42,6 @@ internal static class GumballDuplicateTests
         {
             ((BidLevel)2, null, ContractMode.Trump, [GumballId.Lowballer]),
             (BidLevel.Four, GumballId.Chaos, ContractMode.Trump, [GumballId.Chaos]),
-            (BidLevel.Four, GumballId.Poker, ContractMode.Trump, [GumballId.Poker]),
             (BidLevel.Four, GumballId.Duelist, ContractMode.Trump, [GumballId.Duelist]),
             (BidLevel.Five, GumballId.Telepath, ContractMode.Trump, [GumballId.Telepath]),
             (BidLevel.PartnersBest, null, ContractMode.Trump, [GumballId.PartnersBest]),
@@ -50,7 +49,6 @@ internal static class GumballDuplicateTests
             (BidLevel.Four, null, ContractMode.High, [GumballId.HighLow]),
             (BidLevel.Four, null, ContractMode.Low, [GumballId.HighLow]),
             (BidLevel.Alone, null, ContractMode.High, [GumballId.Alone, GumballId.HighLow]),
-            (BidLevel.Four, GumballId.Poker, ContractMode.High, [GumballId.Poker, GumballId.HighLow]),
             (BidLevel.Four, GumballId.Duelist, ContractMode.Low, [GumballId.Duelist, GumballId.HighLow]),
             (BidLevel.Three, null, ContractMode.Trump, [])
         };
@@ -96,7 +94,7 @@ internal static class GumballDuplicateTests
         var offer = run.Shop!.Offers.Single(o => o.Category == FeatureCategory.Gumball);
         var pulled = CampaignShop.Buy(run, offer.Id, expectedRevision: run.Resources.Revision);
         var selected = Enum.Parse<GumballId>(pulled.Shop!.Offers.Single(o => o.Id == offer.Id).FeatureId);
-        Assert.Equal(9, pulled.Resources.Inventory.Unlocks.Length);
+        Assert.Equal(CampaignInventory.GumballCount, pulled.Resources.Inventory.Unlocks.Length);
         Assert.Equal(27, pulled.Money);
         Assert.Equal(1, ExtraCount(pulled.Resources.Inventory));
         Assert.Equal(0, ExtraCount(run.Resources.Inventory));
@@ -118,6 +116,8 @@ internal static class GumballDuplicateTests
             Assert.Equal(selected.ToString(), next.Shop.Offers.Single(o => o.Id == offer.Id).FeatureId);
             Assert.True(next.Shop.Offers.Single(o => o.Id == offer.Id).Sold);
             var json = JsonNode.Parse(File.ReadAllText(path))!;
+            // This legacy shape predates both duplicate counts and the Arcade.
+            json["Run"]!["Shop"]!.AsObject().Remove("Arcade");
             json["Run"]!["Resources"]!["Inventory"]!.AsObject().Remove("GumballExtraCopies");
             File.WriteAllText(path, json.ToJsonString());
             Assert.Equal(0, ExtraCount(CampaignStore.Load(path)!.Resources.Inventory));
@@ -135,10 +135,12 @@ internal static class GumballDuplicateTests
             Shop = new(1, offers, 3)
         };
         var upgraded = CampaignShop.Open(legacy);
-        Assert.Equal(5, upgraded.Shop!.Offers.Length);
+        Assert.Equal(4, upgraded.Shop!.Offers.Length);
         Assert.Equal(1, upgraded.Shop.Offers.Count(offer => offer.Category == FeatureCategory.Gumball));
-        Assert.True(upgraded.Shop.Offers.Select(offer => offer.Id).Distinct().Count() == 5);
-        for (var i = 0; i < 4; i++) Assert.True(ReferenceEquals(offers[i], upgraded.Shop.Offers[i]));
+        Assert.True(upgraded.Shop.Offers.Select(offer => offer.Id).Distinct().Count() == 4);
+        for (var i = 0; i < 3; i++) Assert.True(ReferenceEquals(offers[i], upgraded.Shop.Offers[i]));
+        Assert.True(upgraded.Shop.Offers.All(offer => offer.Id != offers[3].Id));
+        Assert.True(upgraded.Shop.Arcade is not null);
         Assert.Equal(3, upgraded.Shop.RerollCount);
         Assert.Equal(legacy.Resources.RandomState, upgraded.Resources.RandomState);
         Assert.Equal(30, upgraded.Money);
@@ -160,19 +162,18 @@ internal static class GumballDuplicateTests
         {
             var inventory = new CampaignInventory([], [TarotId.Astronomer, TarotId.Prospector], full ? Enum.GetValues<GumballId>() : []) { Sigils = [SigilId.Bear, SigilId.Fish] };
             var run = new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
-            { Resources = CampaignSnapshot.Create(3) with { Inventory = inventory }, Shop = new(0, [new("astro", FeatureCategory.Tarot, nameof(TarotId.Astronomer), 3)]) };
-            var used = CampaignShop.BuyAndUse(run, "astro", []);
-            Assert.Equal(27, used.Money);
+            { Resources = CampaignSnapshot.Create(3) with { Inventory = inventory }, Shop = new(0, [new("astro", FeatureCategory.Tarot, "", 3) { Printed = [nameof(TarotId.Astronomer)], TargetCards = Enumerable.Range(0, 6).Select(i => new CardId(i)).ToArray() }]) };
+            var used = CampaignShop.UseTicket(run, "astro", TarotId.Astronomer, []);
+            Assert.Equal(30, used.Money);
             Assert.Equal(4, used.Resources.Inventory.ItemCount);
-            Assert.Equal(full ? 9 : 1, used.Resources.Inventory.Unlocks.Length);
+            Assert.Equal(full ? CampaignInventory.GumballCount : 1, used.Resources.Inventory.Unlocks.Length);
             Assert.Equal(full ? 1 : 0, ExtraCount(used.Resources.Inventory));
             Assert.Equal(0, ExtraCount(run.Resources.Inventory));
-            Assert.Throws<GameRuleException>(() => CampaignShop.BuyAndUse(used, "astro", []));
-            var held = CampaignShop.UseTarot(run, 0, []);
-            Assert.Equal(3, held.Resources.Inventory.ItemCount);
-            Assert.Equal(30, held.Money);
-            Assert.Equal(JsonSerializer.Serialize(used.Resources.Inventory with { Tarot = [TarotId.Prospector] }), JsonSerializer.Serialize(held.Resources.Inventory));
-            Assert.Equal(used.Resources.RandomState, held.Resources.RandomState);
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseTicket(used, "astro", TarotId.Astronomer, []));
+            // A newly printed Astronomer may be used here, but the stored copy waits for a match.
+            var beforeHeld = JsonSerializer.Serialize(run);
+            Assert.Throws<GameRuleException>(() => CampaignShop.UseTarot(run, 0, []));
+            Assert.Equal(beforeHeld, JsonSerializer.Serialize(run));
         }
     }
 
@@ -199,17 +200,17 @@ internal static class GumballDuplicateTests
             Assert.Equal(grant.Id, replay.Id);
             Assert.Equal(grant.RandomState, replay.RandomState);
             Assert.True(grant.RandomState != seed);
-            Assert.Equal(9, grant.Inventory.Unlocks.Length);
+            Assert.Equal(CampaignInventory.GumballCount, grant.Inventory.Unlocks.Length);
             seen.Add(grant.Id);
         }
-        Assert.Equal(9, seen.Count);
-        Assert.True(seen.Contains(GumballId.PanicButton) && seen.Contains(GumballId.HighLow));
+        Assert.Equal(CampaignInventory.GumballCount, seen.Count);
+        Assert.True(seen.SetEquals(Enum.GetValues<GumballId>()));
         foreach (var missing in Enum.GetValues<GumballId>())
         {
             var almost = new CampaignInventory([], [], Enum.GetValues<GumballId>().Where(id => id != missing).ToArray());
             var grant = GumballGrants.Pull(almost, 1);
             Assert.Equal(missing, grant.Id);
-            Assert.Equal(9, grant.Inventory.Unlocks.Length);
+            Assert.Equal(CampaignInventory.GumballCount, grant.Inventory.Unlocks.Length);
             Assert.Equal(0, grant.Inventory.GumballExtraCopies.Count);
         }
         var max = new CampaignInventory([], [], Enum.GetValues<GumballId>()) { GumballExtraCopies = new() { [GumballId.Chaos] = int.MaxValue } };
@@ -301,17 +302,6 @@ internal static class GumballDuplicateTests
             Assert.True(CampaignStore.Load(path) is null);
         }
         finally { File.Delete(path); }
-    }
-
-    public static void PanicButtonHasNoSuccessReward()
-    {
-        var resources = CampaignSnapshot.Create(3) with { Inventory = WithExtras((GumballId.PanicButton, 7)) };
-        var game = new GameEngine(["You", "W", "P", "E"], 3, new MatchOptions(1000) { NegativeThreshold = -1000 }, new CampaignContext(resources));
-        game.StartGame(3);
-        game.ExecuteCampaignAction(0, new CampaignCommand.PanicButton());
-        Assert.Equal(-8, game.Scores[0]);
-        Assert.Equal(7, game.ExportCampaignSnapshot().Inventory.GumballExtraCopies[GumballId.PanicButton]);
-        Assert.True(game.CreateCampaignView(0).Events.All(e => !e.Contains("duplicates:")));
     }
 
     private static int ExtraCount(CampaignInventory inventory) =>

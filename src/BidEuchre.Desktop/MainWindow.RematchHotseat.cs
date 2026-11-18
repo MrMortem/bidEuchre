@@ -38,7 +38,7 @@ public sealed partial class MainWindow
             if (_hotseatPending is not null)
             {
                 _hotseatPending = null;
-                _renderKey = null;
+                _renderedView = null;
             }
             return false;
         }
@@ -46,15 +46,16 @@ public sealed partial class MainWindow
         {
             _hotseatPending = next;
             var revision = _hotseatRevision = _input.BeginViewChange();
+            _liveTable = null;
             _tableHost.Content = null;
             _actionButtons.Children.Clear();
             _actionView = null;
             StopTablePresentation();
             _motion.SetContract(null);
             _motionTracker.Update(null, $"{session.Id}:handoff");
-            _renderKey = null;
-            _teamZeroScore.Text = view.Scores[0].ToString();
-            _teamOneScore.Text = view.Scores[1].ToString();
+            _renderedView = null;
+            ScoreTally(0).Set(view.Scores[0]);
+            ScoreTally(1).Set(view.Scores[1]);
             _dealerText.Text = $"HAND {view.HandNumber} · TRICKS {view.TricksByTeam[0]}–{view.TricksByTeam[1]}";
             _contractText.Text = ContractName(view);
             _contractText.IsVisible = true;
@@ -72,6 +73,8 @@ public sealed partial class MainWindow
         // A handoff replaces these optional presentations and must release their engine gates.
         if (session.WaitingForDeal) _ = FinishDealAsync(session, view.HandNumber);
         if (session.WaitingForContractPresentation) _ = AcknowledgeContractAsync(session, view.DealSerial ?? view.HandNumber);
+        if (session.WaitingForTrickPresentation && view.CompletedTricks.LastOrDefault() is { } trick)
+            _ = FinishTrickPresentationAsync(session, view.DealSerial ?? view.HandNumber, trick.Number);
         SyncNativeInput();
         return true;
     }
@@ -85,12 +88,12 @@ public sealed partial class MainWindow
         catch (ObjectDisposedException) { return; }
         if (generation != _sessionGeneration || !ReferenceEquals(session, _session) || _liveSettingsOpen
             || _tableTransitioning || revision != _input.Revision || _hotseatPending != seat) return;
-        if (current?.CurrentSeat != seat || !AutomaticHotseat) { _renderKey = null; await RefreshGameAsync(); return; }
+        if (current?.CurrentSeat != seat || !AutomaticHotseat) { _renderedView = null; await RefreshGameAsync(); return; }
         _input.BeginViewChange();
         _hotseatPending = null;
         _viewer = seat;
         SetViewerSelection(seat);
-        _renderKey = null;
+        _renderedView = null;
         SyncNativeInput();
         await RefreshGameAsync();
     }

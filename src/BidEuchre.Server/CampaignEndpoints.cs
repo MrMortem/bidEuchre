@@ -26,7 +26,7 @@ public static class CampaignEndpoints
             return Results.Ok(new { features = CampaignProjection.Catalog() });
         });
         foreach (var action in new[] { "new", "continue", "start-match", "forfeit", "next-hand", "commands", "arrange-hand",
-            "shop/buy", "shop/buy-use", "shop/pull", "shop/sell", "shop/reroll", "items/use", "items/discard", "result/continue", "victory/continue", "shop/leave" })
+            "shop/arcade/plinko", "shop/arcade/roulette", "shop/arcade/keep", "shop/arcade/use", "shop/arcade/pick", "shop/arcade/dismiss", "shop/begin-sigil-use", "shop/begin-ticket-use", "shop/use-purchased", "shop/finish-use", "shop/buy", "shop/buy-use", "shop/print", "shop/keep-ticket", "shop/use-ticket", "shop/pull", "shop/sell", "shop/reroll", "items/use", "items/discard", "result/continue", "victory/continue", "shop/leave" })
         {
             var operation = action;
             app.MapPost($"/api/campaign/{operation}", (HttpContext context, WebCampaigns campaigns) => Mutate(context, campaigns, operation));

@@ -261,7 +261,7 @@ The initial champion remains the frozen C++ heuristic. Tiny training and screeni
 **Play** starts a run with three lives, $0, and one shared 24-card deck. Permanent
 card changes affect whoever draws that physical card for the rest of the run.
 Each card supports one enhancement and one Sigil; replacing either preserves
-the other. The campaign includes 8 enhancements, 32 Jokers, 9 Gumball bidding
+the other. The campaign includes 8 enhancements, 32 Jokers, 8 Gumball bidding
 unlocks, 8 Sigils, and 9 Tarot consumables. The active Sigils are Bear, Eagle,
 Fish, Spider, Frog, Duck, Vulture, and Chameleon. The nine Tarot Cards are
 Festival (Wild), Stone mason (Stone), Prospector (Golden), Devilish Deal,
@@ -284,28 +284,56 @@ broken. Successful opponent contracts add +0/+1/+2/+3/+4 fixed points in
 Antes 1–5, after hand multipliers. Contract success counts tricks only; effect
 bonuses remain even after a failed bid.
 
-Between matches the shop offers two $4 Jokers, a $3 Tarot, a $3 Sigil, and a
+Poker is a standalone showdown. Win the auction with an exact bid of 4 to reveal
+all four hands. Each player's best five of six cards is compared; the winning
+five cards are highlighted and each winning team earns +4 points once. Opposing
+teams tied for best both receive +4. The result displays briefly, then the next
+round is dealt automatically, without choosing trump or playing tricks. A Poker
+showdown counts as one round and may end the match. Extra Poker copies pay only
+when your team wins the showdown. Current card faces count, including copied
+faces; Wild and Bear abilities do not change poker hands, and five of a kind
+outranks a straight flush.
+
+Between matches the shop offers two $4 Jokers, a Fortune Teller, an Arcade, and a
 gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
 four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
 gumball rolls out and permanently unlocks a random bidding option you do not
-have yet. After all nine unique bids are unlocked, pulls grant random duplicates.
+have yet. After all eight unique bids are unlocked, pulls grant random duplicates.
 Astronomer uses the same rule and grants its gumball immediately, without a held
 Planet card. Each extra copy awards +1 fixed point after hand multipliers when
 you successfully make its matching bid; matching types such as Alone and High/Low
 stack once each. Failed, unrelated and partner-made bids earn no duplicate bonus.
-Panic Button has no successful contract, so its extra copies award no success
-points. Unique unlocks and duplicate counts persist for the run. A shop reroll
-costs $2, then $1 more per reroll that visit, and refills all four regular offers,
+Unique unlocks and duplicate counts persist for the run. A shop reroll
+costs $2, then $1 more per reroll that visit, and refills the three regular offers,
 including sold slots. It preserves the gumball offer and whether its one paid
 pull has been used. Partners Best,
-Alone, and the High and Low contracts start locked for every seat. For a Tarot or Sigil, Buy stores it; Buy & Use applies it immediately to the
-shared deck and needs no free slot. A stored Tarot or Sigil can be used whenever
-it is yours to act: in the shop and on the screen before a match it is aimed at
-the shared deck, and during a match it is played on cards in your hand on any of
-your turns, whether you are about to bid, name the contract, exchange or play a
-card. Using one does not end your turn. Panic Button is offered when bidding; it
-costs eight team points, consumes a hand, and forces a fresh deal if the match
-continues.
+Alone, and the High and Low contracts start locked for every seat.
+The Fortune Teller prints one blind ticket for $3 or three for $6; choose one
+to keep or use and the other printed tickets are lost.
+
+The Arcade replaces direct Sigil sales. Plinko and roulette each cost $3 and may
+be played once per shop visit; rerolling does not restore plays. Plinko uses eight
+drop positions and the supplied board's eleven slots: scores 5–6 award a Sigil,
+3–4 award a Tarot ticket, and 1–2 award nothing. On the twelve-pocket roulette
+wheel, an exact number wins a Sigil; matching only its color wins a Tarot ticket;
+the opposite color wins nothing. Choose before paying. Payment, the result and
+any prize are saved before animation, so reopening restores the same outcome.
+Keep a prize if there is inventory space, or apply it immediately. A full inventory
+never prevents immediate use. Finish collecting a prize before playing again,
+rerolling or leaving the shop.
+
+An Arcade prize or newly printed ticket may be applied immediately without a free inventory slot.
+These shop opportunities show six random cards from the shared deck, and only
+those cards may be changed. Gambler lets you choose exactly two of those six to become Lucky.
+Opening this six-card menu commits the chosen prize or printed ticket, and it must
+be used before pressing Done. An unfinished Sigil purchase from an older save follows the same rule.
+There is no Back or Cancel. You may also use any stored Tarot on the same six cards,
+before or after applying the bought item. Closing and reopening the game restores
+the unfinished menu, its six cards, and any effects already applied without charging again.
+Outside that menu, stored Tarots and Sigils are usable only during a match, on cards
+currently in your hand when it is your turn to bid, name the contract, exchange or play.
+Stored consumables may still be discarded in the normal shop or pre-match screen.
+Using one does not end your turn.
 
 Win rewards are $5/$6/$8 for Small/Medium/Boss matches, plus $2/$4/$6 for victory
 margins of 1–4/5–9/10+. Losses keep card and Joker earnings. Interest is $1 per $5

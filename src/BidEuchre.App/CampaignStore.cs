@@ -27,6 +27,10 @@ public static class CampaignStore
             if (root.TryGetProperty("Version", out var version))
             {
                 if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number is not (2 or 3)) return Corrupt();
+                if (root.TryGetProperty("Run", out var shopRun) && !CompleteShopTargetsJson(shopRun)) return Corrupt();
+                if ((HasShopUseSessionJson(shopRun) || HasArcadeJson(shopRun)) && (number != 3
+                    || !Members(shopRun, "Resources", "Money", "Phase", "Match", "LiveMatch", "Arrangement", "LegacyMatchRestart")
+                    || !CompleteResourcesJson(shopRun.GetProperty("Resources")))) return Corrupt();
                 if (number == 3 && root.TryGetProperty("Run", out var runJson) && runJson.TryGetProperty("LiveMatch", out var liveJson)
                     && liveJson.ValueKind != JsonValueKind.Null && (!Members(runJson, "Arrangement", "Resources", "Money", "LastAppliedRevision", "LegacyMatchRestart")
                         || !CompleteResourcesJson(runJson.GetProperty("Resources")) || !CompleteLiveJson(liveJson))) return Corrupt();
@@ -44,7 +48,13 @@ public static class CampaignStore
             }
             else
             {
-                var run = JsonSerializer.Deserialize<CampaignRun>(text);
+                if (!CompleteShopTargetsJson(root)) return Corrupt();
+                // Bare legacy runs rebuild their resources. A committed purchase must never
+                // be accepted here, where that migration would erase its already-paid state.
+                if (HasShopUseSessionJson(root) || HasArcadeJson(root)) return Corrupt();
+                var legacyNode = JsonNode.Parse(text)!.AsObject();
+                RemoveRetiredPanic(legacyNode, numericIds: true);
+                var run = legacyNode.Deserialize<CampaignRun>();
                 if (run is null || run.LiveMatch is not null || run.Lives <= 0) return Corrupt();
                 run = run with { Resources = CampaignSnapshot.Create(1) with { Wallets = new[] { run.Money, 0, 0, 0 } }, LegacyMatchRestart = run.Phase == CampaignPhase.InMatch };
                 save = new(2, run);
@@ -60,19 +70,79 @@ public static class CampaignStore
     // The live format is strict even where older resource/domain records have optional
     // defaults for v2 compatibility. Every newly serialized continuation field must exist.
     private static bool Members(JsonElement value, params string[] names) => value.ValueKind == JsonValueKind.Object && names.All(n => value.TryGetProperty(n, out _));
+    private static bool HasShopUseSessionJson(JsonElement run) => run.ValueKind == JsonValueKind.Object
+        && run.TryGetProperty("Shop", out var shop) && shop.ValueKind == JsonValueKind.Object
+        && shop.TryGetProperty("UseSession", out var session) && session.ValueKind != JsonValueKind.Null;
+    private static bool HasArcadeJson(JsonElement run) => run.ValueKind == JsonValueKind.Object
+        && run.TryGetProperty("Shop", out var shop) && shop.ValueKind == JsonValueKind.Object
+        && shop.TryGetProperty("Arcade", out var arcade) && arcade.ValueKind != JsonValueKind.Null;
+    private static bool CompleteShopTargetsJson(JsonElement run)
+    {
+        if (run.ValueKind != JsonValueKind.Object) return false;
+        if (!run.TryGetProperty("Shop", out var shop) || shop.ValueKind == JsonValueKind.Null) return true;
+        if (shop.ValueKind != JsonValueKind.Object || !shop.TryGetProperty("Offers", out var offers) || offers.ValueKind != JsonValueKind.Array) return false;
+        if (shop.TryGetProperty("Arcade", out var arcade) && arcade.ValueKind != JsonValueKind.Null && !CompleteArcadeJson(arcade)) return false;
+        if (shop.TryGetProperty("UseSession", out var session) && session.ValueKind != JsonValueKind.Null
+            && (!Members(session, "OfferId", "Category", "FeatureId", "PurchasedItemUsed")
+                || session.GetProperty("OfferId").ValueKind != JsonValueKind.String
+                || session.GetProperty("FeatureId").ValueKind != JsonValueKind.String
+                || session.GetProperty("Category").ValueKind != JsonValueKind.Number || !session.GetProperty("Category").TryGetInt32(out _)
+                || session.GetProperty("PurchasedItemUsed").ValueKind is not (JsonValueKind.True or JsonValueKind.False))) return false;
+        foreach (var offer in offers.EnumerateArray())
+        {
+            if (offer.ValueKind != JsonValueKind.Object) return false;
+            if (offer.TryGetProperty("TargetCards", out var targets) && targets.ValueKind != JsonValueKind.Null
+                && !EveryJson(targets, CompleteIdJson)) return false;
+        }
+        return true;
+    }
+    private static bool CompleteArcadeJson(JsonElement arcade)
+    {
+        if (!Members(arcade, "PlinkoPlayed", "RoulettePlayed", "Pending")
+            || arcade.GetProperty("PlinkoPlayed").ValueKind is not (JsonValueKind.True or JsonValueKind.False)
+            || arcade.GetProperty("RoulettePlayed").ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return false;
+        var pending = arcade.GetProperty("Pending");
+        if (pending.ValueKind == JsonValueKind.Null) return true;
+        if (!Members(pending, "PlayId", "Game", "Choice", "Landing", "Score", "Path", "PrizeCategory", "FeatureId", "TargetCards")
+            || pending.GetProperty("PlayId").ValueKind != JsonValueKind.String
+            || pending.GetProperty("FeatureId").ValueKind is not (JsonValueKind.String or JsonValueKind.Null)
+            || !EveryJson(pending.GetProperty("Path"), value => value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out _))
+            || !EveryJson(pending.GetProperty("TargetCards"), CompleteIdJson)
+            || pending.TryGetProperty("PackCards", out var pack) && pack.ValueKind != JsonValueKind.Null
+                && !EveryJson(pack, card => card.ValueKind == JsonValueKind.String)) return false;
+        foreach (var member in new[] { "Game", "Choice", "Landing", "Score", "PrizeCategory" })
+        {
+            var value = pending.GetProperty(member);
+            if (member == "PrizeCategory" && value.ValueKind == JsonValueKind.Null) continue;
+            if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out _)) return false;
+        }
+        return true;
+    }
     private static bool CompleteLiveJson(JsonElement live)
     {
+        if (!CompleteOptionalPokerJson(live)) return false;
         if (!live.TryGetProperty("Options", out var options) || !Members(options, "TargetScore", "StartingScoreTeam0", "StartingScoreTeam1", "NegativeThreshold", "HandLimit", "OpponentSuccessfulBidBonus")) return false;
         if (!live.TryGetProperty("Resources", out var resources) || !CompleteResourcesJson(resources) || !CompleteLiveCardValuesJson(live)) return false;
         if (!live.TryGetProperty("HandHistory", out var history) || history.ValueKind != JsonValueKind.Array) return false;
         foreach (var hand in history.EnumerateArray())
         {
-            if (!Members(hand, "MadeContract", "ScoreBreakdowns")) return false;
+            if (!Members(hand, "MadeContract", "ScoreBreakdowns") || !CompleteOptionalPokerJson(hand)) return false;
             var parts = hand.GetProperty("ScoreBreakdowns"); if (parts.ValueKind != JsonValueKind.Array) return false;
             foreach (var part in parts.EnumerateArray()) if (!Members(part, "GumballBonuses")) return false;
         }
         return true;
     }
+
+    // Older checkpoints predate PokerResult. When present, its physical winning
+    // identities must be explicit; CardId's default zero is a real deck card.
+    private static bool CompleteOptionalPokerJson(JsonElement owner) =>
+        !owner.TryGetProperty("PokerResult", out var result) || result.ValueKind == JsonValueKind.Null
+        || Members(result, "Winners", "TeamPoints")
+            && EveryJson(result.GetProperty("Winners"), winner => Members(winner, "Seat", "Category", "CardIds")
+                && winner.GetProperty("Seat").ValueKind == JsonValueKind.Number
+                && winner.GetProperty("Category").ValueKind == JsonValueKind.String
+                && EveryJson(winner.GetProperty("CardIds"), CompleteIdJson))
+            && EveryJson(result.GetProperty("TeamPoints"), point => point.ValueKind == JsonValueKind.Number && point.TryGetInt32(out _));
 
     private static bool CompleteResourcesJson(JsonElement resources)
     {
@@ -115,9 +185,12 @@ public static class CampaignStore
     private static bool ValidSave(CampaignSave save)
     {
         var run = save.Run;
-        if (run is null || run.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop)
+        if (run is null || run.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop, run.Resources.Deck)
             || run.Match < 1 || run.Money < 0 || run.MatchesWon < 0 || run.LastAppliedRevision < 0 || !Enum.IsDefined(run.Phase)
             || run.IsOver && run.Phase != CampaignPhase.Shop) return false;
+        if ((run.Shop?.UseSession is not null || run.Shop?.Arcade?.Pending is not null) && (save.Version != 3 || run.Phase != CampaignPhase.Shop || run.IsOver
+            || run.Shop.MatchJustFinished != run.Match - 1 || run.LiveMatch is not null || run.Arrangement is not null
+            || run.LegacyMatchRestart || save.Metadata?.LastResult is not null || run.Money != run.Resources.Wallets[0])) return false;
         if (run.LiveMatch is { } live)
         {
             if (run.Phase != CampaignPhase.InMatch || run.LegacyMatchRestart || !new CampaignCheckpoint(live, run.Arrangement).IsValid()
@@ -141,7 +214,7 @@ public static class CampaignStore
 
     // Old blind gumball stock used "Blind"; current stock uses an empty feature until pulled.
     // Other offers must name a feature in the category the shop can actually sell.
-    private static bool ValidShop(ShopState? shop)
+    private static bool ValidShop(ShopState? shop, CardState[] deck)
     {
         if (shop is null) return true;
         if (shop.MatchJustFinished < 0 || shop.Offers is null || shop.RerollCount < 0 || shop.RerollCount > int.MaxValue - 2) return false;
@@ -152,11 +225,26 @@ public static class CampaignStore
             if (offer is null || string.IsNullOrWhiteSpace(offer.Id) || !ids.Add(offer.Id)
                 || offer.Price < 0 || offer.FeatureId is null) return false;
             if (offer.Category == FeatureCategory.Gumball && ++machines > 1) return false;
-            if (offer.Category == FeatureCategory.Gumball && !offer.Sold && offer.FeatureId is "" or "Blind") continue;
+            if (offer.TargetCards is { } targets && (offer.Category is not (FeatureCategory.Sigil or FeatureCategory.Tarot)
+                || targets.Length != CampaignShop.ShopTargetCount || targets.Distinct().Count() != targets.Length
+                || targets.Any(id => deck.All(c => c.Id != id))
+                || offer.Category == FeatureCategory.Tarot && !offer.Sold && offer.Printed is null)) return false;
+            if (offer.Printed is { } printed && (offer.Category != FeatureCategory.Tarot || offer.Sold || printed.Length is not (1 or CampaignShop.TicketSpread)
+                || printed.Distinct().Count() != printed.Length || printed.Any(id => !Enum.TryParse<TarotId>(id, out _) || !FeatureCatalog.All.Any(f => f.Category == FeatureCategory.Tarot && f.Key == id)))) return false;
+            // A migrated retired pull stays sold without naming an active reward.
+            if (offer.Category == FeatureCategory.Gumball && (offer.FeatureId == "" || !offer.Sold && offer.FeatureId == "Blind")) continue;
+            // An unprinted Fortune Teller has no ticket yet; older saves named one, which is now ignored.
+            if (offer.Category == FeatureCategory.Tarot && !offer.Sold && offer.FeatureId == "") continue;
             if (offer.Category is not (FeatureCategory.Joker or FeatureCategory.Tarot or FeatureCategory.Sigil or FeatureCategory.Gumball)
                 || !FeatureCatalog.All.Any(feature => feature.Category == offer.Category && feature.Key == offer.FeatureId)) return false;
         }
-        return true;
+        if (!CampaignArcade.IsValid(shop, deck)) return false;
+        if (shop.UseSession is not { } session) return true;
+        if (string.IsNullOrWhiteSpace(session.OfferId) || string.IsNullOrWhiteSpace(session.FeatureId)
+            || session.Category is not (FeatureCategory.Sigil or FeatureCategory.Tarot)) return false;
+        var committed = shop.Offers.SingleOrDefault(o => o.Id == session.OfferId);
+        return committed is { Sold: true, Printed: null, TargetCards: not null }
+            && committed.Category == session.Category && committed.FeatureId == session.FeatureId;
     }
 
     // Retired IDs are removed only from their saved feature fields; all other
@@ -164,6 +252,7 @@ public static class CampaignStore
     private static void RemoveRetiredFeatures(JsonObject save)
     {
         if (save["Run"] is not JsonObject run) return;
+        RemoveRetiredPanic(run);
         if (run["Resources"] is JsonObject resources)
         {
             if (resources["Deck"] is JsonArray deck)
@@ -196,6 +285,74 @@ public static class CampaignStore
                 || (category == (int)FeatureCategory.Enhancement && feature is "Emerald" or "Stinky"))
                 offers.RemoveAt(index);
         }
+    }
+
+    private static bool IsRetiredPanic(string id) => id is "gumball:panic-button" or "planet:panic-button";
+
+    private static bool IsRetiredPanicValue(JsonNode? node, bool numericIds) => node is JsonValue value
+        && (value.TryGetValue<string>(out var id) && IsRetiredPanic(id)
+            || numericIds && value.TryGetValue<int>(out var number) && number == 7);
+    private static bool IsRetiredPanicKey(string key, bool numericIds) => IsRetiredPanic(key)
+        || numericIds && key is "7" or "PanicButton";
+
+    private static (int? UnlockIndex, bool HasCopies, int Copies) RetiredPanicState(JsonNode? resources, bool numericIds)
+    {
+        if (resources is not JsonObject resource || resource["Inventory"] is not JsonObject inventory) return default;
+        int? unlockIndex = null;
+        if (inventory["Unlocks"] is JsonArray unlocks)
+            for (var index = 0; index < unlocks.Count; index++)
+                if (IsRetiredPanicValue(unlocks[index], numericIds))
+                {
+                    if (unlockIndex is not null) throw new JsonException("Duplicate retired unlock.");
+                    unlockIndex = index;
+                }
+        var extras = inventory["GumballExtraCopies"] as JsonObject;
+        var retiredKeys = extras?.Select(pair => pair.Key).Where(key => IsRetiredPanicKey(key, numericIds)).ToArray() ?? [];
+        if (retiredKeys.Length > 1) throw new JsonException("Duplicate retired gumball count.");
+        var hasCopies = retiredKeys.Length == 1;
+        var copies = 0;
+        if (hasCopies && (extras![retiredKeys[0]] is not JsonValue value || !value.TryGetValue<int>(out copies)
+            || copies < 0 || unlockIndex is null)) throw new JsonException("Invalid retired gumball count.");
+        if (unlockIndex is not null || hasCopies)
+        {
+            // Validate the original total before deleting the retired contribution;
+            // otherwise an overfull or malformed inventory could appear valid afterward.
+            long total = 0;
+            if (extras is not null)
+                foreach (var pair in extras)
+                {
+                    if (pair.Value is not JsonValue count || !count.TryGetValue<int>(out var amount) || amount < 0)
+                        throw new JsonException("Invalid gumball copy count.");
+                    total += amount;
+                    if (total > int.MaxValue) throw new JsonException("Too many gumball copies.");
+                }
+        }
+        return (unlockIndex, hasCopies, copies);
+    }
+
+    // Strip the retired unlock from both authoritative resource copies before their
+    // equality check. Historical scores, hand numbers and event text remain intact.
+    private static void RemoveRetiredPanic(JsonObject run, bool numericIds = false)
+    {
+        var resources = run["Resources"];
+        var liveResources = run["LiveMatch"] is JsonObject live ? live["Resources"] : null;
+        var retired = RetiredPanicState(resources, numericIds);
+        if (liveResources is not null && retired != RetiredPanicState(liveResources, numericIds))
+            throw new JsonException("Run and checkpoint retired gumballs differ.");
+        foreach (var savedResources in new[] { resources, liveResources })
+        {
+            if (savedResources is not JsonObject resource || resource["Inventory"] is not JsonObject inventory) continue;
+            if (inventory["Unlocks"] is JsonArray unlocks)
+                for (var index = unlocks.Count - 1; index >= 0; index--)
+                    if (IsRetiredPanicValue(unlocks[index], numericIds)) unlocks.RemoveAt(index);
+            if (inventory["GumballExtraCopies"] is JsonObject copies)
+                foreach (var key in copies.Select(pair => pair.Key).Where(key => IsRetiredPanicKey(key, numericIds)).ToArray()) copies.Remove(key);
+        }
+        if (run["Shop"] is not JsonObject shop || shop["Offers"] is not JsonArray offers) return;
+        foreach (var node in offers)
+            if (node is JsonObject offer && offer["Category"] is JsonValue category && category.TryGetValue<int>(out var value)
+                && value == (int)FeatureCategory.Gumball && offer["FeatureId"] is JsonValue feature
+                && feature.TryGetValue<string>(out var id) && id == "PanicButton") offer["FeatureId"] = "";
     }
 
     private static bool IsRetiredTarot(string id) => id is "tarot:merchant" or "tarot:beggar" or "tarot:love-potion"

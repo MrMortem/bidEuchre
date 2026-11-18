@@ -48,12 +48,11 @@ public static class FeatureCatalog
         new("joker:double-down", FeatureCategory.Joker, "DoubleDown", "Double Down", "Retrigger the first card you play each round.", 4),
         new("gumball:lowballer", FeatureCategory.Gumball, "Lowballer", "Safety Net", "Unlock bid 2 for every seat.", 3),
         new("gumball:chaos", FeatureCategory.Gumball, "Chaos", "Chaos", "Minimum bid 4; trump changes randomly each trick; double all points earned/lost that hand.", 3),
-        new("gumball:poker", FeatureCategory.Gumball, "Poker", "Poker", "Bid exactly 4; reveal all hands; best poker hand earns 4 points.", 3),
+        new("gumball:poker", FeatureCategory.Gumball, "Poker", "Poker", "Win the auction with a bid of exactly 4. Reveal all hands, award 4 points to each team tied for the best five-card hand, then redeal.", 3),
         new("gumball:duelist", FeatureCategory.Gumball, "Duelist", "Duelist", "Bid 4–5; play alone against one chosen opponent; failed contract costs 2 extra points. Once per match, consumed when Duelist wins the auction; overcalled bids spend no use.", 3),
         new("gumball:telepath", FeatureCategory.Gumball, "Telepath", "Telepath", "Minimum bid 5; partner reveals one card before human chooses trump.", 3),
         new("gumball:partners-best", FeatureCategory.Gumball, "PartnersBest", "Partner's Best", "Existing card exchange and solo play; sweep six tricks for +12, otherwise -12.", 3),
         new("gumball:alone", FeatureCategory.Gumball, "Alone", "Alone", "Existing solo play; sweep six tricks for +24, otherwise -24.", 3),
-        new("gumball:panic-button", FeatureCategory.Gumball, "PanicButton", "Panic Button", "Immediately pay 8 team points, end the bidding hand, count it, and redeal if match continues.", 3),
         new("gumball:high-low", FeatureCategory.Gumball, "HighLow", "High/Low", "Unlock High or Low for every seat when winning a bid of 4 or more; special contracts keep their mode restrictions.", 3),
         new("sigil:bear", FeatureCategory.Sigil, "Bear", "Bear", "Count as one printed rank higher; Ace wraps to 9.", 3),
         new("sigil:eagle", FeatureCategory.Sigil, "Eagle", "Eagle", "Return to the player's hand if played in a losing trick.", 3),
@@ -67,11 +66,19 @@ public static class FeatureCatalog
         new("tarot:grindstone", FeatureCategory.Tarot, "Grindstone", "Stone mason", "Make one card Stone.", 3),
         new("tarot:prospector", FeatureCategory.Tarot, "Prospector", "Prospector", "Make one card Golden.", 3),
         new("tarot:devilish-deal", FeatureCategory.Tarot, "DevilishDeal", "Devilish Deal", "Random enhancement on each of two selected cards; a third selected card becomes Cursed.", 3),
-        new("tarot:gambler", FeatureCategory.Tarot, "Gambler", "Gambler", "Two random cards become Lucky.", 3),
+        new("tarot:gambler", FeatureCategory.Tarot, "Gambler", "Gambler", "Choose two cards to become Lucky.", 3),
         new("tarot:traitor", FeatureCategory.Tarot, "Traitor", "Traitor", "Make one card Silver.", 3),
-        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Immediately grant a random locked Gumball bid; after all nine unlocks, grant a duplicate. Each extra copy earns +1 point on your successful matching bid, after hand multipliers. Panic Button has no successful contract reward.", 3),
+        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Astronomer", "Immediately grant a random locked Gumball bid; after all eight unlocks, grant a duplicate. Each extra copy earns +1 point on your successful matching bid, after hand multipliers.", 3),
         new("tarot:spring-loaded", FeatureCategory.Tarot, "SpringLoaded", "Ectoplasm", "Make one card Bouncy.", 3),
         new("tarot:tax-collector", FeatureCategory.Tarot, "TaxCollector", "Taxes", "Double money, capped at $20 gained.", 3),
     });
     public static FeatureDefinition Get(FeatureCategory category, string key) => All.Single(f => f.Category == category && f.Key == key);
+
+    /// <summary>The title printed on a Sigil's collector card; the Sigil's name and effect are unchanged.</summary>
+    public static string CollectorTitle(SigilId sigil) => sigil switch
+    {
+        SigilId.Bear => "Strength", SigilId.Fish => "Abundance", SigilId.Frog => "Echo", SigilId.Duck => "Lucky",
+        SigilId.Chameleon => "Deception", SigilId.Eagle => "Resilient", SigilId.Spider => "Affliction", SigilId.Vulture => "Resourceful",
+        _ => throw new ArgumentOutOfRangeException(nameof(sigil))
+    };
 }

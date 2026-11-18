@@ -28,7 +28,7 @@ internal static class ScoreExplanationTests
         {
             game.ExecuteCampaignAction(bidder, new CampaignCommand.Bid(bid, variant));
             while (game.Phase == GamePhase.Bidding) game.ExecuteCampaignAction(game.CampaignActor!.Value, new CampaignCommand.Pass());
-            while (game.Phase != GamePhase.Playing)
+            while (game.Phase is not (GamePhase.Playing or GamePhase.PokerReveal))
             {
                 var seat = game.CampaignActor!.Value;
                 var legal = game.CreateCampaignView(seat).LegalActions;
@@ -81,7 +81,7 @@ internal static class ScoreExplanationTests
         {
             var part = Team(result, team);
             var expected = (Value(part, "ContractPoints") + Value(part, "CardPoints") + Value(part, "JokerPoints") + Value(part, "TrickModifierPoints")) * Value(part, "HandMultiplier")
-                + Value(part, "OpponentBidBonus") + part["GumballBonuses"]!.AsArray().Sum(b => b!["Points"]!.GetValue<int>());
+                + Value(part, "OpponentBidBonus") + Value(part, "PokerPoints") + part["GumballBonuses"]!.AsArray().Sum(b => b!["Points"]!.GetValue<int>());
             Assert.Equal(team == 0 ? game.HandHistory.Last().TeamZeroDelta : game.HandHistory.Last().TeamOneDelta, expected);
             Assert.Equal(expected, Value(part, "FinalDelta"));
         }
@@ -119,11 +119,12 @@ internal static class ScoreExplanationTests
         Assert.Equal(1, us["GumballBonuses"]!.AsArray().Count);
         Assert.Equal(3, us["GumballBonuses"]!.AsArray().Single(b => b!["Id"]!.GetValue<int>() == (int)GumballId.Chaos)!["Points"]!.GetValue<int>());
         CheckFormula(layered);
-        var stacked = Begin(bid: BidLevel.Four, variant: GumballId.Poker, duplicates: true); Finish(stacked);
-        var stackedUs = Team(Result(stacked), 0);
-        Assert.Equal(2, stackedUs["GumballBonuses"]!.AsArray().Count);
-        Assert.Equal(15, stacked.Scores[0]); // 6 contract + 4 best Poker hand + 3 Poker copies + 2 High/Low copies.
-        CheckFormula(stacked);
+        var poker = Begin(bid: BidLevel.Four, variant: GumballId.Poker, duplicates: true);
+        var pokerUs = Team(Result(poker), 0);
+        Assert.Equal((int)GumballId.Poker, Value(pokerUs["GumballBonuses"]!.AsArray().Single()!.AsObject(), "Id"));
+        Assert.Equal(4, Value(pokerUs, "PokerPoints"));
+        Assert.Equal(7, poker.Scores[0]);
+        CheckFormula(poker);
         var opponent = Begin(bidder: 1, enhancement: EnhancementId.Cursed); Finish(opponent);
         result = Result(opponent); them = Team(result, 1);
         Assert.True(result["MadeContract"]!.GetValue<bool>(), "A made contract remains made even when effects make its total negative.");
@@ -188,14 +189,14 @@ internal static class ScoreExplanationTests
         Assert.Throws<NotSupportedException>(() => ((IList<GumballBidBonus>)copied.GumballBonuses)[0] = input[0]);
     }
 
-    public static void PanicCompletionHasNoFabricatedContract()
+    public static void DeveloperCompletionHasNoFabricatedContract()
     {
-        var resources = CampaignSnapshot.Create(5) with { Inventory = new([], [], [GumballId.PanicButton]) };
+        var resources = CampaignSnapshot.Create(5);
         var game = new GameEngine(Names, 5, new MatchOptions(8) { NegativeThreshold = -8 }, new CampaignContext(resources));
-        game.StartGame(3); game.ExecuteCampaignAction(0, new CampaignCommand.PanicButton());
+        game.StartGame(3); game.DeveloperSetScores(-8, 0); game.DeveloperEndMatch(1);
         var json = JsonSerializer.SerializeToNode(game.CreateView())!;
         Assert.Equal(GamePhase.GameComplete, game.Phase); Assert.True(game.Contract is null);
-        Assert.True(json["CompletionReason"]?.GetValue<string>().Contains("Panic Button") == true, "Terminal noncontract actions need an explicit readable reason.");
+        Assert.True(json["CompletionReason"]?.GetValue<string>().Contains("developer console") == true, "Terminal noncontract actions need an explicit readable reason.");
         Assert.Equal(0, json["HandHistory"]!.AsArray().Count); Assert.Equal(-8, game.Scores[0]);
     }
 }

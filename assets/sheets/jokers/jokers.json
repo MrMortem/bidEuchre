@@ -1,0 +1,979 @@
+{
+  "frames": {
+    "joker:threes-company": {
+      "index": 0,
+      "name": "Three\u0027s Company",
+      "key": "ThreesCompany",
+      "row": 0,
+      "column": 0,
+      "frame": {
+        "x": 20,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-threes-company.png",
+      "sha256": "fb975e410eff28797915bd50d0e4438c8dd39660765185fd6178a6b68a56bb7b",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-threes-company.png",
+      "sourceSha256": "139f5ccda8d95529e748b99546f51e5373dd54a0665bd8f959f05326d8421a96"
+    },
+    "joker:high-roller": {
+      "index": 1,
+      "name": "High Roller",
+      "key": "HighRoller",
+      "row": 0,
+      "column": 1,
+      "frame": {
+        "x": 340,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-high-roller.png",
+      "sha256": "858e106635efb5511740a94ea3cfd1b2ed3bcd21fdc16e5ec199c4caa1eaf2f6",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-high-roller.png",
+      "sourceSha256": "14843d18f8c6d4e962a19eae4fe242b1c9f909c2a24e208d290d4daa4a0686ad"
+    },
+    "joker:lover-boy": {
+      "index": 2,
+      "name": "Lover Boy",
+      "key": "LoverBoy",
+      "row": 0,
+      "column": 2,
+      "frame": {
+        "x": 660,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-lover-boy.png",
+      "sha256": "34586316c9b55549eeb1ca26678c4be9574892cb3b2c25ba0cfca8c018649241",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-lover-boy.png",
+      "sourceSha256": "ed03ac9e5a6b7b56f9083b9e5c1386918d9bcf90a417df28d65ac094262befc2"
+    },
+    "joker:snake-eyes": {
+      "index": 3,
+      "name": "Snake Eyes",
+      "key": "SnakeEyes",
+      "row": 0,
+      "column": 3,
+      "frame": {
+        "x": 980,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-snake-eyes.png",
+      "sha256": "18bfd2be8d50934ca7b313550845aec9d175703944965e029d41a1c072b7ab10",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-snake-eyes.png",
+      "sourceSha256": "6e5ac5e4652e3743bda437a55278eb22b248fbfa08c113c4431a980761d5eedd"
+    },
+    "joker:twin-flame": {
+      "index": 4,
+      "name": "Twin Flame",
+      "key": "TwinFlame",
+      "row": 0,
+      "column": 4,
+      "frame": {
+        "x": 1300,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-twin-flame.png",
+      "sha256": "07b1c8ddfdbe4054f9cd62534de8a3d457037e68969379f50897e7bf13932d8f",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-twin-flame.png",
+      "sourceSha256": "bc7be3eba558bd76e48447293afeb55b3cca6aa5ab999c321595af7fc2200f8c"
+    },
+    "joker:clubhouse": {
+      "index": 5,
+      "name": "Clubhouse",
+      "key": "Clubhouse",
+      "row": 0,
+      "column": 5,
+      "frame": {
+        "x": 1620,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-clubhouse.png",
+      "sha256": "a7ad24dc6b4f75f019df342500ae7f29be059d51cbc0538ed7161a42164d006a",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-clubhouse.png",
+      "sourceSha256": "9908761e5fb2e4b9daf56bb590b787391ec0df8e86fb0546a487752e905b6802"
+    },
+    "joker:the-undertaker": {
+      "index": 6,
+      "name": "The Undertaker",
+      "key": "TheUndertaker",
+      "row": 0,
+      "column": 6,
+      "frame": {
+        "x": 1940,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-the-undertaker.png",
+      "sha256": "daaeadaf18f60e0b97ad8418943f5a2f689d66eb2718cca6cdc5248cd678521b",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-the-undertaker.png",
+      "sourceSha256": "555bb11a7f9d0e25491b86bcf79e9c1479ef731735cb6f11e5ef46f8423bc8ae"
+    },
+    "joker:roller-coaster": {
+      "index": 7,
+      "name": "Roller Coaster",
+      "key": "RollerCoaster",
+      "row": 0,
+      "column": 7,
+      "frame": {
+        "x": 2260,
+        "y": 20,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-roller-coaster.png",
+      "sha256": "e0e228b6f35d55b0b4547ffbeb90615e316021c67673dc5ac03f8489445f2f13",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-roller-coaster.png",
+      "sourceSha256": "f661c11c6958c0fe9d15ff3985426cbbb0a3c83ad376093d075d06f5cc2fa21a"
+    },
+    "joker:deja-vu": {
+      "index": 8,
+      "name": "D\u00E9j\u00E0 Vu",
+      "key": "DejaVu",
+      "row": 1,
+      "column": 0,
+      "frame": {
+        "x": 20,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-deja-vu.png",
+      "sha256": "f0f28f6c1148a384c4567ca03922f686540cccb38258d1fd57a046f1728c1794",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-deja-vu.png",
+      "sourceSha256": "7b211bd15517a0b574562011ca955726df186e0efbc48012a923c27ebd60bf0e"
+    },
+    "joker:last-laugh": {
+      "index": 9,
+      "name": "Last Laugh",
+      "key": "LastLaugh",
+      "row": 1,
+      "column": 1,
+      "frame": {
+        "x": 340,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-last-laugh.png",
+      "sha256": "639e7b7e722368f2decfef4805234000c474ef275cded294e71f2fd11a86bc1a",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-last-laugh.png",
+      "sourceSha256": "9be028af30d0a13daebd4ba1e5649e4b46160d4f72647706c3962192d9f66380"
+    },
+    "joker:vowof-silence": {
+      "index": 10,
+      "name": "Vow of Silence",
+      "key": "VowofSilence",
+      "row": 1,
+      "column": 2,
+      "frame": {
+        "x": 660,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-vowof-silence.png",
+      "sha256": "94412368e0927af20fce96e7f660ac6e17e01f3f429429048195a43119a866a4",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-vowof-silence.png",
+      "sourceSha256": "a6fbbdd6e336f585314673bda5bef05daf8f03c4a5ed265bd76c749ab162a725"
+    },
+    "joker:cure-all": {
+      "index": 11,
+      "name": "Cure-All",
+      "key": "CureAll",
+      "row": 1,
+      "column": 3,
+      "frame": {
+        "x": 980,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-cure-all.png",
+      "sha256": "1a5c7a8c398a5508824cf8b63cd551bb5d2a777d654de4d9d912f3d72f330b41",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-cure-all.png",
+      "sourceSha256": "936a3c6620d576fdd47f19181c8615886e94ab73502a6b9272eb3df7a02ec54a"
+    },
+    "joker:trend-setter": {
+      "index": 12,
+      "name": "Trend Setter",
+      "key": "TrendSetter",
+      "row": 1,
+      "column": 4,
+      "frame": {
+        "x": 1300,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-trend-setter.png",
+      "sha256": "914486380c420f95d1a2cb4a56f44eb1829db6eccdfdf25e4699708d33bf79c8",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-trend-setter.png",
+      "sourceSha256": "c852b5c8b781723aee6e08215d1a35f3d243ae6fbfd21d27549913e8e386df5f"
+    },
+    "joker:contrarian": {
+      "index": 13,
+      "name": "Contrarian",
+      "key": "Contrarian",
+      "row": 1,
+      "column": 5,
+      "frame": {
+        "x": 1620,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-contrarian.png",
+      "sha256": "3d20a1dcf8a46078614caebab86e1e71c2d7fd986ff79e504398e798c7f8b238",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-contrarian.png",
+      "sourceSha256": "5dae2830b254c0db4a8b3ebf68a0f3e605ecffd6fadafbaa3d21e7de4af42878"
+    },
+    "joker:consolation-prize": {
+      "index": 14,
+      "name": "Consolation Prize",
+      "key": "ConsolationPrize",
+      "row": 1,
+      "column": 6,
+      "frame": {
+        "x": 1940,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-consolation-prize.png",
+      "sha256": "18a5340a6835d1f5f72ac158b65eeec51c076cc279cc0fc1f82193dde84bc223",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-consolation-prize.png",
+      "sourceSha256": "e3a4789d778a20edb6669ee7e21a810a7c4d6a9439a553833a23967b977f8eca"
+    },
+    "joker:royal-council": {
+      "index": 15,
+      "name": "Royal Council",
+      "key": "RoyalCouncil",
+      "row": 1,
+      "column": 7,
+      "frame": {
+        "x": 2260,
+        "y": 452,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-royal-council.png",
+      "sha256": "e58f70b7aea959674101ff5bdd351a24212e583f13914252c936819cb7ba65eb",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-royal-council.png",
+      "sourceSha256": "86dc9027f800d474a9c152511c6e2fd8efcf4e60c1435b275918fdc20d201901"
+    },
+    "joker:deep-digger": {
+      "index": 16,
+      "name": "Deep Digger",
+      "key": "DeepDigger",
+      "row": 2,
+      "column": 0,
+      "frame": {
+        "x": 20,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-deep-digger.png",
+      "sha256": "f9ed680279a740048afd14b242941a7721898fec5d477e845e741b9873d1a811",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-deep-digger.png",
+      "sourceSha256": "1e5bbee1a41f98299960ff1130f5dd9b929b13f34b3297c7849357f123b4a63b"
+    },
+    "joker:lucky-duck": {
+      "index": 17,
+      "name": "Lucky Duck",
+      "key": "LuckyDuck",
+      "row": 2,
+      "column": 1,
+      "frame": {
+        "x": 340,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-lucky-duck.png",
+      "sha256": "cdfa8d0f4432929c8185b922f47fdec871809bf06b951b1ea000b42bc451a252",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-lucky-duck.png",
+      "sourceSha256": "22fd640ea2860c9f453051632cbe4f6711fc9285c2954a144845b158de2157b7"
+    },
+    "joker:protective-bubble": {
+      "index": 18,
+      "name": "Protective Bubble",
+      "key": "ProtectiveBubble",
+      "row": 2,
+      "column": 2,
+      "frame": {
+        "x": 660,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-protective-bubble.png",
+      "sha256": "faf313b5ec835826ae355d461f56288c156ed1741f62470488888987c7dfbf8c",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-protective-bubble.png",
+      "sourceSha256": "5493391bb9e59ab97c981f58cc3953fbfb70ad3385bcc632780d90ac36cf6314"
+    },
+    "joker:penny-pincher": {
+      "index": 19,
+      "name": "Penny Pincher",
+      "key": "PennyPincher",
+      "row": 2,
+      "column": 3,
+      "frame": {
+        "x": 980,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-penny-pincher.png",
+      "sha256": "c104c63b03d2146fe6c04121546c4567475ef9d6a80affc95c54812f61dfa00b",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-penny-pincher.png",
+      "sourceSha256": "c230cded44f448d7f72f3870db28651f9873c99c91f64c1057267c02880c5fb4"
+    },
+    "joker:bully": {
+      "index": 20,
+      "name": "Bully",
+      "key": "Bully",
+      "row": 2,
+      "column": 4,
+      "frame": {
+        "x": 1300,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-bully.png",
+      "sha256": "58a17bfb8ed76f9a3e01baab1e70d5cd5ee8bd4ce0815f346aca63ca988e246b",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-bully.png",
+      "sourceSha256": "4b70c331de6dbedd412ad651898c241c0893c5e2fc90ec0572f982e6327b5c9e"
+    },
+    "joker:people-pleaser": {
+      "index": 21,
+      "name": "People Pleaser",
+      "key": "PeoplePleaser",
+      "row": 2,
+      "column": 5,
+      "frame": {
+        "x": 1620,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-people-pleaser.png",
+      "sha256": "f7b4c68525d2b0f7598f5cb00c3fcb4e950c2d2fd5a13ceee962b4f49d1e2d2c",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-people-pleaser.png",
+      "sourceSha256": "f78de4442dc04fc93d6f796018895226540844768f89884d90c4920e7c8e8599"
+    },
+    "joker:millionaire": {
+      "index": 22,
+      "name": "Millionaire",
+      "key": "Millionaire",
+      "row": 2,
+      "column": 6,
+      "frame": {
+        "x": 1940,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-millionaire.png",
+      "sha256": "084bd495310c7c80e7dc7d11aad2a58740e3126d33e149dd17e244050aa73d90",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-millionaire.png",
+      "sourceSha256": "b547eca8812b838fb0a847ccf55e1f670340f4550ea8f1643d95fb63e8f0ed86"
+    },
+    "joker:king-midas": {
+      "index": 23,
+      "name": "King Midas",
+      "key": "KingMidas",
+      "row": 2,
+      "column": 7,
+      "frame": {
+        "x": 2260,
+        "y": 884,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-king-midas.png",
+      "sha256": "c2e1215f3358813f1d1ae60ac3bc0c98bce872ac6eced78cdeac5fcfd333dfae",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-king-midas.png",
+      "sourceSha256": "1fdacdf692586608ac8af038021a64b2084cb968360dc849a4ada204377442e7"
+    },
+    "joker:sticky-fingers": {
+      "index": 24,
+      "name": "Sticky Fingers",
+      "key": "StickyFingers",
+      "row": 3,
+      "column": 0,
+      "frame": {
+        "x": 20,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-sticky-fingers.png",
+      "sha256": "b14738eb6529dfbebfa92c82bddaed17ee52173e91535fd655734d4360161a02",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-sticky-fingers.png",
+      "sourceSha256": "560db4d0b94d4ee1cccf24551b9d1167aab828a03b3a7fbd1f4a282f0d964844"
+    },
+    "joker:medusa": {
+      "index": 25,
+      "name": "Medusa",
+      "key": "Medusa",
+      "row": 3,
+      "column": 1,
+      "frame": {
+        "x": 340,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-medusa.png",
+      "sha256": "f9fef9f71999163dcafa6a1a0507bec7626dee511ad9d0df9adb9edea44e7523",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-medusa.png",
+      "sourceSha256": "6bd49597de20c05a603efcb3936b5a74d5917cd39ecec1f3f2ff306307374de6"
+    },
+    "joker:cheese-touch": {
+      "index": 26,
+      "name": "Cheese Touch",
+      "key": "CheeseTouch",
+      "row": 3,
+      "column": 2,
+      "frame": {
+        "x": 660,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-cheese-touch.png",
+      "sha256": "19276e183a777c67bb82acd65fcc7dd7d04c8306531900aaed9c1f492ba0345a",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-cheese-touch.png",
+      "sourceSha256": "7af0f26f1a98caa3fe72fb9fddfba18df86039484b4c5b12f247d4d26c711d99"
+    },
+    "joker:one-up": {
+      "index": 27,
+      "name": "One Up",
+      "key": "OneUp",
+      "row": 3,
+      "column": 3,
+      "frame": {
+        "x": 980,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-one-up.png",
+      "sha256": "a257dd043387b5e33f69dc57339d134a9282c52d14fe7bb1f33ec1a6325288db",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-one-up.png",
+      "sourceSha256": "f34acb328031c5f4bf0d09b953c4786a358d67a15a1d693f19a4a91c9abd1e30"
+    },
+    "joker:cheater": {
+      "index": 28,
+      "name": "Cheater",
+      "key": "Cheater",
+      "row": 3,
+      "column": 4,
+      "frame": {
+        "x": 1300,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-cheater.png",
+      "sha256": "ce8129f50a77618b3a02d1e199cd7e202534c613fa99d866105b5127683e7942",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-cheater.png",
+      "sourceSha256": "1def1bf050b91443ed6211b68e90dd3ae5ca2a24ecc5d1bb583c0b3ae57d55ce"
+    },
+    "joker:alpha": {
+      "index": 29,
+      "name": "Alpha",
+      "key": "Alpha",
+      "row": 3,
+      "column": 5,
+      "frame": {
+        "x": 1620,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-alpha.png",
+      "sha256": "bda30af83a959f47baaf42384d0b24508de86e0ae9b6f4cd3267f839748c6480",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-alpha.png",
+      "sourceSha256": "5936fd8342b8678e151128f19ac5cc50ef8da042e468593b2f555eaf89c967f5"
+    },
+    "joker:slick-willy": {
+      "index": 30,
+      "name": "Slick Willy",
+      "key": "SlickWilly",
+      "row": 3,
+      "column": 6,
+      "frame": {
+        "x": 1940,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-slick-willy.png",
+      "sha256": "8a5b20ab405c7d178e96700328fcfd458dd775949fee95c0d29700bab41519bb",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-slick-willy.png",
+      "sourceSha256": "1cfaf151d60a7dbf49afc57bc5828d242bc1ba0a4ff2f83876ab71b11d73da98"
+    },
+    "joker:double-down": {
+      "index": 31,
+      "name": "Double Down",
+      "key": "DoubleDown",
+      "row": 3,
+      "column": 7,
+      "frame": {
+        "x": 2260,
+        "y": 1316,
+        "w": 280,
+        "h": 392
+      },
+      "rotated": false,
+      "trimmed": false,
+      "sourceSize": {
+        "w": 280,
+        "h": 392
+      },
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 280,
+        "h": 392
+      },
+      "file": "sprites/joker-double-down.png",
+      "sha256": "8b9466f23df96be4b71f7d414e9aeb8aa11116c903ac1efc035f2c4f78a169cb",
+      "sourceFile": "../../curated-source/2026-11-16-joker-frame-inputs/curated-joker-double-down.png",
+      "sourceSha256": "69ce89dc972cd21b5c6d44ce632f373dd45079571c0ebd41db78a0ae07bbee20"
+    }
+  },
+  "meta": {
+    "image": "jokers.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 2560,
+      "h": 1728
+    },
+    "scale": "1",
+    "columns": 8,
+    "rows": 4,
+    "cellWidth": 320,
+    "cellHeight": 432,
+    "padding": 20,
+    "origin": "top-left",
+    "order": "active game catalogue; left to right, then top to bottom",
+    "count": 32,
+    "sha256": "3c363d4fb129d201bc13cbbe8ec82dc30c86fb346683600a62bdf6d953f05ce9",
+    "sourceManifest": "../../curated-source/2026-11-16-joker-frame-inputs/curated-art.json",
+    "sourceManifestSha256": "572f192e72a469b37e1d5f942355ec9bca37b0b545221d3f236fee16d29b82d1",
+    "filter": "nearest",
+    "mipmaps": false,
+    "alpha": "straight (unpremultiplied)",
+    "border": {
+      "template": "joker-frame.png",
+      "sha256": "b7f8347b63b8a19e8bbffbebff3483b17e845a02583fa31f862957891ce67059",
+      "outer": {
+        "x": 4,
+        "y": 4,
+        "w": 272,
+        "h": 384,
+        "radius": 12
+      },
+      "outlineWidth": 2,
+      "totalRimWidth": 8,
+      "outline": "#1B1713",
+      "paper": "#F4E7CD",
+      "aperture": {
+        "x": 12,
+        "y": 12,
+        "w": 256,
+        "h": 368,
+        "radius": 4
+      },
+      "antialiasSamplesPerPixel": 16
+    },
+    "note": "All cards share the same rounded outline, cream rim and silhouette. Interior scenes and Joker lettering are not resampled. Bully keeps its narrower interior within the common frame. No labels or checkerboard in the atlas."
+  }
+}

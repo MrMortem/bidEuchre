@@ -14,6 +14,8 @@ internal static class CampaignTableControls
     public const int JokerSlots = 5, ItemSlots = CampaignInventory.ItemSlots;
     private const double CardWidth = 72, CardHeight = 78;
 
+    internal static string CategoryName(FeatureCategory category) => category == FeatureCategory.Tarot ? "Ticket" : category.ToString();
+
     /// <summary>Replaces a strip row with <paramref name="cards"/>, padded to its slot count with empty outlines.</summary>
     public static void Fill(Panel row, int slots, IEnumerable<Control> cards)
     {
@@ -34,7 +36,8 @@ internal static class CampaignTableControls
             .Concat(inventory.Sigils.Select((id, slot) => (FeatureCategory.Sigil, slot, FeatureCatalog.Get(FeatureCategory.Sigil, id.ToString()))));
 
     /// <summary>Stored cards are played on any turn of the human's own.</summary>
-    public static bool ItemsUsable(CampaignGameView view) => view.ViewerSeat == 0 && view.LegalActions.Count > 0;
+    public static bool ItemsUsable(CampaignGameView view) =>
+        view.ViewerSeat == 0 && view.PokerResult is null && view.LegalActions.Count > 0;
 
     /// <summary>A stored Tarot or Sigil. While usable, pressing it starts (or, while <paramref name="active"/>, cancels)
     /// choosing its targets by pressing cards in hand.</summary>
@@ -52,7 +55,7 @@ internal static class CampaignTableControls
             Template = new FuncControlTemplate<Button>((_, _) => face)
         };
         button.Click += (_, _) => toggle();
-        Avalonia.Automation.AutomationProperties.SetName(button, $"{(active ? "Cancel " : "Use ")}{category}: {definition.Name}");
+        Avalonia.Automation.AutomationProperties.SetName(button, $"{(active ? "Cancel " : "Use ")}{CategoryName(category)}: {definition.Name}");
         return Named(button, definition.Name, definition.Description);
     }
 
@@ -106,7 +109,7 @@ internal static class CampaignTableControls
             BorderBrush = Brush.Parse("#D8CDB9"), BorderThickness = new Thickness(1),
             Child = PixelArt.CampaignIcon(definition)
         };
-        Avalonia.Automation.AutomationProperties.SetName(face, $"{definition.Category}: {definition.Name}");
+        Avalonia.Automation.AutomationProperties.SetName(face, $"{CategoryName(definition.Category)}: {definition.Name}");
         return face;
     }
 
@@ -144,7 +147,6 @@ internal static class CampaignTableControls
     {
         CampaignCommand.Bid b => $"Bid {(b.Level <= BidLevel.Six ? ((int)b.Level).ToString() : (b.Level == BidLevel.PartnersBest ? "Partners Best" : "Alone"))}{(b.Variant is { } v ? " · " + FeatureCatalog.Get(FeatureCategory.Gumball, v.ToString()).Name : "")}",
         CampaignCommand.Pass => "Pass",
-        CampaignCommand.PanicButton => "Panic Button · −8 points · consumes this hand",
         CampaignCommand.ChooseContract c => c.Trump is { } suit ? $"Trump · {suit}" : c.Mode.ToString(),
         CampaignCommand.Play p => $"Play {Card(p.Id, view)}{(p.EffectiveSuit is { } suit ? " as " + suit : "")}",
         CampaignCommand.Exchange e => "Exchange " + Card(e.Id, view),

@@ -51,7 +51,7 @@ internal static class CampaignResumeTests
                 var snapshot = game.ExportCampaignMatchSnapshot();
                 var ids = snapshot.CompletedTricks.SelectMany(t => t.Plays).Select(p => p.Id).ToArray();
                 eagleRepeat |= ids.Distinct().Count() < ids.Length;
-                pendingPoints |= snapshot.TrickPoints.Length > 0; stickyOverlay |= snapshot.Overlays.Length > 0; poker |= snapshot.PokerRevealed;
+                pendingPoints |= snapshot.TrickPoints.Length > 0; stickyOverlay |= snapshot.Overlays.Length > 0; poker |= snapshot.PokerResult is not null;
                 if (snapshot.PendingChoice is { } choice) pending.Add(choice);
                 var restored = RoundTrip(game); EqualViews(game, restored);
                 if (game.Phase == GamePhase.GameComplete) break;
@@ -93,7 +93,7 @@ internal static class CampaignResumeTests
         snapshot = game.ExportCampaignMatchSnapshot(); snapshot.Hands[3] = snapshot.Hands[3].Skip(1).ToArray();
         Assert.Throws<GameRuleException>(() => GameEngine.RestoreCampaignMatch(snapshot));
     }
-    public static void DeveloperTerminalPendingAndPanic()
+    public static void DeveloperTerminalPendingAndRedeal()
     {
         var game = New(CampaignSnapshot.Create(1) with { Inventory = new([new(JokerId.OneUp)], [], []) });
         game.StartGame(3); game.DeveloperEndMatch(0);

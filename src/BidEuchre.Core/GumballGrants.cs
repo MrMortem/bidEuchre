@@ -25,7 +25,7 @@ public static class GumballGrants
     }
 }
 
-/// <summary>A fixed successful-contract reward; Team uses the engine's zero-based team index.</summary>
+/// <summary>A fixed duplicate gumball reward. Team uses the engine's zero-based team index.</summary>
 public sealed record GumballBidBonus(int Team, GumballId Id, int Points);
 
 public static class GumballRewards
@@ -41,7 +41,6 @@ public static class GumballRewards
         if (bid == BidLevel.PartnersBest) matching.Add(GumballId.PartnersBest);
         if (bid == BidLevel.Alone) matching.Add(GumballId.Alone);
         if (mode is ContractMode.High or ContractMode.Low) matching.Add(GumballId.HighLow);
-        // Panic Button ends bidding without a successful contract and therefore has no reward contribution.
         return matching.OrderBy(id => id).Select(id => new GumballBidBonus(0, id, inventory.GumballExtraCopies.GetValueOrDefault(id)))
             .Where(bonus => bonus.Points > 0).ToArray();
     }
