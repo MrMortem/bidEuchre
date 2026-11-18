@@ -22,6 +22,8 @@ for entry in "$output_dir"/*; do
     ln -s "../Resources/$name" "$bundle/Contents/MacOS/$name"
   fi
 done
+# The Finder and Dock icon ships from the repository alongside this script.
+cp "$(dirname "${BASH_SOURCE[0]}")/../assets/icon/BidEuchre.icns" "$bundle/Contents/Resources/BidEuchre.icns"
 cat > "$bundle/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,6 +32,7 @@ cat > "$bundle/Contents/Info.plist" <<'PLIST'
   <key>CFBundleIdentifier</key><string>io.github.mrmortem.bideuchre</string>
   <key>CFBundleName</key><string>Bid Euchre</string>
   <key>CFBundleDisplayName</key><string>Bid Euchre</string>
+  <key>CFBundleIconFile</key><string>BidEuchre</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
   <key>NSHighResolutionCapable</key><true/>

@@ -43,7 +43,45 @@ public sealed partial class MainWindow
 
     private sealed record TrickCard(string Key, Card Face, CampaignCardView? Physical, Suit? PlayedAs, Border Control);
 
-    private sealed record SeatControls(Border Tag, TextBlock Name, HandFan Fan, ThinkingDots Thinking);
+    private sealed record SeatControls(Border Tag, TextBlock Name, HandFan Fan, ThinkingDots Thinking, TrickPile Pile);
+
+    /// <summary>The tricks a seat has taken this hand, as a loose face-down pile on its name tag.
+    /// Trick collection sweeps onto it, so it keeps its size even while empty.</summary>
+    private sealed class TrickPile
+    {
+        private const int Shown = 6;
+        public readonly Canvas Panel = new() { Width = 48, Height = 44, IsHitTestVisible = true, VerticalAlignment = VerticalAlignment.Center };
+        private int _count = -1;
+        private CompletedTrick? _latest;
+
+        public TrickPile() => Panel.Classes.Add("trick-pile");
+
+        public void Update(int count, CompletedTrick? latest, Func<CompletedTrick, Control> describe)
+        {
+            if (count == _count && latest == _latest) return;
+            _latest = latest;
+            ToolTip.SetTip(Panel, count > 0 && latest is not null ? describe(latest) : null);
+            if (count == _count) return;
+            _count = count;
+            Panel.Children.Clear();
+            // Each trick sits a little askew on the last; a long run shows only its top few.
+            for (var index = 0; index < Math.Min(count, Shown); index++)
+            {
+                var back = new Border
+                {
+                    Width = 24, Height = 34, CornerRadius = new CornerRadius(3), ClipToBounds = true,
+                    BorderBrush = Brushes.White, BorderThickness = new Thickness(1), Background = Brushes.White,
+                    Child = PixelArt.Back(22, 32), RenderTransformOrigin = RelativePoint.Center,
+                    RenderTransform = new RotateTransform(index % 2 == 0 ? -6 + index : 5 - index)
+                };
+                Canvas.SetLeft(back, 3 + index * 4);
+                Canvas.SetTop(back, 7 - index * 1.5);
+                Panel.Children.Add(back);
+            }
+            var label = count == 1 ? "1 trick won" : $"{count} tricks won";
+            Avalonia.Automation.AutomationProperties.SetName(Panel, label);
+        }
+    }
 
     /// <summary>Three dots on a deciding bot's tag, so the table shows that the game is still running.</summary>
     private sealed class ThinkingDots
@@ -162,7 +200,7 @@ public sealed partial class MainWindow
             Canvas.SetTop(handControls, 656);
             canvas.Children.Add(handControls);
         }
-        return new Border
+        var surface = new Border
         {
             BorderBrush = Line,
             BorderThickness = new Thickness(3),
@@ -174,6 +212,11 @@ public sealed partial class MainWindow
                 new Viewbox { Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both, Child = canvas } }
             }
         };
+        // A boss arena keeps its own art; any other table takes the chosen felt beneath the cards.
+        if (!(InCampaignMatch && _campaign.Run is { } run && PixelArt.BossArenaName(run) is not null) &&
+            PixelArt.Felt(_preferences.Felt) is { } felt)
+            ((Grid)surface.Child!).Children.Insert(1, felt);
+        return surface;
     }
 
     private static readonly IBrush SeatOpponentBrush = Brush.Parse("#740D2D");
@@ -201,8 +244,10 @@ public sealed partial class MainWindow
                 }
             };
             var thinking = new ThinkingDots(_motion);
+            var pile = new TrickPile();
             ((StackPanel)portrait.Child).Children.Add(thinking.Text);
-            seat = new(portrait, label, new HandFan(player.Seat, portrait, _motion), thinking);
+            ((StackPanel)portrait.Child).Children.Add(pile.Panel);
+            seat = new(portrait, label, new HandFan(player.Seat, portrait, _motion), thinking, pile);
             if (table is not null) table.Seats[player.Seat] = seat;
         }
         var tag = seat.Tag;
@@ -213,7 +258,11 @@ public sealed partial class MainWindow
             view.Phase is not (GamePhase.GameComplete or GamePhase.PokerReveal);
         seat.Thinking.Text.Foreground = Paper;
         seat.Thinking.Text.IsVisible = seat.Thinking.Active;
-        _cardFlights?.PlayerSeat(player.Seat, tag);
+        // Tricks still showing on the table join the pile when they are collected.
+        var showing = view.CurrentTrick.Count == 0 && !_trickCollection.Hidden ? view.CompletedTricks.LastOrDefault() : null;
+        var taken = view.CompletedTricks.Where(trick => trick.Winner == player.Seat && trick != showing).ToList();
+        seat.Pile.Update(taken.Count, taken.LastOrDefault(), trick => LastTrickView(view, trick, 44));
+        _cardFlights?.PlayerSeat(player.Seat, seat.Pile.Panel);
         _deckDeal?.Player(player.Seat, tag);
         if (_motionCue.WinnerSeat == player.Seat) _motion.Pulse(tag);
         else if (current && _motionCue.TurnSeat == player.Seat) _motion.Nudge(tag);
@@ -392,9 +441,15 @@ public sealed partial class MainWindow
             {
                 card.BorderBrush = Gold;
                 card.BorderThickness = new Thickness(3);
-                // The winner glows and sits above the pile so it stays readable through the hold.
-                card.BoxShadow = WinningTrickGlow;
-                card.ZIndex = 4;
+                // The winner glows and sits above the pile so it stays readable through the hold. The face clips
+                // to its corners, which would hide its own shadow, so the glow is a layer just beneath it.
+                card.ZIndex = 5;
+                if (!cards.Children.OfType<Border>().Any(child => child.Classes.Contains("winning-trick-glow")))
+                {
+                    var glow = CardShadow.Glow(card, WinningTrickGlow);
+                    glow.Classes.Add("winning-trick-glow");
+                    cards.Children.Add(glow);
+                }
                 if (_motionCue.WinnerSeat is not null && !jolting) _motion.Pulse(card, 1.065);
             }
             else if (completed is not null && card.Child is { } ink)
@@ -409,7 +464,8 @@ public sealed partial class MainWindow
         label.IsVisible = view.Phase != GamePhase.PokerReveal;
         label.Text = completed is null
             ? (plays.Count == 0 ? "Cards played here" : "Current trick")
-            : _trickCollection.Hidden ? "Trick collected"
+                + (view.CompletedTricks.Count > 0 ? " · hold L for last trick" : "")
+            : _trickCollection.Hidden ? "Trick collected · hold L to review"
             : $"{view.Players[completed.Winner].Name} won trick {completed.Number}";
         label.Foreground = completed is null ? TrickLabelBrush : Gold;
         label.FontWeight = completed is null ? FontWeight.Normal : FontWeight.Bold;
@@ -451,6 +507,8 @@ public sealed partial class MainWindow
         public readonly Border Surface = new();
         public readonly ContentPresenter Face = new();
         public readonly TranslateTransform Lift = new();
+        /// <summary>Squashes the card a little while it is held down, separately from its hover lift.</summary>
+        public readonly ScaleTransform Press = new(1, 1);
         /// <summary>Darkens a card that cannot be played on the viewer's turn without making the fan see-through.</summary>
         public readonly Border Shade = new()
         {
@@ -494,6 +552,8 @@ public sealed partial class MainWindow
         button.Face.VerticalAlignment = VerticalAlignment.Stretch;
         button.Surface.CornerRadius = button.CornerRadius;
         button.Surface.Child = new Grid { Children = { button.Face, button.Shade } };
+        button.Surface.RenderTransformOrigin = new RelativePoint(.5, 1, RelativeUnit.Relative);
+        button.Surface.RenderTransform = button.Press;
         button.Template = new FuncControlTemplate<Button>((_, _) => button.Surface);
         button.RenderTransform = button.Lift;
         if (_motion.Enabled)
@@ -502,6 +562,20 @@ public sealed partial class MainWindow
                 new DoubleTransition { Property = TranslateTransform.YProperty,
                     Duration = TimeSpan.FromMilliseconds(120), Easing = new CubicEaseOut() }
             };
+        if (_motion.Enabled)
+            button.Press.Transitions =
+            [
+                new DoubleTransition { Property = ScaleTransform.ScaleXProperty, Duration = TimeSpan.FromMilliseconds(90), Easing = new CubicEaseOut() },
+                new DoubleTransition { Property = ScaleTransform.ScaleYProperty, Duration = TimeSpan.FromMilliseconds(90), Easing = new CubicEaseOut() }
+            ];
+        // A playable card gives under the pointer or Space before it leaves the hand.
+        button.PropertyChanged += (_, args) =>
+        {
+            if (args.Property != Button.IsPressedProperty) return;
+            var squash = button.IsPressed && button.Playable && _motion.Enabled;
+            button.Press.ScaleX = squash ? .95 : 1;
+            button.Press.ScaleY = squash ? .93 : 1;
+        };
         if (_motion.Enabled)
             button.Shade.Transitions = [new DoubleTransition { Property = Visual.OpacityProperty, Duration = TimeSpan.FromMilliseconds(160) }];
 

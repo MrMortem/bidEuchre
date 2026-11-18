@@ -7,6 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>BidEuchre</AssemblyName>
     <RootNamespace>BidEuchre.Desktop</RootNamespace>
+    <ApplicationIcon>../../assets/icon/BidEuchre.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -27,6 +28,7 @@
     <AvaloniaResource Include="../../assets/pixel/campaign-placeholders/gumball/*.png" Link="Pixel/campaign/gumball/%(Filename)%(Extension)" />
     <AvaloniaResource Include="../../assets/pixel/campaign-placeholders/sigil/*.png" Link="Pixel/campaign/sigil/%(Filename)%(Extension)" />
     <AvaloniaResource Include="../../assets/pixel/Pixel.ttf" Link="Pixel/Pixel.ttf" />
+    <AvaloniaResource Include="../../assets/icon/window-icon.png" Link="Icon/window-icon.png" />
     <None Include="../../assets/pixel/FONT-LICENSE.txt" Link="Pixel/FONT-LICENSE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

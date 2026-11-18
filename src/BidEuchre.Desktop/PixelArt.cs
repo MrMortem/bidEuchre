@@ -193,7 +193,44 @@ internal static class PixelArt
         }
     }
 
-    public static Image Back(double width = 42, double height = 62) => Sprite(Load("back"), width, height);
+    /// <summary>The player's chosen card back, used for every face-down card drawn after it is set.</summary>
+    public static CardBackStyle BackStyle { get; set; }
+
+    /// <summary>A face-down card. Colours other than Classic tint the classic art where it is drawn.</summary>
+    public static Control Back(double width = 42, double height = 62)
+    {
+        var art = Sprite(Load("back"), width, height);
+        if (BackTint(BackStyle) is not { } tint) return art;
+        return new Grid
+        {
+            Width = width, Height = height,
+            Children =
+            {
+                art,
+                new Border
+                {
+                    Background = new SolidColorBrush(tint), IsHitTestVisible = false,
+                    OpacityMask = new ImageBrush(Load("back")) { Stretch = Stretch.Fill }
+                }
+            }
+        };
+    }
+
+    internal static Color? BackTint(CardBackStyle style) => style switch
+    {
+        CardBackStyle.Crimson => Color.Parse("#A6C21F3B"),
+        CardBackStyle.Emerald => Color.Parse("#A6129A5E"),
+        CardBackStyle.Gold => Color.Parse("#B0D9A21B"),
+        _ => null
+    };
+
+    /// <summary>A wash over the table art for the chosen felt; null for the original midnight cloth.</summary>
+    internal static Control? Felt(TableFelt felt) => felt switch
+    {
+        TableFelt.Emerald => new Border { Name = "TableFelt", Background = Brush.Parse("#8C0B5E3C"), IsHitTestVisible = false },
+        TableFelt.Crimson => new Border { Name = "TableFelt", Background = Brush.Parse("#8C5E0B22"), IsHitTestVisible = false },
+        _ => null
+    };
 
     internal static bool HasImage(string name) => IsArtworkReady(name) || AssetLoader.Exists(Resource(name));
 

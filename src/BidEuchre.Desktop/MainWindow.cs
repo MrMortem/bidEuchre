@@ -136,6 +136,7 @@ public sealed partial class MainWindow : Window
         _catalog = new EngineCatalog(Path.Combine(DataDirectory, "BidEuchre", "engines.json"), Path.Combine(AppContext.BaseDirectory, "engines"));
         _lastTableSetup = LastTableSetup.Load(_lastTableSetupPath);
         Title = "Bid Euchre";
+        Icon = new WindowIcon(Avalonia.Platform.AssetLoader.Open(new Uri("avares://BidEuchre/Icon/window-icon.png")));
         Width = 1320;
         Height = 860;
         MinWidth = 980;
@@ -348,6 +349,7 @@ public sealed partial class MainWindow : Window
         _contractAnnouncement = new ContractAnnouncement(bidOverlay, _tableHost);
         _cardFlights?.Cancel(); _deckDeal?.Cancel();
         _cardFlights = new CardFlights(bidOverlay);
+        AttachLastTrick(bidOverlay);
         _deckDeal = new DeckDeal(bidOverlay, _tableHost, SyncNativeInput);
         _handGlide = new HandGlide(bidOverlay);
         _inventoryKey = null;
@@ -1416,6 +1418,13 @@ public sealed partial class MainWindow : Window
 
     private void ApplyGraphics()
     {
+        if (PixelArt.BackStyle != _preferences.CardBack)
+        {
+            PixelArt.BackStyle = _preferences.CardBack;
+            // Retained hand cards were drawn with the old back; rebuild the table with the new one.
+            _liveTable = null;
+            _renderedView = null;
+        }
         _motion.SetReduced(_preferences.ReducedMotion);
         _motion.SetEnabled(_preferences.MotionEnabled);
         ApplyUiScale();

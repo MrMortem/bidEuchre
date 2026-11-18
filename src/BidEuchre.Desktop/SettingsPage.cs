@@ -27,6 +27,18 @@ internal static class SettingsPage
             Name = "SettingsMotion", ItemsSource = new[] { "Full", "Reduced", "Off" },
             SelectedIndex = !preferences.MotionEnabled ? 2 : preferences.ReducedMotion ? 1 : 0
         };
+        var backs = Enum.GetValues<CardBackStyle>();
+        var cardBack = new ComboBox
+        {
+            Name = "SettingsCardBack", ItemsSource = backs.Select(style => style.ToString()).ToArray(),
+            SelectedIndex = Math.Max(0, Array.IndexOf(backs, preferences.CardBack))
+        };
+        var felts = Enum.GetValues<TableFelt>();
+        var felt = new ComboBox
+        {
+            Name = "SettingsFelt", ItemsSource = felts.Select(cloth => cloth.ToString()).ToArray(),
+            SelectedIndex = Math.Max(0, Array.IndexOf(felts, preferences.Felt))
+        };
         var hotseat = OnOff("SettingsHotseatPrivacy", preferences.AutomaticHotseatPrivacy);
         var fullscreen = OnOff("SettingsFullscreen", preferences.Fullscreen);
         var size = new ComboBox
@@ -55,6 +67,8 @@ internal static class SettingsPage
             if (motion.SelectedIndex >= 0)
                 Publish(preferences with { MotionEnabled = motion.SelectedIndex != 2, ReducedMotion = motion.SelectedIndex == 1 });
         };
+        cardBack.SelectionChanged += (_, _) => { if (cardBack.SelectedIndex >= 0) Publish(preferences with { CardBack = backs[cardBack.SelectedIndex] }); };
+        felt.SelectionChanged += (_, _) => { if (felt.SelectedIndex >= 0) Publish(preferences with { Felt = felts[felt.SelectedIndex] }); };
         fullscreen.SelectionChanged += (_, _) =>
         {
             size.IsEnabled = fullscreen.SelectedIndex != 0;
@@ -79,6 +93,8 @@ internal static class SettingsPage
         {
             ("Automatic hotseat privacy", "With multiple human players, hide hands between turns until the next player presses Reveal.", hotseat),
             ("Motion", "Card flights, bid announcements and trick collection. Reduced keeps these but stops cards floating and shaking.", motion),
+            ("Card back", "The colour of every face-down card.", cardBack),
+            ("Table felt", "The cloth under the cards. Boss arenas keep their own art.", felt),
             ("Fullscreen", "Fill the whole display instead of a window.", fullscreen),
             ("Window size", "Used when fullscreen is off.", size),
             ("UI scale", "Enlarge everything. Scale is capped to fit the current window and restored when enlarged.", scale)
@@ -119,7 +135,7 @@ internal static class SettingsPage
                 {
                     Text = "Your preferences apply immediately and are remembered.", Foreground = Muted, FontSize = 14
                 }, 220, 0, 0),
-                effects.Enter(CardPanel(new StackPanel { Spacing = 14, Children = { Eyebrow("PREFERENCES"), rows, saveError } }), 300, 0, 16)
+                effects.Enter(CardPanel(new StackPanel { Spacing = 14, Children = { Eyebrow("PREFERENCES"), saveError, rows } }), 300, 0, 16)
             }
         };
         return MenuParts.Scene(effects, content, new ScrollViewer { Padding = new Thickness(30), Content = content });

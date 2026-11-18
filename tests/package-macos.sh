@@ -15,6 +15,8 @@ bundle="$fixture/Bid Euchre.app/Contents"
 cmp "$fixture/bid-euchre-final-rules.md" "$bundle/MacOS/bid-euchre-final-rules.md"
 cmp "$fixture/Pixel/FONT-LICENSE.txt" "$bundle/MacOS/Pixel/FONT-LICENSE.txt"
 [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$bundle/Info.plist")" == BidEuchre ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$bundle/Info.plist")" == BidEuchre ]]
+cmp "$project_dir/assets/icon/BidEuchre.icns" "$bundle/Resources/BidEuchre.icns"
 codesign --verify --deep --strict "$fixture/Bid Euchre.app"
 # Bundle signing must seal shipped resources, not just the Mach-O executable.
 printf 'Tampered rules\n' > "$bundle/MacOS/bid-euchre-final-rules.md"
