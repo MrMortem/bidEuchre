@@ -47,13 +47,13 @@ static class CampaignServerTests
     }
     public static async Task RunAsync()
     {
-        Commands(); await Lifecycle(); await PokerReveal(); await Shop(); await Arcade(); await ArcadeSaveFailure(); await Tickets(); await LegacyShop(); await LegacyCommittedArcadeUpgrade(); await RetiredGumballShop(); await CorruptAndDirty(); await CapacityAndExpiry(); await Terminal(); await PendingChoices(); await LifecycleRaces();
+        Commands(); await Lifecycle(); await PokerReveal(); await Shop(); await Booster(); await Arcade(); await ArcadeSaveFailure(); await Tickets(); await LegacyShop(); await LegacyCommittedArcadeUpgrade(); await RetiredGumballShop(); await CorruptAndDirty(); await CapacityAndExpiry(); await Terminal(); await PendingChoices(); await LifecycleRaces();
     }
     private static void Commands()
     {
         CampaignCommand[] commands = [new CampaignCommand.Bid(BidLevel.Four, GumballId.Chaos), new CampaignCommand.Pass(),
             new CampaignCommand.Play(new(3), Suit.Hearts), new CampaignCommand.Exchange(new(4)), new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Spades),
-            new CampaignCommand.UseTarot(2, [new(1), new(4), new(5)]), new CampaignCommand.UseSigil(1, new(7)), new CampaignCommand.SwapPartnerCard(new(8)),
+            new CampaignCommand.UseTarot(2, [new(1), new(4), new(5)]), new CampaignCommand.UseSigil(4, new(7)), new CampaignCommand.SwapPartnerCard(new(8)),
             new CampaignCommand.ChooseRevealSeat(1), new CampaignCommand.RevealPartnerCard(new(10)), new CampaignCommand.SelectOpponent(3), new CampaignCommand.CompletePoker()];
         foreach (var command in commands.Concat(Enum.GetValues<GumballId>().Select(id => new CampaignCommand.Bid(BidLevel.Four, id))))
         {
@@ -62,7 +62,7 @@ static class CampaignServerTests
         }
         foreach (var invalid in new[] { "{}", "null", "[]", "{\"kind\":\"wat\"}", "{\"kind\":\"panic-button\"}", "{\"kind\":\"bid\",\"level\":\"Four\",\"variant\":\"PanicButton\"}", "{\"kind\":\"pass\",\"seat\":0}",
             "{\"kind\":\"play\",\"cardId\":24}", "{\"kind\":\"bid\",\"level\":4}", "{\"kind\":\"bid\",\"level\":\"99\"}",
-            "{\"kind\":\"use-tarot\",\"slot\":0,\"targetIds\":[1,1]}", "{\"kind\":\"use-sigil\",\"slot\":4,\"targetId\":0}",
+            "{\"kind\":\"use-tarot\",\"slot\":0,\"targetIds\":[1,1]}", "{\"kind\":\"use-sigil\",\"slot\":5,\"targetId\":0}",
             "{\"kind\":\"choose-contract\",\"mode\":\"High\",\"trump\":\"Hearts\"}", "{\"kind\":\"choose-contract\",\"mode\":\"Trump\"}",
             "{\"kind\":\"select-opponent\",\"targetSeat\":-1}", "{\"kind\":\"play\",\"cardId\":1,\"effectiveSuit\":\"clubs\"}" })
         {
@@ -170,12 +170,74 @@ static class CampaignServerTests
         state = await Change(f.Service, f.Token, state, "shop/sell", new { jokerId = "Alpha" });
         Assert(state.GetProperty("inventory").GetProperty("jokers").GetArrayLength() == 0 && state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Sale wrong.");
         Assert(state.GetProperty("shop").GetProperty("offers").EnumerateArray().All(o => o.GetProperty("category").GetString() != "Sigil"), "Arcade must replace direct Sigil stock.");
-        Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("price").GetInt32() == 3, "Arcade price missing.");
+        Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("price").GetInt32() == 12, "Arcade entry price missing.");
         Assert(state.GetProperty("catalog").EnumerateArray().Single(f => f.GetProperty("id").GetString() == "sigil:vulture").GetProperty("collectorTitle").GetString() == "Resourceful", "Sigil catalog entries need their collector title.");
+        var vending = state.GetProperty("shop").GetProperty("vending");
+        Assert(vending.GetProperty("price").GetInt32() == 8 && vending.GetProperty("buy").GetProperty("enabled").GetBoolean(), "The shop must offer a soda for $8.");
+        state = await Change(f.Service, f.Token, state, "shop/soda");
+        var soda = state.GetProperty("inventory").GetProperty("sodas")[0].GetString();
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 89, "A soda sale must charge once.");
+        await RejectUnchanged(f, state, "shop/soda", new { });
+        await f.Restart();
+        state = await State(f.Service, f.Token);
+        Assert(state.GetProperty("inventory").GetProperty("sodas")[0].GetString() == soda && state.GetProperty("shop").GetProperty("vending").GetProperty("sold").GetBoolean(), "Vending stock and ownership must survive a restart.");
         state = await Change(f.Service, f.Token, state, "shop/leave");
         Assert(!state.GetProperty("capabilities").GetProperty("items-use").GetProperty("enabled").GetBoolean(), "Intro enabled held item use.");
         await RejectUnchanged(f, state, "items/use", new { category = "Tarot", slot = 0, targetIds = new[] { 0 } });
         Console.WriteLine("PASS  Shop sample projection, off-sample atomic rejection, held item phase restrictions, and authoritative purchases");
+    }
+    private static async Task Booster()
+    {
+        foreach (var skip in new[] { false, true })
+        {
+            await using var fixture = new Fixture();
+            JokerId[] owned = [JokerId.Alpha, JokerId.SlickWilly, JokerId.Cheater, JokerId.HighRoller, JokerId.Medusa];
+            var run = CampaignShop.Open(new CampaignRun(Match: 2, Money: 20, Phase: CampaignPhase.Shop)
+            { Resources = CampaignSnapshot.Create(9) with { Inventory = new(owned.Select(id => new JokerState(id)).ToArray(), [], []) { Sodas = skip ? [SodaId.PackAPunch, SodaId.PeachPlus] : [] } } });
+            fixture.Save(run);
+            var before = await State(fixture.Service, fixture.Token);
+            JsonElement Pack(JsonElement state) => state.GetProperty("shop").GetProperty(skip ? "bonusBooster" : "booster");
+            Assert(Pack(before).GetProperty("price").GetInt32() == 6 && Pack(before).GetProperty("buy").GetProperty("enabled").GetBoolean(), "Stocked pack should be purchasable for $6.");
+            var paid = skip ? await Change(fixture.Service, fixture.Token, before, "shop/booster/open", new { packIndex = 1 })
+                : await Change(fixture.Service, fixture.Token, before, "shop/booster/open");
+            if (skip) Assert(!paid.GetProperty("shop").GetProperty("booster").GetProperty("sold").GetBoolean(), "Buying the bonus pack leaves the first on the shelf.");
+            await Reject(() => Change(fixture.Service, fixture.Token, before, "shop/booster/open"), "stale_state");
+            Assert(Pack(paid).GetProperty("awaitingOpen").GetBoolean() && Pack(paid).GetProperty("choices").ValueKind == JsonValueKind.Null, "Hide the contents of the paid sealed pack.");
+            await RejectUnchanged(fixture, paid, "shop/booster/skip", new { });
+            await fixture.Restart();
+            var sealedState = await State(fixture.Service, fixture.Token);
+            Assert(Pack(sealedState).GetRawText() == Pack(paid).GetRawText(), "Restore the sealed booster.");
+            paid = await Change(fixture.Service, fixture.Token, sealedState, "shop/booster/tear");
+            await RejectUnchanged(fixture, paid, "shop/booster/tear", new { });
+            var choices = Pack(paid).GetProperty("choices");
+            var ids = choices.EnumerateArray().Select(id => id.GetString()).ToArray();
+            Assert(ids.Length == (skip ? 5 : 4) && ids.Distinct().Count() == ids.Length && !ids.Intersect(owned.Select(id => id.ToString())).Any(), "Offer distinct unowned Jokers with the additional Peach Plus choice.");
+            Assert(!paid.GetProperty("capabilities").GetProperty("shop-leave").GetProperty("enabled").GetBoolean(), "Keep paid choices open.");
+            await RejectUnchanged(fixture, paid, "shop/booster/pick", new { jokerId = "Alpha" });
+            await fixture.Restart();
+            var resumed = await State(fixture.Service, fixture.Token);
+            Assert(Pack(resumed).GetProperty("choices").GetRawText() == choices.GetRawText(), "Restart must restore the same choices.");
+            Assert(!Pack(resumed).GetProperty("pick").GetProperty("enabled").GetBoolean(), "Full inventory disables keeping without disabling skip.");
+            await RejectUnchanged(fixture, resumed, "shop/booster/pick", new { jokerId = ids[0] });
+            Assert(resumed.GetProperty("inventory").GetProperty("jokers").EnumerateArray().All(j => j.GetProperty("sell").GetProperty("enabled").GetBoolean()), "Full inventory can sell any owned Joker.");
+            if (!skip)
+            {
+                resumed = await Change(fixture.Service, fixture.Token, resumed, "shop/sell", new { jokerId = "Alpha" });
+                await fixture.Restart();
+                resumed = await State(fixture.Service, fixture.Token);
+                Assert(Pack(resumed).GetProperty("choices").GetRawText() == choices.GetRawText() && Pack(resumed).GetProperty("pick").GetProperty("enabled").GetBoolean(), "Sale leaves the same four purchasable choices after restart.");
+                Assert(!resumed.GetProperty("capabilities").GetProperty("shop-sell").GetProperty("enabled").GetBoolean(), "Only sell to free one slot.");
+            }
+            var done = skip ? await Change(fixture.Service, fixture.Token, resumed, "shop/booster/skip")
+                : await Change(fixture.Service, fixture.Token, resumed, "shop/booster/pick", new { jokerId = ids[0] });
+            var jokers = done.GetProperty("inventory").GetProperty("jokers").EnumerateArray().Select(j => j.GetProperty("id").GetString()).ToArray();
+            var expected = owned.Select(id => id.ToString());
+            Assert(done.GetProperty("run").GetProperty("money").GetInt32() == (skip ? 14 : 16) && jokers.SequenceEqual(skip ? expected : expected.Skip(1).Append(ids[0]!)), "Pick or skip must settle one paid pack.");
+            Assert(Pack(done).GetProperty("sold").GetBoolean() && Pack(done).GetProperty("choices").ValueKind == JsonValueKind.Null, "Resolved booster stays sold.");
+            var rerolled = await Change(fixture.Service, fixture.Token, done, "shop/reroll");
+            Assert(Pack(rerolled).GetRawText() == Pack(done).GetRawText(), "Reroll keeps the same sold booster.");
+        }
+        Console.WriteLine("PASS  Web Joker Boosters reveal once, resume, and resolve by pick or skip");
     }
     private static async Task Arcade()
     {
@@ -188,6 +250,7 @@ static class CampaignServerTests
             {
                 var candidate = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop)
                 { Resources = CampaignSnapshot.Create(seed) with { Inventory = new([], [TarotId.Gambler, TarotId.TaxCollector, TarotId.Astronomer], []) { Sigils = [SigilId.Bear] } } });
+                if (!CampaignArcade.Available(candidate)) continue;
                 var result = game == "plinko" ? CampaignArcade.PlayPlinko(candidate, 4) : CampaignArcade.PlayRoulette(candidate, 1);
                 if (result.Shop!.Arcade!.Pending!.Score == score) { chosen = candidate; break; }
             }
@@ -198,7 +261,7 @@ static class CampaignServerTests
             state = await Change(f.Service, f.Token, state, "shop/arcade/" + game, selection);
             var resultView = state.GetProperty("shop").GetProperty("arcade").GetProperty("pending");
             var playId = resultView.GetProperty("playId").GetString();
-            Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97 && resultView.GetProperty("score").GetInt32() == score, "Arcade price or score wrong.");
+            Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 88 && resultView.GetProperty("score").GetInt32() == score, "Arcade price or score wrong.");
             Assert(!state.GetProperty("capabilities").GetProperty("shop-leave").GetProperty("enabled").GetBoolean(), "Pending result must block leaving.");
             Assert(!state.GetProperty("shop").GetProperty("reroll").GetProperty("enabled").GetBoolean(), "Pending result must block rerolls.");
             await Reject(() => Change(f.Service, f.Token, before, "shop/arcade/" + game, selection), "stale_state");
@@ -212,9 +275,17 @@ static class CampaignServerTests
             {
                 await RejectUnchanged(f, state, "shop/arcade/keep", new { playId });
                 await RejectUnchanged(f, state, "shop/arcade/dismiss", new { playId });
-                if (resultView.GetProperty("pack").ValueKind == JsonValueKind.Array)
+                if (resultView.GetProperty("awaitingOpen").GetBoolean())
                 {
+                    Assert(resultView.GetProperty("pack").ValueKind == JsonValueKind.Null && !resultView.GetProperty("pick").GetProperty("enabled").GetBoolean(), "Sealed Spectral Packs conceal their contents.");
+                    await RejectUnchanged(f, state, "shop/arcade/pick", new { playId, index = 0 });
+                    state = await Change(f.Service, f.Token, state, "shop/arcade/tear", new { playId });
+                    resultView = state.GetProperty("shop").GetProperty("arcade").GetProperty("pending");
+                    await RejectUnchanged(f, state, "shop/arcade/tear", new { playId });
+                    await f.Restart(); state = await State(f.Service, f.Token);
+                    Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("pending").GetRawText() == resultView.GetRawText(), "Restore the opened Spectral Pack.");
                     var pack = resultView.GetProperty("pack").EnumerateArray().ToArray();
+                    Assert(resultView.GetProperty("packWrapper").GetString() == "curated-collector-pack", "Arcade jackpots use the Spectral Pack wrapper.");
                     Assert(pack.Length == 3 && pack.All(c => c.GetProperty("title").GetString() is { Length: > 0 }), "A Sigil prize must show a three-card pack with titles.");
                     Assert(!resultView.GetProperty("keep").GetProperty("enabled").GetBoolean() && !resultView.GetProperty("use").GetProperty("enabled").GetBoolean()
                         && resultView.GetProperty("pick").GetProperty("enabled").GetBoolean(), "A pack can only be opened, never kept.");
@@ -256,7 +327,7 @@ static class CampaignServerTests
         {
             var candidate = CampaignShop.Open(new CampaignRun(Match: 2, Money: 100, Phase: CampaignPhase.Shop)
             { Resources = CampaignSnapshot.Create(seed) with { Inventory = new([], [TarotId.Gambler], []) } });
-            if (CampaignArcade.PlayPlinko(candidate, 4).Shop!.Arcade!.Pending!.PrizeCategory == FeatureCategory.Sigil) { run = candidate; break; }
+            if (CampaignArcade.Available(candidate) && CampaignArcade.PlayPlinko(candidate, 4).Shop!.Arcade!.Pending!.PrizeCategory == FeatureCategory.Sigil) { run = candidate; break; }
         }
         Assert(run is not null, "Missing durable Arcade fixture."); f.Save(run!);
         var state = await State(f.Service, f.Token);
@@ -275,9 +346,12 @@ static class CampaignServerTests
         }
         await FailedWrite("shop/arcade/plinko", new { lane = 4 });
         state = await Change(f.Service, f.Token, state, "shop/arcade/plinko", new { lane = 4 });
-        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Retry charged more than once.");
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 88, "Retry charged more than once.");
         var prize = state.GetProperty("shop").GetProperty("arcade").GetProperty("pending"); var playId = prize.GetProperty("playId").GetString();
         await FailedWrite("items/discard", new { category = "Tarot", slot = 0 });
+        await FailedWrite("shop/arcade/tear", new { playId });
+        state = await Change(f.Service, f.Token, state, "shop/arcade/tear", new { playId });
+        prize = state.GetProperty("shop").GetProperty("arcade").GetProperty("pending");
         var sigilIndex = Array.FindIndex(prize.GetProperty("pack").EnumerateArray().ToArray(), c => !c.GetProperty("legendary").GetBoolean());
         await FailedWrite("shop/arcade/pick", new { playId, index = sigilIndex });
         state = await Change(f.Service, f.Token, state, "shop/arcade/pick", new { playId, index = sigilIndex });
@@ -288,7 +362,7 @@ static class CampaignServerTests
         state = await Change(f.Service, f.Token, state, "shop/use-purchased", new { targetIds = ids.Take(1).ToArray() });
         await FailedWrite("shop/finish-use", new { });
         state = await Change(f.Service, f.Token, state, "shop/finish-use");
-        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97 && state.GetProperty("inventory").GetProperty("tarot").GetArrayLength() == 0, "Durable retries changed charges or duplicated held Tarot use.");
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 88 && state.GetProperty("inventory").GetProperty("tarot").GetArrayLength() == 0, "Durable retries changed charges or duplicated held Tarot use.");
         Console.WriteLine("PASS  Failed Arcade writes reveal no outcome, charge, grant or consumption; same-version retries commit once and restart preserves every step");
     }
     private static async Task RetiredGumballShop()
@@ -404,7 +478,7 @@ static class CampaignServerTests
         Assert(state.GetProperty("shop").GetProperty("offers").EnumerateArray().All(o => o.GetProperty("id").GetString() != unsold.Id), "Legacy unsold Sigil survived the completed session upgrade.");
         Assert(state.GetProperty("shop").GetProperty("arcade").GetProperty("plinko").GetProperty("enabled").GetBoolean(), "Finishing a legacy session failed to open the Arcade.");
         state = await Change(f.Service, f.Token, state, "shop/arcade/plinko", new { lane = 4 });
-        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 97, "Upgraded Arcade failed to accept its first paid play.");
+        Assert(state.GetProperty("run").GetProperty("money").GetInt32() == 88, "Upgraded Arcade failed to accept its first paid play.");
         await f.Restart();
         Assert((await State(f.Service, f.Token)).GetProperty("shop").GetProperty("arcade").GetProperty("pending").ValueKind == JsonValueKind.Object, "Legacy upgraded Arcade outcome did not persist.");
         Console.WriteLine("PASS  Completing a legacy paid six-card session upgrades Arcade access and removes unsold Sigils before accepting plays");

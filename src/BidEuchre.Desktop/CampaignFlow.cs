@@ -32,6 +32,12 @@ internal sealed class CampaignFlow(
     {
         if (_closed) return;
         _artworkRequest?.Cancel();
+        if (Run is { } run && screen is not CampaignInventoryScreen)
+        {
+            var framed = CampaignInventoryScreen.Build(screen, run.Resources.Inventory, motion);
+            if (ReferenceEquals(screen, _home)) _home = framed;
+            screen = framed;
+        }
         showScreen(screen);
     }
 
@@ -112,7 +118,7 @@ internal sealed class CampaignFlow(
             return;
         }
 
-        Present(CampaignScreens.PlayChoice(saved, () => Resume(saved), StartNewRun, ReturnToMenu, motion));
+        Present(CampaignInventoryScreen.Build(CampaignScreens.PlayChoice(saved, () => Resume(saved), StartNewRun, ReturnToMenu, motion), saved.Resources.Inventory, motion));
         WarmUpcomingArtwork(saved);
     }
 
@@ -268,8 +274,8 @@ internal sealed class CampaignFlow(
         if (Run is not { } run) return;
         if (run.IsOver)
         {
-            Run = null;
             Present(CampaignScreens.RunOver(run, ReturnToMenu, motion));
+            Run = null;
         }
         else if (run.Phase is CampaignPhase.Victory)
         {
@@ -298,15 +304,25 @@ internal sealed class CampaignFlow(
         return !_saveFailed;
     }
 
-    private async void ShowShop()
+    private void ShowShop() => ShowShop(refreshPaidAction: false);
+
+    private async void ShowShop(bool refreshPaidAction, bool revealBooster = false, bool showSoda = false)
     {
         if (Run is not { } run || _closed) return;
         var shopRun = CampaignShop.Open(run);
-        if (!IsArcadeUseSession()) Persist(shopRun);
+        if (!IsArcadeUseSession() && (!refreshPaidAction || !ReferenceEquals(shopRun, run))) Persist(shopRun);
         if (!await PrepareArtworkAsync(ScreenArtwork.Shop(shopRun)) || !ReferenceEquals(Run, shopRun)) return;
         if (Run!.Shop?.UseSession is not null) { ShowUseSession(); return; }
         if (Run.Shop?.Arcade?.Pending is not null) { ShowArcade(); return; }
         var revision = Run!.Resources.Revision;
+        if (Run.Shop?.PendingBooster is { } booster)
+        {
+            Present(_home = CampaignShopScreen.OpenedBooster(booster, Run.Resources.Inventory,
+                () => Transact(() => CampaignShop.TearBooster(Run!, revision), booster: true), id =>
+                Transact(() => CampaignShop.ResolveBooster(Run!, id, revision), booster: true),
+                id => Transact(() => CampaignShop.SellJoker(Run!, id, revision), booster: true), motion, TakeNote(), revealBooster));
+            return;
+        }
         // A new visit starts from its own balance; redraws within a visit count from the last one shown.
         var visit = (Run.Ante, Run.Match);
         if (!Equals(_purse.Visit, visit)) { _purse.Visit = visit; _purse.Shown = null; }
@@ -317,12 +333,29 @@ internal sealed class CampaignFlow(
                 if (Run is not { Phase: CampaignPhase.Shop } run || run.Resources.Revision != revision)
                     throw new GameRuleException("The shop changed. Choose again.");
                 return run.LeaveShop();
-            })) { Pull = id => Pull(id, revision), Refresh = ShowShop, Reroll = () => Transact(() => CampaignShop.Reroll(Run!, revision)), Teller = ShowTeller, Arcade = ShowArcade }, motion, TakeNote(), _purse));
+            })) { OpenSoda = () =>
+                {
+                    if (Run is { Shop: { SodaPurchased: true, SodaOpened: false } shop } current && current.Resources.Revision == revision)
+                        Persist(current with { Shop = shop with { SodaOpened = true } });
+                }, BuySoda = () => BuySoda(revision), Pull = id => Pull(id, revision), Refresh = ShowShop, Reroll = () => Transact(() => CampaignShop.Reroll(Run!, revision)), Teller = ShowTeller, Arcade = ShowArcade,
+                OpenBooster = index => Transact(() => CampaignShop.OpenBooster(Run!, revision, index), booster: true) }, motion, TakeNote(), _purse, showSoda));
     }
+    private void BuySoda(long revision)
+    {
+        var bought = false;
+        try
+        {
+            bought = PersistPaidAction(CampaignShop.BuySoda(Run!, revision), "vending machine");
+        }
+        catch (GameRuleException error) { _note = error.Message; }
+        ShowShop(refreshPaidAction: true, showSoda: bought);
+    }
+
     private void ShowArcade()
     {
         if (Run is not { Phase: CampaignPhase.Shop } run) { ShowHome(); return; }
         if (run.Shop?.UseSession is not null) { ShowUseSession(); return; }
+        if (run.Shop?.PendingBooster is not null) { ShowShop(); return; }
         var revision = run.Resources.Revision;
         ArcadeResult? Play(ArcadeGame game, int choice)
         {
@@ -349,6 +382,22 @@ internal sealed class CampaignFlow(
         {
             Discard = (category, slot) => Resolve(() => category == FeatureCategory.Sigil
                 ? CampaignShop.DiscardSigil(Run!, slot, revision) : CampaignShop.DiscardTarot(Run!, slot, revision)),
+            Tear = id =>
+            {
+                try
+                {
+                    var after = CampaignArcade.TearSpectralPack(Run!, id, revision);
+                    if (PersistArcade(after))
+                    {
+                        revision = after.Resources.Revision;
+                        return true;
+                    }
+                }
+                catch (GameRuleException error) { _note = error.Message; }
+                ShowArcade();
+                return false;
+            },
+            SkipPack = id => Resolve(() => CampaignArcade.SkipSpectralPack(Run!, id, revision)),
             Pick = (id, index) =>
             {
                 var before = Run!.Resources.Inventory.Jokers.Select(j => j.Id).ToArray();
@@ -365,36 +414,36 @@ internal sealed class CampaignFlow(
     // the printed tickets wait on her offer until one is kept or used.
     private void ShowTeller(string offerId)
     {
-        if (Run?.Shop?.UseSession is not null) { ShowShop(); return; }
+        if (Run?.Shop is { UseSession: not null } or { PendingBooster: not null }) { ShowShop(); return; }
         if (Run is not { Phase: CampaignPhase.Shop } run || run.Shop?.Offers.SingleOrDefault(o => o.Id == offerId) is not { Category: FeatureCategory.Tarot, Sold: false } offer)
         {
             ShowShop(); return;
         }
         var revision = run.Resources.Revision;
-        TarotId[]? Print(int count)
+        string[]? Print(int count)
         {
             try
             {
                 var after = CampaignShop.PrintTickets(Run!, offerId, count, revision);
-                Persist(after);
+                if (!PersistPaidAction(after, "Fortune Teller")) return null;
                 revision = after.Resources.Revision;
-                return after.Shop!.Offers.Single(o => o.Id == offerId).Printed!.Select(Enum.Parse<TarotId>).ToArray();
+                return after.Shop!.Offers.Single(o => o.Id == offerId).Printed!;
             }
             catch (GameRuleException error) { _note = error.Message; return null; }
         }
-        void Keep(TarotId ticket) => Transact(() =>
+        void Keep(string ticket) => Transact(() =>
         {
             var after = CampaignShop.KeepTicket(Run!, offerId, ticket, revision);
-            _note = $"You kept {FeatureCatalog.Get(FeatureCategory.Tarot, ticket.ToString()).Name}!";
+            _note = $"You kept {CampaignShop.PrintedCard(ticket)!.Name}!";
             return after;
         });
-        void Use(TarotId ticket) => Transact(() => CampaignShop.BeginTicketUse(Run!, offerId, ticket, revision));
+        void Use(string ticket) => Transact(() => CampaignShop.BeginTicketUse(Run!, offerId, ticket, revision));
         Present(FortuneTellerScreen.Build(run, offer, new TellerActions(Print, Keep, Use, ShowShop, () => ShowTeller(offerId)), motion, TakeNote()));
     }
     private void InspectDeck()
     {
         if (Run is null) return;
-        if (Run.Shop?.UseSession is not null) { ShowShop(); return; }
+        if (Run.Shop is { UseSession: not null } or { PendingBooster: not null }) { ShowShop(); return; }
         Present(CampaignDeckPicker.Build(Run.Resources.Deck, 0, _ => { }, ShowShop, motion, "Shared deck · changes last for this run"));
     }
     private void Buy(string id, long revision) => Transact(() => CampaignShop.Buy(Run!, id, expectedRevision: revision));
@@ -407,6 +456,12 @@ internal sealed class CampaignFlow(
             var after = CampaignShop.Buy(before, id, expectedRevision: revision);
             var gumball = Enum.Parse<GumballId>(after.Shop!.Offers.Single(offer => offer.Id == id).FeatureId);
             _note = GumballReport("The gumball", before.Resources.Inventory, after.Resources.Inventory, gumball);
+            if (before.Resources.Inventory.Has(SodaId.DoubleBubble) && before.Shop!.GumballPulls == 0)
+            {
+                var other = Enum.GetValues<GumballId>().First(id => after.Resources.Inventory.GumballCopies(id)
+                    - before.Resources.Inventory.GumballCopies(id) > (id == gumball ? 1 : 0));
+                _note += $" Double Bubble also granted {FeatureCatalog.Get(FeatureCategory.Gumball, other.ToString()).Name}!";
+            }
             Persist(after);
             return gumball;
         }
@@ -456,28 +511,36 @@ internal sealed class CampaignFlow(
     private void Sell(JokerId id, long revision) => Transact(() => CampaignShop.SellJoker(Run!, id, revision));
     private void Discard(FeatureCategory category, int slot, long revision) => Transact(() => category == FeatureCategory.Sigil
         ? CampaignShop.DiscardSigil(Run!, slot, revision) : CampaignShop.DiscardTarot(Run!, slot, revision));
-    private void Transact(Func<CampaignRun> update)
+    private void Transact(Func<CampaignRun> update, bool booster = false)
     {
+        var revealBooster = false;
         try
         {
             var arcade = IsArcadeUseSession();
             var after = update();
-            if (arcade) PersistArcade(after); else Persist(after);
+            if (booster)
+            {
+                var opening = Run?.Shop?.PendingBooster?.AwaitingOpen == true && after.Shop?.PendingBooster?.AwaitingOpen == false;
+                revealBooster = PersistPaidAction(after, "booster") && opening;
+            }
+            else if (arcade) PersistArcade(after); else Persist(after);
         }
         catch (GameRuleException error) { _note = error.Message; }
-        ShowHome();
+        if (booster && Run?.Phase == CampaignPhase.Shop) ShowShop(refreshPaidAction: true, revealBooster); else ShowHome();
     }
 
     private bool IsArcadeUseSession() => Run?.Shop?.UseSession is { } session
         && Run.Shop.Offers.Any(offer => offer.Id == session.OfferId && offer.IsArcadePrize);
 
     // A paid Arcade result, its claim and its card effects become visible only after their save succeeds.
-    private bool PersistArcade(CampaignRun after)
+    private bool PersistArcade(CampaignRun after) => PersistPaidAction(after, "Arcade");
+
+    private bool PersistPaidAction(CampaignRun after, string action)
     {
         if (!CampaignStore.Save(after, savePath))
         {
             _saveFailed = true;
-            _note = "Could not save the Arcade action. Nothing changed. Try again.";
+            _note = $"Could not save the {action} action. Nothing changed. Try again.";
             return false;
         }
         Run = after;

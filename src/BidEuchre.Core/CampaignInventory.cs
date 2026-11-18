@@ -3,6 +3,26 @@ namespace BidEuchre.Core;
 // Explicit values preserve saved/protocol identities when a feature is retired.
 public enum EnhancementId { Lucky = 0, Golden = 1, Wild = 2, Cursed = 3, Stone = 4, Silver = 6, Glass = 8, Bouncy = 9 }
 public enum JokerId { ThreesCompany, HighRoller, LoverBoy, SnakeEyes, TwinFlame, Clubhouse, TheUndertaker, RollerCoaster, DejaVu, LastLaugh, VowofSilence, CureAll, TrendSetter, Contrarian, ConsolationPrize, RoyalCouncil, DeepDigger, LuckyDuck, ProtectiveBubble, PennyPincher, Bully, PeoplePleaser, Millionaire, KingMidas, StickyFingers, Medusa, CheeseTouch, OneUp, Cheater, Alpha, SlickWilly, DoubleDown }
+public enum SodaId
+{
+    OvertimeOrange, LimitlessLime, GalaxAde, CosmicCola, RerollRaspberry, CitrusSale,
+    MidnightGrape, TwilightTangerine, PackAPunch, PeachPlus, DoubleBubble, RainbowStripes, SpectralSprite, GhostlyGuava
+}
+
+public static class SodaRules
+{
+    public static SodaId? Prerequisite(SodaId id) => id switch
+    {
+        SodaId.LimitlessLime => SodaId.OvertimeOrange,
+        SodaId.CosmicCola => SodaId.GalaxAde,
+        SodaId.CitrusSale => SodaId.RerollRaspberry,
+        SodaId.TwilightTangerine => SodaId.MidnightGrape,
+        SodaId.PeachPlus => SodaId.PackAPunch,
+        SodaId.RainbowStripes => SodaId.DoubleBubble,
+        SodaId.GhostlyGuava => SodaId.SpectralSprite,
+        _ => null
+    };
+}
 public enum GumballId { Lowballer = 0, Chaos = 1, Poker = 2, Duelist = 3, Telepath = 4, PartnersBest = 5, Alone = 6, HighLow = 8 }
 public enum SigilId { Bear = 1, Eagle = 2, Fish = 3, Spider = 4, Frog = 6, Duck = 8, Vulture = 9, Chameleon = 10 }
 public enum TarotId { Chameleon = 4, Grindstone = 5, Prospector = 6, DevilishDeal = 7, Gambler = 8, Traitor = 11, Astronomer = 12, SpringLoaded = 14, TaxCollector = 15 }
@@ -34,15 +54,20 @@ public sealed record CampaignInventory(JokerState[] Jokers, TarotId[] Tarot, Gum
 {
     /// <summary>Tarots and Sigils are held together and share these slots.</summary>
     public const int ItemSlots = 4;
+    public const int MaxItemCapacity = ItemSlots + 1;
     /// <summary>How many bidding options there are to unlock.</summary>
     public static readonly int GumballCount = Enum.GetValues<GumballId>().Length;
+    public SodaId[] Sodas { get; init; } = [];
+    public bool Has(SodaId id) => Sodas.Contains(id);
+    public int JokerCapacity => Has(SodaId.CosmicCola) ? 6 : 5;
+    public int ItemCapacity => ItemSlots + (Has(SodaId.GalaxAde) ? 1 : 0);
     public SigilId[] Sigils { get; init; } = [];
     /// <summary>Acquisitions beyond the first, separate from the unique bidding unlocks.</summary>
     public Dictionary<GumballId, int> GumballExtraCopies { get; init; } = [];
     public long GumballCopies(GumballId id) => (Unlocks.Contains(id) ? 1L : 0L) + GumballExtraCopies.GetValueOrDefault(id);
     public int ItemCount => Tarot.Length + Sigils.Length;
-    public bool HasItemRoom => ItemCount < ItemSlots;
+    public bool HasItemRoom => ItemCount < ItemCapacity;
     public static CampaignInventory Empty => new([], [], []);
-    public CampaignInventory Copy() => new(Jokers.ToArray(), Tarot.ToArray(), Unlocks.ToArray()) { Sigils = Sigils.ToArray(), GumballExtraCopies = new(GumballExtraCopies) };
+    public CampaignInventory Copy() => new(Jokers.ToArray(), Tarot.ToArray(), Unlocks.ToArray()) { Sodas = Sodas.ToArray(), Sigils = Sigils.ToArray(), GumballExtraCopies = new(GumballExtraCopies) };
     public bool Has(JokerId id) => Jokers.Any(j => j.Id == id);
 }

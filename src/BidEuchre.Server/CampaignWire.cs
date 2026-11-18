@@ -67,7 +67,7 @@ public static class CampaignWire
         };
         Fields(value, ["kind", .. fields]);
         CardId Id(string name = "cardId") => new((int)Number(value, name, 0, 23));
-        int Slot() => (int)Number(value, "slot", 0, CampaignInventory.ItemSlots - 1);
+        int Slot() => (int)Number(value, "slot", 0, CampaignInventory.MaxItemCapacity - 1);
         int Seat() => (int)Number(value, "targetSeat", 0, 3);
         return kind switch
         {

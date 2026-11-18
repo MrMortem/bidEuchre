@@ -19,18 +19,21 @@ public static class CampaignProjection
       collectorTitle = f.Category == FeatureCategory.Sigil ? FeatureCatalog.CollectorTitle(Enum.Parse<SigilId>(f.Key)) : null }).ToArray();
     public static int TargetCount(FeatureCategory category, string key) => category switch
     { FeatureCategory.Tarot => Enum.TryParse<TarotId>(key, out var tarot) ? CampaignShop.TarotTargets(tarot) : 0, FeatureCategory.Sigil => 1, _ => 0 }; // An unprinted Fortune Teller has no ticket yet.
+    private static bool CanSellJoker(CampaignRun run) => run.Phase == CampaignPhase.Shop && !run.IsOver
+        && run.Shop?.UseSession is null && run.Shop?.Arcade?.Pending is null
+        && (run.Shop?.PendingBooster is null || run.Shop.PendingBooster.AwaitingOpen == false && run.Resources.Inventory.Jokers.Length >= run.Resources.Inventory.JokerCapacity);
     public static object Inventory(CampaignRun run)
     {
         var inventory = run.Resources.Inventory;
         return new
         {
             jokers = inventory.Jokers.Select(j => new { j.Id, j.Value, sellValue = CampaignShop.JokerSellValue,
-                sell = Can(run.Phase == CampaignPhase.Shop && !run.IsOver && run.Shop?.UseSession is null && run.Shop?.Arcade?.Pending is null, "Jokers can be sold in the shop.") }).ToArray(),
+                sell = Can(CanSellJoker(run), "Jokers can be sold in the shop.") }).ToArray(),
             tarot = inventory.Tarot.Select((id, slot) => new { slot, id, targetCount = CampaignShop.TarotTargets(id) }).ToArray(),
             sigils = inventory.Sigils.Select((id, slot) => new { slot, id, targetCount = 1 }).ToArray(),
             gumballs = inventory.Unlocks.Select(id => new { id, copies = inventory.GumballCopies(id),
                 bonus = inventory.GumballExtraCopies.GetValueOrDefault(id) }).ToArray(),
-            inventory.ItemCount, itemSlots = CampaignInventory.ItemSlots, jokerSlots = 5
+            inventory.Sodas, inventory.ItemCount, itemSlots = inventory.ItemCapacity, jokerSlots = inventory.JokerCapacity
         };
     }
     public static object? Table(GameView? view, string? error)
@@ -61,6 +64,19 @@ public static class CampaignProjection
     public static object? Shop(CampaignRun run)
     {
         if (run.Shop is not { } shop) return null;
+        var idle = run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null
+            && shop.Arcade?.Pending is null && shop.PendingBooster is null;
+        var printed = shop.Offers.Any(o => o.Printed is not null);
+        var price = CampaignShop.Discount(run, CampaignShop.BoosterPrice);
+        object? Pack(JokerBooster? booster, int index) => booster is null ? null : new
+        {
+            index, booster.Theme, booster.Sold, booster.AwaitingOpen, choices = booster.AwaitingOpen ? null : booster.Choices, price,
+            buy = Can(idle && !printed && !booster.Sold && run.Money >= price,
+                booster.Sold ? "Sold out." : printed ? "Choose a printed ticket first."
+                : !idle ? "Resolve your current purchase or prize first." : "Not enough money."),
+            pick = Can(!booster.AwaitingOpen && booster.Choices is not null && run.Resources.Inventory.Jokers.Length < run.Resources.Inventory.JokerCapacity,
+                "Sell an owned Joker to free a slot.")
+        };
         return new
         {
             useSession = shop.UseSession is not { } session ? null : new
@@ -69,19 +85,27 @@ public static class CampaignProjection
                 targetCount = TargetCount(session.Category, session.FeatureId),
                 targetCards = CampaignShop.UseSessionCards(run).Select(Card).ToArray()
             },
+            vending = new
+            {
+                price = CampaignShop.SodaPrice(run), sold = shop.SodaPurchased,
+                buy = Can(idle && !printed && !shop.SodaPurchased && run.Money >= CampaignShop.SodaPrice(run)
+                    && CampaignShop.EligibleSodas(run.Resources.Inventory).Length > 0)
+            },
             arcade = Arcade(run),
-            offers = shop.Offers.Where(o => !o.IsArcadePrize).Select(o => new { o.Id, o.Category, o.FeatureId, o.Price, o.Sold,
+            booster = Pack(shop.Booster, 0),
+            bonusBooster = Pack(shop.BonusBooster, 1),
+            offers = shop.Offers.Where(o => !o.IsArcadePrize).Select(o => new { o.Id, o.Category, o.FeatureId, o.IsTellerSigil, price = CampaignShop.OfferPrice(run, o), o.Sold,
                 targetCount = TargetCount(o.Category, o.FeatureId),
                 targetCards = CampaignShop.TargetCards(run, o.Id).Select(Card).ToArray(),
-                tickets = (o.Printed ?? []).Select(id => new { id, targetCount = TargetCount(FeatureCategory.Tarot, id),
-                    keep = Can(run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null && shop.Arcade?.Pending is null && !o.Sold && run.Resources.Inventory.HasItemRoom, "The four shared Ticket and Sigil slots are full or the shop is closed."),
-                    use = Can(run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null && shop.Arcade?.Pending is null && !o.Sold) }).ToArray(),
+                tickets = (o.Printed ?? []).Select(id => (id, card: CampaignShop.PrintedCard(id)!)).Select(t => new { t.id, t.card.Category, featureId = t.card.Key, targetCount = TargetCount(t.card.Category, t.card.Key),
+                    keep = Can(idle && !o.Sold && run.Resources.Inventory.HasItemRoom, "The shared Ticket and Sigil slots are full or the shop is closed."),
+                    use = Can(idle && !o.Sold) }).ToArray(),
                 printOptions = o.Category == FeatureCategory.Tarot ? new[] { 1, CampaignShop.TicketSpread }.Select(count => new { count,
-                    price = CampaignShop.PrintPrice(count), buy = Can(run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null && shop.Arcade?.Pending is null && !o.Sold && o.Printed is null && run.Money >= CampaignShop.PrintPrice(count),
+                    price = CampaignShop.PrintPrice(run, count), buy = Can(idle && !o.Sold && o.Printed is null && run.Money >= CampaignShop.PrintPrice(run, count),
                         o.Printed is not null ? "Choose one of your printed tickets first." : o.Sold ? "Already printed this visit." : "Not enough money or shop closed.") }).ToArray() : [],
                 buy = PurchaseCapability(run, o, false), buyUse = PurchaseCapability(run, o, true) }).ToArray(),
             rerollPrice = CampaignShop.RerollPrice(run), shop.RerollCount,
-            reroll = Can(run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null && shop.Arcade?.Pending is null && !shop.Offers.Any(o => o.Printed is not null) && run.Money >= CampaignShop.RerollPrice(run), "Resolve your purchase or Arcade result, or check your balance.")
+            reroll = Can(idle && !printed && run.Money >= CampaignShop.RerollPrice(run), "Resolve your purchase or Arcade result, or check your balance.")
         };
     }
     private static string FreeJokerText(int free) => $"fills {free} empty Joker slot{(free == 1 ? "" : "s")}";
@@ -89,28 +113,30 @@ public static class CampaignProjection
     {
         var shop = run.Shop!;
         var arcade = shop.Arcade ?? new ArcadeState();
-        var open = run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null;
-        var ready = open && arcade.Pending is null && !shop.Offers.Any(o => o.Printed is not null);
-        CampaignCapability Play(bool played) => Can(ready && !played && run.Money >= CampaignArcade.Price,
-            played ? "Already played this shop visit." : !ready ? "Resolve your purchase or Arcade result first." : "Not enough money.");
+        var open = run.Phase == CampaignPhase.Shop && !run.IsOver && shop.UseSession is null && shop.PendingBooster is null;
+        var ready = open && CampaignArcade.Available(run) && arcade.Pending is null && !shop.Offers.Any(o => o.Printed is not null);
+        var price = CampaignArcade.EntryPrice(run);
+        CampaignCapability Play(bool played) => Can(ready && !played && run.Money >= price,
+            !CampaignArcade.Available(run) ? "The Arcade is closed this visit." : played ? "Already played this shop visit." : !ready ? "Resolve your purchase or Arcade result first." : "Not enough money.");
         var result = arcade.Pending;
         return new
         {
-            price = CampaignArcade.Price, plinkoLaneCount = CampaignArcade.PlinkoLaneCount, plinkoScores = CampaignArcade.PlinkoScores, arcade.PlinkoPlayed, arcade.RoulettePlayed,
+            available = CampaignArcade.Available(run), price, entryPaid = price == 0, plinkoLaneCount = CampaignArcade.PlinkoLaneCount, plinkoScores = CampaignArcade.PlinkoScores, arcade.PlinkoPlayed, arcade.RoulettePlayed,
             plinko = Play(arcade.PlinkoPlayed), roulette = Play(arcade.RoulettePlayed),
             pending = result is null ? null : new
             {
                 result.PlayId, result.Game, result.Choice, result.Landing, result.Score, result.Path,
-                result.PrizeCategory, result.FeatureId,
+                result.PrizeCategory, result.FeatureId, result.AwaitingOpen,
                 targetCount = result.PrizeCategory is { } category && result.FeatureId is { } key ? TargetCount(category, key) : 0,
                 targetCards = result.TargetCards.Select(id => Card(run.Resources.Deck.Single(c => c.Id == id))).ToArray(),
-                pack = result.PackCards?.Select(key => key == CampaignArcade.LegendaryKey
-                    ? new { key, title = "Legendary", name = FreeJokerText(CampaignArcade.JokerSlots - run.Resources.Inventory.Jokers.Length), legendary = true }
+                packWrapper = CampaignArcade.IsPack(result) ? "curated-collector-pack" : null,
+                pack = result.AwaitingOpen ? null : result.PackCards?.Select(key => key == CampaignArcade.LegendaryKey
+                    ? new { key, title = "Legendary", name = FreeJokerText(run.Resources.Inventory.JokerCapacity - run.Resources.Inventory.Jokers.Length), legendary = true }
                     : new { key, title = FeatureCatalog.CollectorTitle(Enum.Parse<SigilId>(key)), name = FeatureCatalog.Get(FeatureCategory.Sigil, key).Name + " Sigil", legendary = false }).ToArray(),
                 keep = Can(open && result.PrizeCategory is not null && !CampaignArcade.IsPack(result) && run.Resources.Inventory.HasItemRoom,
-                    CampaignArcade.IsPack(result) ? "Open your Collector's Pack and choose a card." : "The four shared Ticket and Sigil slots are full. Use your prize now, or discard an item."),
+                    CampaignArcade.IsPack(result) ? "Open your Spectral Pack and choose a card." : "The shared Ticket and Sigil slots are full. Use your prize now, or discard an item."),
                 use = Can(open && result.PrizeCategory is not null && !CampaignArcade.IsPack(result)),
-                pick = Can(open && CampaignArcade.IsPack(result)),
+                pick = Can(open && !result.AwaitingOpen && CampaignArcade.IsPack(result)),
                 dismiss = Can(open && result.PrizeCategory is null, "Keep or use your prize first.")
             }
         };
@@ -120,13 +146,14 @@ public static class CampaignProjection
         if (run.Phase != CampaignPhase.Shop || run.IsOver) return Can(false, "The shop is closed.");
         if (run.Shop?.UseSession is not null) return Can(false, "Finish using your purchase first.");
         if (run.Shop?.Arcade?.Pending is not null) return Can(false, "Resolve your Arcade result first.");
+        if (run.Shop?.PendingBooster is not null) return Can(false, "Pick a Joker or skip the open pack first.");
         if (offer.Sold) return Can(false, "Sold out.");
         if (offer.Category == FeatureCategory.Tarot) return Can(false, "Print tickets at the Fortune Teller first.");
-        if (run.Money < offer.Price) return Can(false, "Not enough money.");
+        if (run.Money < CampaignShop.OfferPrice(run, offer)) return Can(false, "Not enough money.");
         if (use) return Can(offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil, "Only Tarot and Sigil cards can be used immediately.");
         var inventory = run.Resources.Inventory;
-        if (offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil) return Can(inventory.HasItemRoom, "The four shared Tarot and Sigil slots are full.");
-        if (offer.Category == FeatureCategory.Joker) return Can(inventory.Jokers.Length < 5 && !inventory.Jokers.Any(j => j.Id.ToString() == offer.FeatureId), "Five Joker slots; no duplicates.");
+        if (offer.Category is FeatureCategory.Tarot or FeatureCategory.Sigil) return Can(inventory.HasItemRoom, "The shared Tarot and Sigil slots are full.");
+        if (offer.Category == FeatureCategory.Joker) return Can(inventory.Jokers.Length < inventory.JokerCapacity && !inventory.Jokers.Any(j => j.Id.ToString() == offer.FeatureId), "A free Joker slot and an unowned Joker are required.");
         return Can(true);
     }
     public static object State(CampaignRun? run, string version, bool dormant, bool corrupt, bool dirty,
@@ -137,6 +164,7 @@ public static class CampaignProjection
         var revealingPoker = view?.Phase == GamePhase.PokerReveal;
         var shop = phase == "Shop"; var items = phase is "Shop" or "Intro";
         var useSession = shop && run?.Shop?.UseSession is not null;
+        var boosterPending = run?.Shop?.PendingBooster is not null;
         var arcadePending = run?.Shop?.Arcade?.Pending is not null;
         var printed = run?.Shop?.Offers.Any(o => o.Printed is not null) == true;
         var capabilities = new Dictionary<string, CampaignCapability>
@@ -145,10 +173,10 @@ public static class CampaignProjection
             ["start-match"] = Can(phase == "Intro"), ["forfeit"] = Can(run?.Phase == CampaignPhase.InMatch),
             ["next-hand"] = Can(live && view?.Phase == GamePhase.HandComplete),
             ["commands"] = Can(live && view?.CurrentSeat == 0), ["arrange-hand"] = Can(live && !revealingPoker),
-            ["items-use"] = Can(live && !revealingPoker && view?.CurrentSeat == 0 || useSession, "Use held items during a match, or held tickets in an open six-card opportunity."), ["items-discard"] = Can(items && !useSession), ["result-continue"] = Can(result is not null),
-            ["victory-continue"] = Can(phase == "Victory"), ["shop-leave"] = Can(shop && !printed && !useSession && !arcadePending, "Finish your purchase, printed ticket or Arcade result first."),
-            ["shop-reroll"] = Can(shop && !printed && !useSession && !arcadePending && run!.Money >= CampaignShop.RerollPrice(run), "Resolve your purchase or Arcade result, or check your balance."),
-            ["shop-sell"] = Can(shop && !useSession && !arcadePending && run!.Resources.Inventory.Jokers.Length > 0),
+            ["items-use"] = Can(live && !revealingPoker && view?.CurrentSeat == 0 || useSession, "Use held items during a match, or held tickets in an open six-card opportunity."), ["items-discard"] = Can(items && !useSession && !boosterPending), ["result-continue"] = Can(result is not null),
+            ["victory-continue"] = Can(phase == "Victory"), ["shop-leave"] = Can(shop && !printed && !useSession && !boosterPending && !arcadePending, "Resolve your purchase or prize first."),
+            ["shop-reroll"] = Can(shop && !printed && !useSession && !boosterPending && !arcadePending && run!.Money >= CampaignShop.RerollPrice(run), "Resolve your purchase or Arcade result, or check your balance."),
+            ["shop-sell"] = Can(shop && CanSellJoker(run!) && run!.Resources.Inventory.Jokers.Length > 0),
             ["shop-use-purchased"] = Can(useSession && !run!.Shop!.UseSession!.PurchasedItemUsed, "The purchased item has already been used."),
             ["shop-finish-use"] = Can(useSession && run!.Shop!.UseSession!.PurchasedItemUsed, "Use your purchased item first.")
         };

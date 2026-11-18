@@ -275,24 +275,45 @@ your own turn. Any card they affect must currently be in your hand; cards alread
 played and cards held by other players are not eligible. Gambler makes exactly two distinct cards you select from your current hand Lucky. Effects that do not target cards retain their
 normal behavior. Using a consumable does not end your turn.
 
-The shop Arcade replaces direct Sigil sales. Plinko and roulette each cost $3,
-once per game per shop visit. Rerolls do not restore plays. Plinko's printed scores
-5–6 win a Collector's Pack, 3–4 win a Tarot ticket, and 1–2 win nothing. Choose one
+Every shop has a vending machine with one random soda for $8. Each purchase adds a permanent upgrade for the current run. Rerolls preserve the machine's sold status. The initial pool contains seven base flavors. Once you own a base, its upgrade can be drawn. Each flavor can be acquired once.
+
+| Base soda | Effect | Unlocked soda | Effect |
+| --- | --- | --- | --- |
+| Overtime Orange | One extra hand each match | Limitless Lime | A second extra hand |
+| Galax-Ade | One extra consumable slot | Cosmic Cola | One extra Joker slot |
+| Reroll Raspberry | First shop reroll free | Citrus Sale | Purchases cost $1 less |
+| Midnight Grape | Arcade in half of shops | Twilight Tangerine | Arcade in every shop |
+| Pack-a-Punch | One extra Joker Booster each shop | Peach Plus | One extra card to choose from in each pack |
+| Double Bubble | First Gumball purchase each visit grants a second Gumball | Rainbow Stripes | Unlimited Gumball pulls, rising by $1 per paid pull that visit |
+| Spectral Sprite | Spectral cards may replace printed Tickets | Ghostly Guava | Spectral cards may appear for direct purchase |
+
+By default the Arcade appears in one third of new shops. The first game costs $12
+for Arcade entry and includes one play each of Plinko and roulette that visit.
+Rerolls do not restore plays or reset entry. Plinko's printed scores
+5–6 win a Spectral Pack, 3–4 win a Tarot ticket, and 1–2 win nothing. Choose one
 of eight drop positions before paying. Roulette has twelve numbered pockets: matching
-your chosen number wins a Collector's Pack, matching only its color wins a Tarot
+your chosen number wins a Spectral Pack, matching only its color wins a Tarot
 ticket, and the opposite color wins nothing. Odd pockets are red; even pockets are
-black. Payments and outcomes, including a pack's three cards, are saved before
+black. Entry and outcomes, including the pack contents, are saved before
 animation. Keep a Tarot prize if inventory has room, or use it immediately even when
-inventory is full. Collect the prize before another play, reroll or shop departure.
+inventory is full. Resolve the Arcade result before another play, reroll or shop departure.
 A new shop visit restores both plays.
 
-A Collector's Pack opens to three different cards; choose exactly one. Each card is
-a Sigil shown by its collector title: Strength (Bear), Abundance (Fish), Echo (Frog),
+The Arcade awards the Spectral Pack. Click its wrapper to tear it open and choose
+one of three different cards (four with Peach Plus) or skip the pack. Sigils appear under their collector titles — Strength (Bear), Abundance (Fish), Echo (Frog),
 Lucky (Duck), Deception (Chameleon), Resilient (Eagle), Affliction (Spider) and
 Resourceful (Vulture). A chosen Sigil cannot be kept: it must be applied to one of
 the six offered cards below. Rarely, while a Joker slot is free, one card is
 **Legendary** (a 1 in 50 chance per card, at most one per pack). Choosing it fills
 every empty Joker slot with a random Joker you do not already own.
+
+The base shop offers one Joker Booster for $6. Arcade, Comic, Horror,
+Retro-Synth and Tech wrappers are equally likely. Rerolls keep the same booster.
+Buy the pack and click its wrapper to tear it open. It reveals four different
+Jokers you do not own. If all five Joker slots are full, you may sell an owned
+Joker for $2 while deciding. With a free slot, take one of the four. You may also skip all four. Either choice spends
+the booster for that visit. Finish choosing before rerolling or leaving. If
+you return to the game later, the same four Jokers await you.
 
 Shop rewards provide a separate opportunity: applying an Arcade prize,
 or using a newly printed Fortune Teller ticket, displays six random cards from

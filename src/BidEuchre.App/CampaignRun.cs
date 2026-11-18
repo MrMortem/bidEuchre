@@ -76,7 +76,13 @@ public sealed record CampaignRun(
     public static int LivesAtStake(int matchInAnte, int ante) =>
         (matchInAnte == MatchesPerAnte ? 2 : 1) + (ante > LastEasyAnte ? 1 : 0);
 
-    public MatchOptions NextMatch() => new(Threshold) { NegativeThreshold = -Threshold, HandLimit = 8, OpponentSuccessfulBidBonus = OpponentSuccessfulBidBonus };
+    public MatchOptions NextMatch() => new(Threshold)
+    {
+        NegativeThreshold = -Threshold,
+        HandLimit = 8 + (Resources.Inventory.Has(SodaId.OvertimeOrange) ? 1 : 0)
+            + (Resources.Inventory.Has(SodaId.LimitlessLime) ? 1 : 0),
+        OpponentSuccessfulBidBonus = OpponentSuccessfulBidBonus
+    };
 
     public CampaignRun StartMatch() => From(CampaignPhase.Intro) with { Phase = CampaignPhase.InMatch };
 

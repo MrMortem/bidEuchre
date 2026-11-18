@@ -19,10 +19,13 @@ internal sealed record ShopActions(Action<string> Buy, Action<string> BuyAndUse,
     public required Func<string, GumballId?> Pull { get; init; }
     /// <summary>Redraws the shop, after the pull has been shown.</summary>
     public required Action Refresh { get; init; }
+    public Action? OpenSoda { get; init; }
+    public Action? BuySoda { get; init; }
     public Action? Reroll { get; init; }
     /// <summary>Opens the Fortune Teller's own menu for her offer.</summary>
     public Action<string>? Teller { get; init; }
     public Action? Arcade { get; init; }
+    public Action<int>? OpenBooster { get; init; }
 }
 
 /// <summary>The balance the shop last showed during one visit, so a redraw after a purchase counts from it.</summary>
@@ -40,7 +43,7 @@ internal static class CampaignShopScreen
     private static readonly IBrush TarotInk = Brush.Parse("#C792FF");
     private static readonly IBrush SigilInk = Brush.Parse("#7BE0A0");
 
-    public static Control Build(CampaignRun run, ShopActions actions, PixelMotion motion, string? note = null, ShopPurse? purse = null)
+    public static Control Build(CampaignRun run, ShopActions actions, PixelMotion motion, string? note = null, ShopPurse? purse = null, bool showSoda = false)
     {
         var inventory = run.Resources.Inventory;
         var detail = new Border
@@ -86,15 +89,20 @@ internal static class CampaignShopScreen
 
         Control Offer(ShopOffer offer)
         {
-            if (offer.Category == FeatureCategory.Tarot) return Teller(offer);
+            if (offer.Category == FeatureCategory.Tarot || offer.IsTellerSigil) return Teller(offer);
             var definition = FeatureCatalog.Get(offer.Category, offer.FeatureId);
+            var price = CampaignShop.OfferPrice(run, offer);
             var ink = Ink(offer.Category);
-            var blocked = offer.Sold ? null : run.Money < offer.Price ? "Not enough money"
-                : offer.Category == FeatureCategory.Joker && inventory.Jokers.Length >= CampaignTableControls.JokerSlots ? "Sell a Joker first"
+            var blocked = offer.Sold ? null : run.Money < price ? "Not enough money"
+                : offer.Category == FeatureCategory.Joker && inventory.Jokers.Length >= inventory.JokerCapacity ? "Sell a Joker first"
                 : offer.Category == FeatureCategory.Sigil && !inventory.HasItemRoom ? "Card slots full" : null;
-            var face = Face(definition, ink, offer.Sold ? "SOLD" : $"${offer.Price}", blocked);
+            var tag = offer.Sold ? "SOLD" : $"${price}";
+            var face = definition.Category == FeatureCategory.Sigil
+                ? Face("SPECTRAL", ink, PixelArt.Machine(PixelArt.CollectorImageName(definition.Key), Art, Art),
+                    definition.Name + " Sigil", tag, blocked)
+                : Face(definition, ink, tag, blocked);
             if (offer.Sold) { face.Opacity = .4; face.Margin = new Thickness(0, Lift, 0, 0); return face; }
-            return Selectable(face, ink, $"Offer{offer.Id}", $"{CampaignTableControls.CategoryName(offer.Category)}: {definition.Name}, ${offer.Price}{(blocked is null ? "" : ", " + blocked)}",
+            return Selectable(face, ink, $"Offer{offer.Id}", $"{CampaignTableControls.CategoryName(offer.Category)}: {definition.Name}, ${price}{(blocked is null ? "" : ", " + blocked)}",
                 () => OfferDetail(run, offer, definition, actions, motion));
         }
 
@@ -102,8 +110,8 @@ internal static class CampaignShopScreen
         Control Teller(ShopOffer offer)
         {
             var waiting = offer.Printed is not null;
-            var tag = offer.Sold ? "SOLD" : waiting ? "PICK" : $"${CampaignShop.TicketPrice}+";
-            var blocked = offer.Sold || waiting ? null : run.Money < CampaignShop.TicketPrice ? "Not enough money" : null;
+            var tag = offer.Sold ? "SOLD" : waiting ? "PICK" : $"${CampaignShop.PrintPrice(run, 1)}+";
+            var blocked = offer.Sold || waiting ? null : run.Money < CampaignShop.PrintPrice(run, 1) ? "Not enough money" : null;
             var face = Face("FORTUNE", TarotInk, PixelArt.Machine("machine-fortune-teller-ticket-dispenser", Art, Art),
                 waiting ? "Tickets waiting" : "Fortune Teller", tag, blocked);
             face.Name = "FortuneTellerFace";
@@ -112,22 +120,42 @@ internal static class CampaignShopScreen
             face.Margin = new Thickness(0, Lift, 0, 0);
             var button = new Button { Name = "FortuneTeller", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand) };
             CampaignCardFocus.Apply(button, new Panel { Children = { face } });
-            AutomationProperties.SetName(button, waiting ? "Fortune Teller: your printed tickets are waiting" : $"Fortune Teller: blind tickets from ${CampaignShop.TicketPrice}");
+            AutomationProperties.SetName(button, waiting ? "Fortune Teller: your printed tickets are waiting" : $"Fortune Teller: blind tickets from ${CampaignShop.PrintPrice(run, 1)}");
             button.Click += (_, _) => actions.Teller?.Invoke(offer.Id);
             return button;
+        }
+
+        Control Booster(JokerBooster booster, int index)
+        {
+            var name = BoosterName(booster);
+            var price = CampaignShop.Discount(run, CampaignShop.BoosterPrice);
+            var blocked = booster.Sold ? null : run.Shop!.Offers.Any(o => o.Printed is not null) ? "Choose a printed ticket first"
+                : run.Money < price ? "Not enough money" : null;
+            var face = Face("JOKER BOOSTER", Gold, PixelArt.Machine("card-pack-" + booster.Theme, Art, Art),
+                name, booster.Sold ? "SOLD" : $"${price}", blocked);
+            if (booster.Sold) { face.Opacity = .4; face.Margin = new Thickness(0, Lift, 0, 0); return face; }
+            return Selectable(face, Gold, index == 0 ? "ShopBooster" : "ShopBonusBooster", $"{name}, ${price}. {blocked}", () =>
+            {
+                var open = MenuParts.Button($"Buy ${price}", true, motion, "OpenBooster", () => actions.OpenBooster?.Invoke(index), true, 264);
+                open.IsEnabled = blocked is null && actions.OpenBooster is not null;
+                return Detail("JOKER BOOSTER", Gold, name, $"Reveal {CampaignShop.BoosterChoices(inventory)} random Jokers you don’t own. Keep one or skip the pack.",
+                    blocked, [open], blocked is not null);
+            });
         }
 
         Control Arcade()
         {
             var arcade = run.Shop!.Arcade;
             var left = (arcade?.PlinkoPlayed == true ? 0 : 1) + (arcade?.RoulettePlayed == true ? 0 : 1);
+            var price = CampaignArcade.EntryPrice(run);
+            var entry = price == 0 ? "Entry paid" : $"${price} entry";
             var face = Face("ARCADE", Gold, new Viewbox { Width = Art, Height = Art, Child = new PlinkoControl() },
-                "Plinko + Roulette", $"${CampaignArcade.Price}", left == 0 ? "Played this visit" : null);
+                "Plinko + Roulette", entry, left == 0 ? "Played this visit" : null);
             face.Name = "ArcadeFace";
             face.Margin = new Thickness(0, Lift, 0, 0);
             var button = new Button { Name = "ShopArcade", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand) };
             CampaignCardFocus.Apply(button, new Panel { Children = { face } });
-            AutomationProperties.SetName(button, $"Arcade: Plinko and Roulette, ${CampaignArcade.Price} per game, once each per shop visit");
+            AutomationProperties.SetName(button, $"Arcade: Plinko and Roulette, {entry}, one play of each game per shop visit");
             button.Click += (_, _) => actions.Arcade?.Invoke();
             return button;
         }
@@ -154,10 +182,11 @@ internal static class CampaignShopScreen
         {
             var offer = run.Shop!.Offers.SingleOrDefault(o => o.Category == FeatureCategory.Gumball);
             if (offer is null) return null;
-            var open = offer is { Sold: false };
-            var machine = new GumballMachine(locked.Length > 0 ? locked : Enum.GetValues<GumballId>(), open ? $"${offer!.Price}" : "SOLD");
+            var price = CampaignShop.OfferPrice(run, offer);
+            var open = !offer.Sold;
+            var machine = new GumballMachine(locked.Length > 0 ? locked : Enum.GetValues<GumballId>(), open ? $"${price}" : "SOLD");
             if (!open) { machine.Face.Opacity = .4; machine.Face.Margin = new Thickness(0, Lift, 0, 0); return machine.Face; }
-            if (run.Money < offer!.Price) ((Grid)machine.Face.Child!).Children.Add(Badge("Not enough money", Danger));
+            if (run.Money < price) ((Grid)machine.Face.Child!).Children.Add(Badge("Not enough money", Danger));
             var pulling = false;
             async void Pull()
             {
@@ -165,62 +194,95 @@ internal static class CampaignShopScreen
                 pulling = true;
                 if (actions.Pull(offer!.Id) is not { } gumball || !motion.Enabled) { actions.Refresh(); return; }
                 // Paid already: the purse shows it while the gumball rolls out.
-                wallet.Change(run.Money - offer.Price, true);
-                if (purse is not null) purse.Shown = run.Money - offer.Price;
+                wallet.Change(run.Money - price, true);
+                if (purse is not null) purse.Shown = run.Money - price;
                 panel.IsHitTestVisible = false;
                 if (await machine.Dispense(gumball, FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString()).Name,
                     locked.Contains(gumball) ? "UNLOCKED!" : $"COPY {inventory.GumballCopies(gumball) + 1}!")) actions.Refresh();
             }
-            return Selectable(machine.Face, MainWindow.Green, "GumballMachine", $"Gumball machine: mystery bid, ${offer!.Price}{(run.Money < offer.Price ? ", Not enough money" : "")}", () =>
+            return Selectable(machine.Face, MainWindow.Green, "GumballMachine", $"Gumball machine: mystery bid, ${price}{(run.Money < price ? ", Not enough money" : "")}", () =>
             {
-                var pull = MenuParts.Button($"Pull ${offer.Price}", true, motion, "PullGumball", Pull, true, 264);
-                pull.IsEnabled = run.Money >= offer.Price;
+                var pull = MenuParts.Button($"Pull ${price}", true, motion, "PullGumball", Pull, true, 264);
+                pull.IsEnabled = run.Money >= price;
                 return Detail("GUMBALL", MainWindow.Green, "Mystery bid",
                     locked.Length > 0
                         ? $"Unlock a random missing bid. {locked.Length} of {CampaignInventory.GumballCount} bids remain locked."
                         : $"All {CampaignInventory.GumballCount} bids are unlocked. Pull a random duplicate: each extra copy earns +1 point when you successfully make its matching bid, after hand multipliers.",
-                    pull.IsEnabled ? "Unlocks and duplicate counts last for the run. Partner bids earn no duplicate bonus." : $"You need ${offer.Price - run.Money} more.", [pull], !pull.IsEnabled);
+                    pull.IsEnabled ? "Unlocks and duplicate counts last for the run. Partner bids earn no duplicate bonus." : $"You need ${price - run.Money} more.", [pull], !pull.IsEnabled);
             });
         }
 
         var jokers = Row(14);
         var others = Row(14);
+        var sodaPrice = CampaignShop.SodaPrice(run);
+        var available = CampaignShop.EligibleSodas(inventory);
+        var sodaSold = run.Shop!.SodaPurchased || available.Length == 0;
+        var blockedSoda = sodaSold ? "Sold out" : run.Shop.Offers.Any(o => o.Printed is not null) ? "Choose a printed ticket first" : run.Money < sodaPrice ? "Not enough money" : null;
+        SodaId? dispensed = run.Shop.SodaPurchased && inventory.Sodas.Length > 0 ? inventory.Sodas[^1] : null;
+        Control VendingDetail()
+        {
+            var buy = MenuParts.Button($"Buy soda · ${sodaPrice}", true, motion, "BuySoda", () => actions.BuySoda?.Invoke(), true, 264);
+            buy.IsEnabled = blockedSoda is null && actions.BuySoda is not null;
+            if (dispensed.HasValue)
+                return Detail("SODA", MainWindow.Green, "Vending Machine", "Click the can in the tray to inspect your upgrade.", null, buy);
+            return Detail("SODA", MainWindow.Green, "Vending Machine",
+                "Dispenses one random new soda per visit. Its upgrade lasts for the rest of your run. Each base soda unlocks its upgraded flavor.",
+                blockedSoda, [buy], blockedSoda is not null);
+        }
+        var shopLayer = new Grid();
+        var stocked = dispensed.HasValue
+            ? CampaignShop.EligibleSodas(inventory with { Sodas = inventory.Sodas[..^1] })
+            : sodaSold ? [] : available;
+        var opened = run.Shop.SodaOpened;
+        var vending = SodaArtwork.Machine(stocked, dispensed, sodaSold ? "SOLD" : $"${sodaPrice}", motion, showSoda,
+            () => Select(null, VendingDetail()), (id, tray, art) =>
+            {
+                if (shopLayer.Children.Count != 1) return;
+                SodaArtwork.Inspect(shopLayer, tray, art, id, motion, !opened);
+                if (!opened) actions.OpenSoda?.Invoke();
+                opened = true;
+            });
         // Offers drift on the shelf like cards at the table; sold ones rest.
         var shelved = 0;
         Control Shelved(ShopOffer offer) => offer.Sold ? Offer(offer) : motion.Float(Offer(offer), 20 + shelved++);
         foreach (var offer in run.Shop!.Offers.Where(o => o.Category == FeatureCategory.Joker && !o.IsArcadePrize)) jokers.Children.Add(Shelved(offer));
-        others.Children.Add(motion.Float(Arcade(), 20 + shelved++));
-        foreach (var offer in run.Shop.Offers.Where(o => o.Category == FeatureCategory.Tarot && !o.IsArcadePrize)) others.Children.Add(Shelved(offer));
+        if (CampaignArcade.Available(run)) others.Children.Add(motion.Float(Arcade(), 20 + shelved++));
+        foreach (var offer in run.Shop.Offers.Where(o => o.Category is FeatureCategory.Tarot or FeatureCategory.Sigil && !o.IsArcadePrize)) others.Children.Add(Shelved(offer));
+        void AddBooster(JokerBooster? booster, int index)
+        {
+            if (booster is null) return;
+            var card = Booster(booster, index);
+            var shelf = jokers.Children.Count < others.Children.Count ? jokers : others;
+            shelf.Children.Add(booster.Sold ? card : motion.Float(card, 20 + shelved++));
+        }
+        AddBooster(run.Shop.Booster, 0);
+        AddBooster(run.Shop.BonusBooster, 1);
         // The machine stands beside the cards, as tall as both rows.
         var offers = Row(14);
         offers.VerticalAlignment = VerticalAlignment.Top;
         offers.Children.Add(new StackPanel { Spacing = 14 - Lift, Children = { jokers, others } });
+        offers.Children.Add(vending);
         if (Machine() is { } gumballs) offers.Children.Add(gumballs);
 
-        var ownedJokers = Row(8);
+        var ownedJokers = new List<Control>();
         foreach (var joker in inventory.Jokers)
         {
             var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
-            var face = Small(definition, Gold);
-            var icon = face.Child!;
-            face.Child = null;
-            face.Child = new Grid { Children = { icon, Badge("Sell +$2", Gold) } };
-            ownedJokers.Children.Add(Selectable(face, Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name + ", sell for $2", () => Detail(
+            var face = OwnedJokerFace(definition, true);
+            ownedJokers.Add(Selectable(face, Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name + ", sell for $2", () => Detail(
                 "YOUR JOKER", Gold, definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}", null,
                 MenuParts.Button("Sell +$2", false, motion, $"Sell{joker.Id}", () => actions.Sell(joker.Id), true, 264))));
         }
-        while (ownedJokers.Children.Count < CampaignTableControls.JokerSlots) ownedJokers.Children.Add(EmptySlot());
         // The ordinary shelf only offers discard; inventory tickets become usable inside a purchase's six-card menu.
-        var ownedItems = Row(8);
+        var ownedItems = new List<Control>();
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
             var ink = Ink(category);
-            ownedItems.Children.Add(Selectable(Small(definition, ink), ink, $"Owned{category}{slot}", $"Your {CampaignTableControls.CategoryName(category)}: {definition.Name}", () => Detail(
+            ownedItems.Add(Selectable(CampaignTableControls.CardFace(definition), ink, $"Owned{category}{slot}", $"Your {CampaignTableControls.CategoryName(category)}: {definition.Name}", () => Detail(
                 $"YOUR {CampaignTableControls.CategoryName(category).ToUpperInvariant()}", ink, definition.Name, definition.Description,
                 category == FeatureCategory.Tarot ? "Use during a match on cards in your hand, or while a purchase's six-card menu is open." : "Use during a match on cards in your hand.",
                 MenuParts.Button("Discard", false, motion, $"Discard{category}{slot}", () => actions.DiscardItem(category, slot), true, 264))));
         }
-        while (ownedItems.Children.Count < CampaignTableControls.ItemSlots) ownedItems.Children.Add(EmptySlot());
 
         // Each gumball pulled so far, in its own colour; its bid is in the tooltip.
         var pulled = new WrapPanel { Name = "OwnedGumballs", Width = 5 * 38, Height = SmallCard, Margin = new Thickness(0, Lift, 0, 0) };
@@ -238,8 +300,6 @@ internal static class CampaignShopScreen
             Orientation = Orientation.Horizontal, Spacing = 28, HorizontalAlignment = HorizontalAlignment.Center,
             Children =
             {
-                Shelf($"YOUR JOKERS {inventory.Jokers.Length}/{CampaignTableControls.JokerSlots}", ownedJokers),
-                Shelf($"YOUR CARDS {inventory.ItemCount}/{CampaignTableControls.ItemSlots}", ownedItems),
                 Shelf($"GUMBALLS {inventory.Unlocks.Length}/{CampaignInventory.GumballCount}", pulled)
             }
         };
@@ -251,17 +311,23 @@ internal static class CampaignShopScreen
             line.Name = "CampaignNote"; line.HorizontalAlignment = HorizontalAlignment.Center;
             panel.Children.Add(line);
         }
-        panel.Children.Add(new StackPanel
+        var market = new Viewbox
         {
-            Orientation = Orientation.Horizontal, Spacing = 24, HorizontalAlignment = HorizontalAlignment.Center,
-            Children = { offers, detail }
-        });
+            StretchDirection = StretchDirection.DownOnly,
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Horizontal, Spacing = 24, HorizontalAlignment = HorizontalAlignment.Center,
+                Children = { offers, detail }
+            }
+        };
+        panel.Children.Add(market);
         panel.Children.Add(owned);
+        if (inventory.Sodas.Length > 0) panel.Children.Add(SodaArtwork.Shelf(inventory));
         var rerollPrice = CampaignShop.RerollPrice(run);
         var reroll = MenuParts.Button($"Reroll ${rerollPrice}", false, motion, "ShopReroll", () => actions.Reroll?.Invoke(), true, 260);
         reroll.IsEnabled = actions.Reroll is not null && run.Money >= rerollPrice;
         ToolTip.SetTip(reroll, run.Money < rerollPrice ? $"Not enough money. You need ${rerollPrice - run.Money} more."
-            : "Replenish the Jokers and bring the Fortune Teller back. Arcade plays and the gumball pull stay as they are. Next reroll costs $1 more.");
+            : "Restock individual Jokers and the Fortune Teller. The booster, arcade plays, and gumball pull are offered once per visit. The next reroll costs $1 more.");
         panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal, Spacing = 16, HorizontalAlignment = HorizontalAlignment.Center,
@@ -272,22 +338,139 @@ internal static class CampaignShopScreen
                 MenuParts.Button("Next Match", true, motion, "CampaignNextMatch", actions.Next, false, 260)
             }
         });
-        Select(null, Detail("SHOP", Muted, "Pick a card", "Press a card to see what it does and what it costs.", null));
-        return MenuParts.Scene(motion, panel, new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto });
+        if (showSoda) Select(null, VendingDetail());
+        else Select(null, Detail("SHOP", Muted, "Pick a card", "Press a card to see what it does and what it costs.", null));
+        var scroll = new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
+        scroll.SizeChanged += (_, e) => market.MaxWidth = Math.Max(1, e.NewSize.Width - panel.Margin.Left - panel.Margin.Right - 16);
+        shopLayer.Children.Add(scroll);
+        return CampaignInventoryScreen.Build(MenuParts.Scene(motion, panel, shopLayer), inventory, motion, ownedJokers, ownedItems);
+    }
+
+    private static string BoosterName(JokerBooster booster) =>
+        System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(booster.Theme.Replace('-', ' ')) + " Booster";
+
+    public static Control OpenedBooster(JokerBooster booster, CampaignInventory inventory, Action tear, Action<JokerId?> resolve,
+        Action<JokerId> sell, PixelMotion motion, string? note, bool reveal)
+    {
+        var wrapperArt = "card-pack-" + booster.Theme;
+        var full = inventory.Jokers.Length >= inventory.JokerCapacity;
+        var shelf = new List<Control>();
+        var sale = new ContentControl { HorizontalAlignment = HorizontalAlignment.Center };
+        foreach (var state in inventory.Jokers)
+        {
+            var definition = FeatureCatalog.Get(FeatureCategory.Joker, state.Id.ToString());
+            var canSell = full && !booster.AwaitingOpen;
+            var face = OwnedJokerFace(definition, canSell);
+            ToolTip.SetTip(face, $"{definition.Name}: {definition.Description}");
+            if (canSell)
+            {
+                var card = new Button { Name = $"Owned{state.Id}", Padding = new Thickness(0) };
+                CampaignCardFocus.Apply(card, face);
+                AutomationProperties.SetName(card, $"Your Joker: {definition.Name}");
+                card.Click += (_, _) => sale.Content = MenuParts.Button($"Sell {definition.Name} +${CampaignShop.JokerSellValue}", false,
+                    motion, $"BoosterSell{state.Id}", () => sell(state.Id), true, 360);
+                shelf.Add(card);
+            }
+            else shelf.Add(face);
+        }
+        var layout = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
+        Grid.SetRow(sale, 1);
+        layout.Children.Add(sale);
+        if (booster.AwaitingOpen)
+        {
+            var sealedPack = new Grid();
+            sealedPack.Children.Add(BoosterOpening.Sealed("Booster", wrapperArt, BoosterName(booster), booster.Choices!.Length, motion, tear));
+            if (note is not null)
+            {
+                var message = Label(note, Danger, 14);
+                message.VerticalAlignment = VerticalAlignment.Top;
+                message.HorizontalAlignment = HorizontalAlignment.Center;
+                sealedPack.Children.Add(message);
+            }
+            layout.Children.Insert(0, sealedPack);
+            return CampaignInventoryScreen.Build(MenuParts.Scene(motion, layout), inventory, motion, shelf);
+        }
+        var targets = new List<Image>();
+        var panel = new StackPanel { Spacing = 10, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+        var header = Row(14);
+        header.Children.Add(PixelArt.Machine("card-pack-" + booster.Theme, 48, 64));
+        var title = MenuParts.Title(motion, BoosterName(booster).ToUpperInvariant(), 28);
+        title.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(title);
+        panel.Children.Add(header);
+        var prompt = Label(full ? "Sell an owned Joker to keep a card, or skip the pack." : "Choose one Joker to keep.", Gold, 15);
+        prompt.HorizontalAlignment = HorizontalAlignment.Center;
+        panel.Children.Add(prompt);
+        if (note is not null) panel.Children.Add(Label(note, Danger, 12));
+        var row = Row(10);
+        panel.Children.Add(new Viewbox { StretchDirection = StretchDirection.DownOnly, Child = row });
+        var effect = new TextBlock
+        {
+            Name = "BoosterEffect", FontSize = 17, Foreground = MainWindow.Ink, MinHeight = 64,
+            MaxWidth = 660, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center
+        };
+        panel.Children.Add(effect);
+        foreach (var id in booster.Choices!)
+        {
+            var joker = FeatureCatalog.Get(FeatureCategory.Joker, id.ToString());
+            var pick = MenuParts.Button("Keep " + joker.Name, false, motion, $"BoosterPick{id}", () => resolve(id), true, 210);
+            pick.IsEnabled = !full;
+            pick.VerticalAlignment = VerticalAlignment.Stretch;
+            pick.Padding = new Thickness(10);
+            pick.BorderBrush = Gold;
+            pick.Cursor = new Cursor(StandardCursorType.Hand);
+            pick.RenderTransform = null;
+            var card = new StackPanel { Spacing = 6 };
+            var art = PixelArt.CampaignIcon(joker, 168);
+            art.Name = $"BoosterTarget{id}";
+            targets.Add(art);
+            card.Children.Add(art);
+            card.Children.Add(Label(joker.Name, Gold, 15));
+            pick.Content = card;
+            BoosterOpening.EnableHoverLift(pick, motion);
+            var slot = new Border { Background = Brushes.Transparent, Child = pick };
+            BoosterOpening.ShowEffectOnHover(slot, pick, effect, $"{joker.Name} — {joker.Description}");
+            row.Children.Add(slot);
+        }
+        var skip = MenuParts.Button("Skip pack", false, motion, "SkipBooster", () => resolve(null), true, 260);
+        panel.Children.Add(skip);
+        var scroll = new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        var interactive = !reveal || !motion.Lively;
+        foreach (var card in shelf) card.IsEnabled = interactive;
+        var host = interactive ? (Control)scroll : BoosterOpening.Reveal("Booster", wrapperArt, targets.ToArray(), scroll, motion, () =>
+        {
+            foreach (var card in shelf) card.IsEnabled = true;
+            MenuParts.FocusFirst(panel);
+        });
+        layout.Children.Insert(0, host);
+        return CampaignInventoryScreen.Build(MenuParts.Scene(motion, layout), inventory, motion, shelf);
+    }
+
+    private static Border OwnedJokerFace(FeatureDefinition definition, bool showSell)
+    {
+        var face = CampaignTableControls.CardFace(definition);
+        if (showSell)
+        {
+            var icon = face.Child!;
+            face.Child = null;
+            face.Child = new Grid { Children = { icon, Badge($"Sell +${CampaignShop.JokerSellValue}", Gold) } };
+        }
+        return face;
     }
 
     // A new Sigil purchase can be played on one of its six offered cards without using a slot.
     private static Control OfferDetail(CampaignRun run, ShopOffer offer, FeatureDefinition definition, ShopActions actions, PixelMotion motion)
     {
         var inventory = run.Resources.Inventory;
-        var afford = run.Money >= offer.Price;
+        var price = CampaignShop.OfferPrice(run, offer);
+        var afford = run.Money >= price;
         var room = offer.Category switch
         {
-            FeatureCategory.Joker => inventory.Jokers.Length < CampaignTableControls.JokerSlots,
+            FeatureCategory.Joker => inventory.Jokers.Length < inventory.JokerCapacity,
             FeatureCategory.Sigil => inventory.HasItemRoom,
             _ => true
         };
-        var buy = MenuParts.Button($"Buy ${offer.Price}", true, motion, $"Buy{offer.Id}", () => actions.Buy(offer.Id), true, 264);
+        var buy = MenuParts.Button($"Buy ${price}", true, motion, $"Buy{offer.Id}", () => actions.Buy(offer.Id), true, 264);
         buy.IsEnabled = afford && room;
         var buttons = new List<Control> { buy };
         var hint = offer.Category switch
@@ -297,11 +480,11 @@ internal static class CampaignShopScreen
         };
         if (offer.Category == FeatureCategory.Sigil)
         {
-            var use = MenuParts.Button($"Buy & Use ${offer.Price}", true, motion, $"BuyUse{offer.Id}", () => actions.BuyAndUse(offer.Id), true, 264);
+            var use = MenuParts.Button($"Buy & Use ${price}", true, motion, $"BuyUse{offer.Id}", () => actions.BuyAndUse(offer.Id), true, 264);
             use.IsEnabled = afford;
             buttons.Add(use);
         }
-        var problem = !afford ? $"You need ${offer.Price - run.Money} more."
+        var problem = !afford ? $"You need ${price - run.Money} more."
             : room ? null
             : offer.Category == FeatureCategory.Joker ? "Your Joker slots are full. Sell one first."
             : "Your card slots are full. Buy and use this offer now, or discard a held card to free a slot.";
@@ -370,18 +553,6 @@ internal static class CampaignShopScreen
         Background = Brush.Parse("#F0100B28"), Padding = new Thickness(2), VerticalAlignment = VerticalAlignment.Bottom,
         IsHitTestVisible = false,
         Child = new TextBlock { Text = text, Foreground = ink, FontSize = 9, FontFamily = PixelArt.Font, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
-    };
-
-    internal static Border Small(FeatureDefinition definition, IBrush ink) => new()
-    {
-        Width = SmallCard, Height = SmallCard, Background = MainWindow.Panel, BorderBrush = ink, BorderThickness = new Thickness(3),
-        CornerRadius = new CornerRadius(4), ClipToBounds = true, Child = PixelArt.CampaignIcon(definition)
-    };
-
-    internal static Border EmptySlot() => new()
-    {
-        Width = SmallCard, Height = SmallCard, CornerRadius = new CornerRadius(4), Opacity = .55, Margin = new Thickness(0, Lift, 0, 0),
-        Background = Brush.Parse("#33100B28"), BorderBrush = MainWindow.Line, BorderThickness = new Thickness(2)
     };
 
     private static StackPanel Row(double spacing) => new() { Orientation = Orientation.Horizontal, Spacing = spacing, HorizontalAlignment = HorizontalAlignment.Center };

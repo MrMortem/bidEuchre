@@ -28,7 +28,7 @@ public static class CampaignStore
             {
                 if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number is not (2 or 3)) return Corrupt();
                 if (root.TryGetProperty("Run", out var shopRun) && !CompleteShopTargetsJson(shopRun)) return Corrupt();
-                if ((HasShopUseSessionJson(shopRun) || HasArcadeJson(shopRun)) && (number != 3
+                if (HasCurrentShopState(shopRun) && (number != 3
                     || !Members(shopRun, "Resources", "Money", "Phase", "Match", "LiveMatch", "Arrangement", "LegacyMatchRestart")
                     || !CompleteResourcesJson(shopRun.GetProperty("Resources")))) return Corrupt();
                 if (number == 3 && root.TryGetProperty("Run", out var runJson) && runJson.TryGetProperty("LiveMatch", out var liveJson)
@@ -51,7 +51,7 @@ public static class CampaignStore
                 if (!CompleteShopTargetsJson(root)) return Corrupt();
                 // Bare legacy runs rebuild their resources. A committed purchase must never
                 // be accepted here, where that migration would erase its already-paid state.
-                if (HasShopUseSessionJson(root) || HasArcadeJson(root)) return Corrupt();
+                if (HasCurrentShopState(root)) return Corrupt();
                 var legacyNode = JsonNode.Parse(text)!.AsObject();
                 RemoveRetiredPanic(legacyNode, numericIds: true);
                 var run = legacyNode.Deserialize<CampaignRun>();
@@ -70,17 +70,25 @@ public static class CampaignStore
     // The live format is strict even where older resource/domain records have optional
     // defaults for v2 compatibility. Every newly serialized continuation field must exist.
     private static bool Members(JsonElement value, params string[] names) => value.ValueKind == JsonValueKind.Object && names.All(n => value.TryGetProperty(n, out _));
-    private static bool HasShopUseSessionJson(JsonElement run) => run.ValueKind == JsonValueKind.Object
+    private static bool HasCurrentShopState(JsonElement run) => run.ValueKind == JsonValueKind.Object
         && run.TryGetProperty("Shop", out var shop) && shop.ValueKind == JsonValueKind.Object
-        && shop.TryGetProperty("UseSession", out var session) && session.ValueKind != JsonValueKind.Null;
-    private static bool HasArcadeJson(JsonElement run) => run.ValueKind == JsonValueKind.Object
-        && run.TryGetProperty("Shop", out var shop) && shop.ValueKind == JsonValueKind.Object
-        && shop.TryGetProperty("Arcade", out var arcade) && arcade.ValueKind != JsonValueKind.Null;
+        && (Present("UseSession", shop) || Present("Arcade", shop) || Present("Booster", shop) || Present("BonusBooster", shop));
+
+    private static bool Present(string member, JsonElement owner) =>
+        owner.TryGetProperty(member, out var value) && value.ValueKind != JsonValueKind.Null;
+
     private static bool CompleteShopTargetsJson(JsonElement run)
     {
         if (run.ValueKind != JsonValueKind.Object) return false;
         if (!run.TryGetProperty("Shop", out var shop) || shop.ValueKind == JsonValueKind.Null) return true;
         if (shop.ValueKind != JsonValueKind.Object || !shop.TryGetProperty("Offers", out var offers) || offers.ValueKind != JsonValueKind.Array) return false;
+        if (run.TryGetProperty("Resources", out var resources) && resources.ValueKind == JsonValueKind.Object
+            && resources.TryGetProperty("Inventory", out var inventory) && inventory.ValueKind == JsonValueKind.Object
+            && inventory.TryGetProperty("Sodas", out var sodas) && sodas.ValueKind == JsonValueKind.Array && sodas.GetArrayLength() > 0
+            && !Members(shop, "SodaPurchased", "GumballPulls", "ArcadeRoll")) return false;
+        foreach (var property in new[] { "Booster", "BonusBooster" })
+            if (shop.TryGetProperty(property, out var booster) && booster.ValueKind != JsonValueKind.Null
+                && !Members(booster, "Theme", "Choices", "Sold")) return false;
         if (shop.TryGetProperty("Arcade", out var arcade) && arcade.ValueKind != JsonValueKind.Null && !CompleteArcadeJson(arcade)) return false;
         if (shop.TryGetProperty("UseSession", out var session) && session.ValueKind != JsonValueKind.Null
             && (!Members(session, "OfferId", "Category", "FeatureId", "PurchasedItemUsed")
@@ -185,10 +193,10 @@ public static class CampaignStore
     private static bool ValidSave(CampaignSave save)
     {
         var run = save.Run;
-        if (run is null || run.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop, run.Resources.Deck)
+        if (run is null || run.Resources is null || !run.Resources.IsValid() || !ValidShop(run.Shop, run.Resources)
             || run.Match < 1 || run.Money < 0 || run.MatchesWon < 0 || run.LastAppliedRevision < 0 || !Enum.IsDefined(run.Phase)
             || run.IsOver && run.Phase != CampaignPhase.Shop) return false;
-        if ((run.Shop?.UseSession is not null || run.Shop?.Arcade?.Pending is not null) && (save.Version != 3 || run.Phase != CampaignPhase.Shop || run.IsOver
+        if ((run.Shop?.UseSession is not null || run.Shop?.Arcade?.Pending is not null || run.Shop?.PendingBooster is not null) && (save.Version != 3 || run.Phase != CampaignPhase.Shop || run.IsOver
             || run.Shop.MatchJustFinished != run.Match - 1 || run.LiveMatch is not null || run.Arrangement is not null
             || run.LegacyMatchRestart || save.Metadata?.LastResult is not null || run.Money != run.Resources.Wallets[0])) return false;
         if (run.LiveMatch is { } live)
@@ -214,23 +222,29 @@ public static class CampaignStore
 
     // Old blind gumball stock used "Blind"; current stock uses an empty feature until pulled.
     // Other offers must name a feature in the category the shop can actually sell.
-    private static bool ValidShop(ShopState? shop, CardState[] deck)
+    private static bool ValidShop(ShopState? shop, CampaignSnapshot resources)
     {
         if (shop is null) return true;
+        var deck = resources.Deck;
         if (shop.MatchJustFinished < 0 || shop.Offers is null || shop.RerollCount < 0 || shop.RerollCount > int.MaxValue - 2) return false;
+        if (shop.SodaPurchased && resources.Inventory.Sodas.Length == 0 || shop.GumballPulls < 0
+            || shop.GumballPulls > 1 && !resources.Inventory.Has(SodaId.RainbowStripes)) return false;
         var ids = new HashSet<string>(StringComparer.Ordinal);
         var machines = 0;
         foreach (var offer in shop.Offers)
         {
             if (offer is null || string.IsNullOrWhiteSpace(offer.Id) || !ids.Add(offer.Id)
                 || offer.Price < 0 || offer.FeatureId is null) return false;
-            if (offer.Category == FeatureCategory.Gumball && ++machines > 1) return false;
+            if (offer.IsTellerSigil && (!offer.Sold || offer.Category != FeatureCategory.Sigil || offer.IsArcadePrize
+                || !resources.Inventory.Has(SodaId.SpectralSprite))) return false;
+            if (offer.Category == FeatureCategory.Gumball && (++machines > 1 || (long)offer.Price + shop.GumballPulls > int.MaxValue
+                || shop.GumballPulls > 0 && (offer.Sold == resources.Inventory.Has(SodaId.RainbowStripes)))) return false;
             if (offer.TargetCards is { } targets && (offer.Category is not (FeatureCategory.Sigil or FeatureCategory.Tarot)
                 || targets.Length != CampaignShop.ShopTargetCount || targets.Distinct().Count() != targets.Length
                 || targets.Any(id => deck.All(c => c.Id != id))
                 || offer.Category == FeatureCategory.Tarot && !offer.Sold && offer.Printed is null)) return false;
             if (offer.Printed is { } printed && (offer.Category != FeatureCategory.Tarot || offer.Sold || printed.Length is not (1 or CampaignShop.TicketSpread)
-                || printed.Distinct().Count() != printed.Length || printed.Any(id => !Enum.TryParse<TarotId>(id, out _) || !FeatureCatalog.All.Any(f => f.Category == FeatureCategory.Tarot && f.Key == id)))) return false;
+                || printed.Distinct().Count() != printed.Length || printed.Any(id => CampaignShop.PrintedCard(id) is not { } card || card.Category == FeatureCategory.Sigil && !resources.Inventory.Has(SodaId.SpectralSprite)))) return false;
             // A migrated retired pull stays sold without naming an active reward.
             if (offer.Category == FeatureCategory.Gumball && (offer.FeatureId == "" || !offer.Sold && offer.FeatureId == "Blind")) continue;
             // An unprinted Fortune Teller has no ticket yet; older saves named one, which is now ignored.
@@ -238,7 +252,8 @@ public static class CampaignStore
             if (offer.Category is not (FeatureCategory.Joker or FeatureCategory.Tarot or FeatureCategory.Sigil or FeatureCategory.Gumball)
                 || !FeatureCatalog.All.Any(feature => feature.Category == offer.Category && feature.Key == offer.FeatureId)) return false;
         }
-        if (!CampaignArcade.IsValid(shop, deck)) return false;
+        if (shop.GumballPulls > 0 && machines != 1) return false;
+        if (!CampaignArcade.IsValid(shop, deck, resources.Inventory) || !CampaignShop.IsValidBooster(shop, resources.Inventory)) return false;
         if (shop.UseSession is not { } session) return true;
         if (string.IsNullOrWhiteSpace(session.OfferId) || string.IsNullOrWhiteSpace(session.FeatureId)
             || session.Category is not (FeatureCategory.Sigil or FeatureCategory.Tarot)) return false;

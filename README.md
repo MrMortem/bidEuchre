@@ -1,7 +1,7 @@
 # Bid Euchre
 
 A complete, cross-platform Bid Euchre game written in C#. It includes a native
-desktop executable, an optional local web interface, an authoritative rules
+desktop executable, a local HTTP API, an authoritative rules
 engine, session and bot management, and a text protocol for external engines
 inspired by chess UCI.
 
@@ -34,8 +34,7 @@ documented in [`docs/BEUCI.md`](docs/BEUCI.md).
 
 - [.NET SDK 10.0](https://dotnet.microsoft.com/download/dotnet/10.0) or newer
   compatible SDK.
-- A desktop environment supported by Avalonia. A browser is only needed for the
-  optional web client.
+- A desktop environment supported by Avalonia.
 - [SWI-Prolog](https://www.swi-prolog.org/) 9 or newer is optional and needed
   only for the included Prolog bot.
 - Python 3.10+ and PyTorch are optional and needed only for the learning CFR
@@ -59,8 +58,6 @@ On any platform with the .NET SDK:
 ```text
 dotnet run --project src/BidEuchre.Desktop/BidEuchre.Desktop.csproj
 ```
-
-This opens a normal desktop window. It does not start a web server or browser.
 
 To create a self-contained executable that works without an installed .NET
 runtime:
@@ -86,7 +83,6 @@ hide the campaign shelves. Engines and Rules open
 from the main menu. **Collection** browses every Joker, Tarot card, Gumball,
 playing card, card enhancement, and Sigil, with artwork and descriptions in
 scrollable categories. All entries are visible without starting a campaign.
-The web client also honors the system reduced-motion setting.
 
 The executable is written to `dist/linux-x64/BidEuchre`. The packaging script
 also accepts .NET runtime identifiers such as `win-x64`, `osx-x64`, or
@@ -104,22 +100,14 @@ Every bot action pauses before the next action. The final card of a completed
 trick stays in the center during the longer between-trick pause, and every play
 is permanently listed in the table log for the current hand.
 
-## Optional web interface
+## Local HTTP API
 
-The browser interface remains available:
-
-```bash
-./run-web.sh
-```
-
-Then open `http://127.0.0.1:5050`. It uses the same paced session layer as the
-native client. This is a **local-only hot-seat interface**, with no user accounts
-or separate authorization for human seats. Every local user of the interface
-can list tables and switch between their human hands. It is not suitable for LAN
-or Internet hosting, reverse proxying, or use on a shared untrusted computer.
+Start the API with `dotnet run --project src/BidEuchre.Server`. The default
+launch profile listens at `http://127.0.0.1:5050`. Check `/api/health` for
+server status. Local callers can list tables and view any human seat.
 
 Requests require a loopback peer and host, and browser requests must use the
-interface's own origin. These checks remain in force if `ASPNETCORE_URLS` or
+server's own origin. These checks remain in force if `ASPNETCORE_URLS` or
 `AllowedHosts` is overridden. API mutations require `Content-Type: application/json`.
 External process loading over HTTP is disabled; use the desktop **Engines** page.
 
@@ -200,18 +188,7 @@ tuning, and tests.
 ./test.sh
 ```
 
-For real Chromium keyboard and Rules-retry checks, use Node.js 20+ and install
-the test-only browser tools once:
-
-```bash
-npm ci --prefix tests/browser
-./tests/browser/node_modules/.bin/playwright install chromium
-```
-
-`./test.sh` then runs these checks along with a temporary published-server Rules
-check. Without the optional browser tools, Chromium checks are explicitly skipped.
-
-The script runs browser interaction/motion regressions when Node.js is available,
+The script runs artwork and HTTP API regressions when Node.js is available,
 and Mac bundle checks on macOS. Optional engine tests are explicitly skipped
 when their Python 3.10+, PyTorch, C++, or SWI-Prolog prerequisites are missing.
 
@@ -239,7 +216,7 @@ the same live game scenarios.
 | `BidEuchre.Protocol` | Command framework, BEUCI action/position codecs, engine host, and external-process client |
 | `BidEuchre.App` | Session management and paced human/bot orchestration shared by both interfaces |
 | `BidEuchre.Desktop` | Native Avalonia desktop executable |
-| `BidEuchre.Server` | Optional HTTP API and browser interface |
+| `BidEuchre.Server` | Local HTTP API |
 | `BidEuchre.SampleBot` | Standalone BEUCI engine example |
 | `engines/prolog` | Basic external BEUCI engine written in SWI-Prolog |
 | `engines/python-cfr` | Autosaving PyTorch CFR learning engine |
@@ -294,7 +271,7 @@ when your team wins the showdown. Current card faces count, including copied
 faces; Wild and Bear abilities do not change poker hands, and five of a kind
 outranks a straight flush.
 
-Between matches the shop offers two $4 Jokers, a Fortune Teller, an Arcade, and a
+Between matches the shop offers two $4 Jokers, a Fortune Teller, and a
 gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
 four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
 gumball rolls out and permanently unlocks a random bidding option you do not
@@ -311,16 +288,31 @@ Alone, and the High and Low contracts start locked for every seat.
 The Fortune Teller prints one blind ticket for $3 or three for $6; choose one
 to keep or use and the other printed tickets are lost.
 
-The Arcade replaces direct Sigil sales. Plinko and roulette each cost $3 and may
-be played once per shop visit; rerolling does not restore plays. Plinko uses eight
-drop positions and the supplied board's eleven slots: scores 5–6 award a Sigil,
-3–4 award a Tarot ticket, and 1–2 award nothing. On the twelve-pocket roulette
-wheel, an exact number wins a Sigil; matching only its color wins a Tarot ticket;
-the opposite color wins nothing. Choose before paying. Payment, the result and
-any prize are saved before animation, so reopening restores the same outcome.
-Keep a prize if there is inventory space, or apply it immediately. A full inventory
-never prevents immediate use. Finish collecting a prize before playing again,
-rerolling or leaving the shop.
+Each shop has a soda vending machine. Buy one random new can per visit for $8. Its effect lasts for the run, and owning a base flavor makes its upgrade eligible. Hover over an owned can to read its effect.
+
+Each shop starts with one $6 Joker Booster. Its wrapper is drawn at random
+from five equally likely themes (Arcade, Comic, Horror, Retro-Synth and Tech).
+Rerolls keep the same booster, including its sold status. Buy the booster, then
+click its wrapper to tear it open and reveal four different Jokers you do not
+own. If all five slots are full, sell an owned Joker for $2 before taking a card. Choose one Joker or skip all
+four. Skipping spends the $6. Reopening the shop restores the same paid choices.
+
+The Arcade appears in one third of shops, half with Midnight Grape, and every
+shop with Twilight Tangerine. Entry costs $12 on the first play and includes
+one play each of Plinko and roulette that visit. Plinko uses eight drop
+positions. A score of 5–6 wins a Spectral Pack, 3–4 wins a Tarot
+ticket and 1–2 wins nothing. On the twelve-pocket roulette wheel, an exact
+number wins a Spectral Pack and a color match alone wins a Tarot ticket.
+Rerolls preserve both play limits.
+
+The Spectral Pack is an Arcade prize. Click its wrapper to tear it open, then
+choose one of its three cards (four with Peach Plus) or skip the pack. Apply a chosen Sigil to one of the six offered
+deck cards. With a free Joker slot, each
+pack card has a 1 in 50 chance to be Legendary, with at most one Legendary per
+pack. Choosing it fills every free Joker slot with a random unowned Joker.
+You can keep a Tarot prize if you have room or use it immediately. A restart
+restores the paid outcome. Resolve the Arcade result before playing again, rerolling or
+leaving the shop.
 
 An Arcade prize or newly printed ticket may be applied immediately without a free inventory slot.
 These shop opportunities show six random cards from the shared deck, and only
@@ -355,11 +347,10 @@ For an isolated local profile, set `BIDEUCHRE_DATA_DIRECTORY` before launching.
 The app creates its `BidEuchre` subfolder there. Without the variable it uses the
 normal local application-data directory.
 
-### Browser campaigns
+### Campaign API
 
-Choose **Play campaign** for a persistent single-player run: you control seat 0 and three built-in campaign bots control the other seats. Campaigns use the shared desktop game rules, shop, physical card identities, and exact match saves. Freeplay tables remain shared, memory-only tables under `/api/sessions`; campaigns never appear in that list.
-
-Each browser cookie jar has one private run. Closing a tab or returning to Tables keeps progress; **Forfeit** explicitly charges the campaign loss. **Continue** restores the saved hand, auction, pending choices, items and card order with fresh bots. Results and their scoring history survive server restarts. New run replaces your current run; Delete removes your own saved run. An unreadable save stays untouched until you explicitly choose recovery by New run or Delete.
+Each campaign cookie identifies one private, persistent run. Freeplay tables
+are available separately under `/api/sessions` and live in memory.
 
 Campaign saves default to `BidEuchre/web-campaigns` beneath .NET's user `LocalApplicationData` directory. Each file is `<root>/<hashed-browser-identity>/campaign.json`, separate from the desktop `BidEuchre/campaign.json`. No browser input controls a filesystem path. The directory must be outside `wwwroot` and the published application output. Configure it using ASP.NET configuration, for example:
 
@@ -371,4 +362,4 @@ dotnet run --project src/BidEuchre.Server -- --WebCampaigns:DataDirectory=/absol
 
 The persistent `bideuchre.campaign` cookie lasts one year and is HttpOnly, SameSite Strict, host-only, scoped to `/api/campaign`, and Secure on HTTPS. Plain loopback HTTP remains supported. `localhost` and `127.0.0.1` have distinct identities; cookies are shared across ports on the same host. Separate instances on one host should configure both separate roots and distinct `WebCampaigns:CookieName` values. Losing/clearing the cookie loses access to that run; there is no public profile listing or account recovery. Saved files are not automatically deleted on cookie or runtime expiry.
 
-All existing loopback, Host, same-origin and JSON mutation protections remain active. This is a local browser client, not a hosted account service. If saving fails, the accepted action stays in memory and the UI reports unsaved progress. Dirty sessions are retained at the capacity limit while saves retry; shutting down with persistent disk failure cannot guarantee that unsaved progress survives. After a network failure, refresh the current state before choosing another action; purchases and game moves are never automatically replayed.
+All existing loopback, Host, same-origin and JSON mutation protections remain active. If saving fails, the accepted action stays in memory and the API reports unsaved progress. Dirty sessions are retained at the capacity limit while saves retry; shutting down with persistent disk failure cannot guarantee that unsaved progress survives. After a network failure, refresh the current state before choosing another action; purchases and game moves are never automatically replayed.

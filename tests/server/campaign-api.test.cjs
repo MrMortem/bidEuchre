@@ -29,7 +29,7 @@ test('campaign rejects override fields, missing versions, malformed cookies, and
  for(const extra of [{seat:0},{profile:'../escape'},{sessionId:'other'},{seed:2}])assert.equal((await request(a.cookie,'/new',{expectedVersion:a.state.version,...extra})).status,400);
  assert.equal((await request(a.cookie,'/new',{})).status,400);
  assert.equal((await request('bideuchre.campaign=../escape','/new',{expectedVersion:a.state.version})).status,409);
- for(const route of ['/new','/continue','/start-match','/forfeit','/next-hand','/commands','/arrange-hand','/shop/arcade/plinko','/shop/arcade/roulette','/shop/arcade/keep','/shop/arcade/use','/shop/arcade/pick','/shop/arcade/dismiss','/shop/begin-sigil-use','/shop/begin-ticket-use','/shop/use-purchased','/shop/finish-use','/shop/buy','/shop/buy-use','/shop/print','/shop/keep-ticket','/shop/use-ticket','/shop/pull','/shop/sell','/shop/reroll','/items/use','/items/discard','/result/continue','/victory/continue','/shop/leave','']){
+ for(const route of ['/new','/continue','/start-match','/forfeit','/next-hand','/commands','/arrange-hand','/shop/arcade/plinko','/shop/arcade/roulette','/shop/arcade/keep','/shop/arcade/use','/shop/arcade/pick','/shop/arcade/tear','/shop/soda','/shop/booster/open','/shop/booster/tear','/shop/booster/pick','/shop/booster/skip','/shop/arcade/dismiss','/shop/begin-sigil-use','/shop/begin-ticket-use','/shop/use-purchased','/shop/finish-use','/shop/buy','/shop/buy-use','/shop/print','/shop/keep-ticket','/shop/use-ticket','/shop/pull','/shop/sell','/shop/reroll','/items/use','/items/discard','/result/continue','/victory/continue','/shop/leave','']){
  const method=route?'POST':'DELETE';assert.equal((await request(a.cookie,route,{expectedVersion:a.state.version},method,{Origin:'https://evil.example'})).status,403);
  assert.equal((await request(a.cookie,route,{expectedVersion:a.state.version},method,{'Content-Type':'text/plain'})).status,415);
  }
@@ -97,7 +97,7 @@ test('new shop purchases use saved samples and held items cannot be used between
  assert.equal(state.capabilities['items-use'].enabled,false);
  await failWithoutChange('/items/use',{category:'Tarot',slot:0,targetIds:[0]});
  await failWithoutChange('/items/use',{category:'Sigil',slot:0,targetIds:[0]});
- assert.equal(state.shop.offers.some(o=>o.category==='Sigil'),false);assert.equal(state.shop.arcade.price,3);
+ assert.equal(state.shop.offers.some(o=>o.category==='Sigil'),false);assert.equal(state.shop.arcade.price,12);
  let response;
  const teller=state.shop.offers.find(o=>o.category==='Tarot');assert.equal(teller.targetCards.length,0);
  response=await request(cookie,'/shop/print',{expectedVersion:state.version,offerId:teller.id,count:3});assert.equal(response.status,200);state=await response.json();
@@ -115,18 +115,23 @@ async function seedShop(kind='shop-use'){
  const seeded=spawnSync(process.env.BIDEUCHRE_DOTNET||'dotnet',[path.join(root,'tests/BidEuchre.Server.Tests/bin/Debug/net10.0/BidEuchre.Server.Tests.dll'),'--campaign-fixture',directory,token,kind],{cwd:root,env:process.env,encoding:'utf8'});
  assert.equal(seeded.status,0,seeded.stderr+seeded.stdout);return cookie;
 }
-test('Arcade Collector\'s Pack pick allows held Tarots before and after; restart preserves obligation and charge',async()=>{
+test('Arcade Spectral Pack pick allows held Tarots before and after; restart preserves obligation and charge',async()=>{
  const cookie=await seedShop();let state=await get(cookie);
  const before=state;
  const change=async(route,fields={})=>{const response=await request(cookie,route,{expectedVersion:state.version,...fields});assert.equal(response.status,200,await response.clone().text());state=await response.json();return state;};
  const reject=async(route,fields={})=>{const before=await get(cookie);const response=await request(cookie,route,{expectedVersion:state.version,...fields});assert.equal(response.status,400,route);assert.deepEqual(await get(cookie),before);};
  await change('/shop/arcade/plinko',{lane:4});
+ const sealed=state.shop.arcade.pending;
+ assert.equal(sealed.awaitingOpen,true);assert.equal(sealed.pack,null);
+ await reject('/shop/arcade/pick',{playId:sealed.playId,index:0});
+ await change('/shop/arcade/tear',{playId:sealed.playId});
+ await reject('/shop/arcade/tear',{playId:sealed.playId});
  const offer=state.shop.arcade.pending,ids=offer.targetCards.map(c=>c.id);
  assert.equal(offer.prizeCategory,'Sigil');assert.equal(offer.pack.length,3);assert.equal(offer.keep.enabled,false);assert.equal(offer.use.enabled,false);assert.equal(offer.pick.enabled,true);
  await reject('/shop/arcade/keep',{playId:offer.playId});await reject('/shop/arcade/dismiss',{playId:offer.playId});await reject('/shop/arcade/use',{playId:offer.playId});
  const index=offer.pack.findIndex(c=>!c.legendary);
  await change('/shop/arcade/pick',{playId:offer.playId,index});assert.equal(state.shop.useSession.featureId,offer.pack[index].key);
- assert.equal(state.run.money,before.run.money-3);assert.equal(state.inventory.itemCount,4);
+ assert.equal(state.run.money,before.run.money-12);assert.equal(state.inventory.itemCount,4);
  assert.equal(state.shop.useSession.purchasedItemUsed,false);assert.deepEqual(state.shop.useSession.targetCards,offer.targetCards);
  assert.equal(state.capabilities['items-use'].enabled,true);assert.equal(state.capabilities['shop-leave'].enabled,false);
  const paid=state;
@@ -169,7 +174,7 @@ test('Arcade HTTP rejects injected outcomes, commits payment before presentation
  }
  const responses=await Promise.all([1,2].map(()=>request(cookie,'/shop/arcade/plinko',{expectedVersion:state.version,lane:4})));
  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);state=await get(cookie);
- assert.equal(state.run.money,before.run.money-3);assert.equal(state.shop.arcade.plinkoPlayed,true);
+ assert.equal(state.run.money,before.run.money-12);assert.equal(state.shop.arcade.plinkoPlayed,true);
  const result=state.shop.arcade.pending;assert.equal(result.score,1);assert.equal(result.path.length,15);assert.equal(result.path[0],14);assert.equal(Math.max(0,Math.min(10,Math.floor((78+40*result.path.at(-1)-64)/98))),result.landing);
  assert.equal(state.capabilities['shop-leave'].enabled,false);assert.equal(state.shop.reroll.enabled,false);
  for(const [route,fields] of [['/shop/leave',{}],['/shop/reroll',{}],['/shop/arcade/roulette',{pocket:1}],['/shop/arcade/keep',{playId:result.playId}],['/shop/arcade/dismiss',{playId:'wrong'}]])assert.equal((await request(cookie,route,{expectedVersion:state.version,...fields})).status,400);
@@ -177,8 +182,11 @@ test('Arcade HTTP rejects injected outcomes, commits payment before presentation
  let response=await request(cookie,'/shop/arcade/dismiss',{expectedVersion:state.version,playId:result.playId});assert.equal(response.status,200);state=await response.json();
  response=await request(cookie,'/shop/reroll',{expectedVersion:state.version});assert.equal(response.status,200);state=await response.json();
  assert.equal(state.shop.arcade.plinko.enabled,false);assert.equal(state.shop.arcade.roulette.enabled,true);
+ assert.equal(state.shop.arcade.price,0);assert.equal(state.shop.arcade.entryPaid,true);
  assert.equal((await request(cookie,'/shop/arcade/plinko',{expectedVersion:state.version,lane:4})).status,400);
+ const balance=state.run.money;
  response=await request(cookie,'/shop/arcade/roulette',{expectedVersion:state.version,pocket:2});assert.equal(response.status,200);state=await response.json();
+ assert.equal(state.run.money,balance);
  const wheel=state.shop.arcade.pending;assert.equal(wheel.game,'Roulette');assert.ok(wheel.landing>=1&&wheel.landing<=12);assert.equal(wheel.score,wheel.landing===2?100:wheel.landing%2===0?50:0);
 });
 
@@ -190,10 +198,10 @@ test('Arcade ticket can be kept once after freeing shared storage without anothe
  await change('/items/discard',{category:'Sigil',slot:0});assert.equal(state.shop.arcade.pending.keep.enabled,true);
  assert.deepEqual(state.shop.arcade.pending.targetCards,prize.targetCards);
  await change('/shop/arcade/keep',{playId:prize.playId});
- assert.equal(state.run.money,97);assert.equal(state.shop.arcade.pending,null);assert.equal(state.inventory.itemCount,4);
+ assert.equal(state.run.money,88);assert.equal(state.shop.arcade.pending,null);assert.equal(state.inventory.itemCount,4);
  assert.equal(state.inventory.tarot.at(-1).id,prize.featureId);
  assert.equal((await request(cookie,'/shop/arcade/keep',{expectedVersion:state.version,playId:prize.playId})).status,400);
- await stop();await start();const restored=await get(cookie);assert.equal(restored.inventory.itemCount,4);assert.equal(restored.run.money,97);assert.equal(restored.shop.arcade.plinkoPlayed,true);
+ await stop();await start();const restored=await get(cookie);assert.equal(restored.inventory.itemCount,4);assert.equal(restored.run.money,88);assert.equal(restored.shop.arcade.plinkoPlayed,true);
 });
 
 test('Arcade failed writes return retryable HTTP503 without revealing or charging an outcome',async()=>{
@@ -207,5 +215,5 @@ test('Arcade failed writes return retryable HTTP503 without revealing or chargin
  }finally{fs.rmdirSync(savePath);fs.renameSync(backup,savePath);}
  await stop();await start();assert.deepEqual(await get(cookie),before);
  const response=await request(cookie,'/shop/arcade/plinko',{expectedVersion:before.version,lane:4});assert.equal(response.status,200);
- const after=await response.json();assert.equal(after.run.money,before.run.money-3);assert.equal(after.shop.arcade.plinkoPlayed,true);assert.equal(after.shop.arcade.pending.score,1);
+ const after=await response.json();assert.equal(after.run.money,before.run.money-12);assert.equal(after.shop.arcade.plinkoPlayed,true);assert.equal(after.shop.arcade.pending.score,1);
 });

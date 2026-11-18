@@ -101,9 +101,11 @@ internal static class LiveSettingsTests
             var flow = Field<CampaignFlow>(window, "_campaign");
             Require(!flow.InMatch && flow.Run!.Lives == 2, "The completed loss must be recorded exactly once before choosing a destination.");
             Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "SettingsBack"), "A terminal campaign must show its result instead of paused settings.");
-            Until(() => Field<GameSession?>(window, "_session") is null);
+            // The table detaches before asynchronous session disposal finishes and the result is presented.
+            Until(() => Field<GameSession?>(window, "_session") is null &&
+                window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "CampaignContinue"));
             Require(flow.Run!.Lives == 2, "Result navigation must not add a forfeit to the completed match.");
-            Require(window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "CampaignContinue"), "The ordinary campaign result must remain reachable.");
+            Require(window.GetVisualDescendants().OfType<CampaignInventoryScreen>().Count() == 1, "The result must keep the campaign inventory visible.");
         }
         finally
         {
@@ -175,6 +177,7 @@ internal static class LiveSettingsTests
             Until(() => window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == "SettingsBack"));
             Require(window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Match paused"), "Settings must communicate that bots are paused.");
             Require(Find(window, "SettingsBack").GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "Back to table"), "Live settings must offer a direct table return.");
+            Require(!window.GetVisualDescendants().OfType<CampaignInventoryScreen>().Any(), "Settings must leave the game's inventory offscreen.");
             var paused = State(session);
             foreach (var stale in oldActions) Click(stale);
             PumpFor(1150); // longer than the default bot action delay

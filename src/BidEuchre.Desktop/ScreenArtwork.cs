@@ -52,13 +52,27 @@ internal static class ScreenArtwork
             yield break;
         }
 
+        foreach (var booster in new[] { shop.Booster, shop.BonusBooster }.OfType<JokerBooster>())
+        {
+            yield return "card-pack-" + booster.Theme;
+            if (booster.Choices is { } choices)
+            {
+                foreach (var id in choices) yield return PixelArt.CampaignIconName(FeatureCatalog.Get(FeatureCategory.Joker, id.ToString()));
+                yield break;
+            }
+        }
         foreach (var name in Inventory(run.Resources.Inventory)) yield return name;
+        yield return "machine-soda";
+        if (shop.SodaPurchased) yield return "open-soda-lid";
+        foreach (var soda in CampaignShop.EligibleSodas(run.Resources.Inventory).Take(9)) yield return "soda-" + SodaCatalog.Get(soda).Art;
         foreach (var offer in shop.Offers.Where(offer => !offer.IsArcadePrize))
         {
             if (offer.Category == FeatureCategory.Joker)
                 yield return PixelArt.CampaignIconName(FeatureCatalog.Get(offer.Category, offer.FeatureId));
-            if (offer.Category == FeatureCategory.Tarot)
+            if (offer.Category == FeatureCategory.Tarot || offer.IsTellerSigil)
                 yield return "machine-fortune-teller-ticket-dispenser";
+            else if (offer.Category == FeatureCategory.Sigil)
+                yield return PixelArt.CollectorImageName(offer.FeatureId);
         }
 
         if (shop.Offers.Any(offer => offer.Category == FeatureCategory.Gumball))
@@ -72,7 +86,8 @@ internal static class ScreenArtwork
             }
         }
 
-        foreach (var name in Plinko()) yield return name;
+        if (CampaignArcade.Available(run))
+            foreach (var name in Plinko()) yield return name;
     }
 
     private static IEnumerable<string> Plinko()
@@ -106,6 +121,7 @@ internal static class ScreenArtwork
 
     private static IEnumerable<string> Inventory(CampaignInventory inventory)
     {
+        foreach (var soda in inventory.Sodas) yield return "soda-" + SodaCatalog.Get(soda).Art;
         foreach (var joker in inventory.Jokers)
             yield return PixelArt.CampaignIconName(FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString()));
         foreach (var (_, _, definition) in CampaignTableControls.Items(inventory))

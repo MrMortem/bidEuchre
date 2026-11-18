@@ -34,7 +34,8 @@ internal static class DesktopBugTests
     }
     private static Button Find(Window window, string name) => window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == name);
     private static void Activate(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    private static Rect Bounds(Control control, Window window) => new(control.TranslatePoint(default, window)!.Value, control.Bounds.Size);
+    private static Rect Bounds(Control control, Window window) =>
+        new Rect(control.Bounds.Size).TransformToAABB(control.TransformToVisual(window)!.Value);
     private static void Visible(Control control, Window window)
     {
         Flush();
@@ -180,7 +181,10 @@ internal static class DesktopBugTests
                 expander.IsExpanded = true; Flush();
                 foreach (var name in new[] { "ArcadeKeep", "ArcadeUse", "ArcadeDiscardTarot0", "ArcadeDiscardSigil1" })
                 { var button = Find(window, name); button.BringIntoView(); Flush(); Visible(button, window); }
-                window.Content = ArcadeScreen.Build(CampaignArcade.PlayPlinko(packRun, 4), actions, Still()); Flush();
+                var won = CampaignArcade.PlayPlinko(packRun, 4);
+                window.Content = ArcadeScreen.Build(won, actions, Still()); Flush();
+                var sealedPack = Find(window, "TearSpectral"); sealedPack.BringIntoView(); Flush(); Visible(sealedPack, window);
+                window.Content = ArcadeScreen.Build(CampaignArcade.TearSpectralPack(won, won.Shop!.Arcade!.Pending!.PlayId), actions, Still()); Flush();
                 foreach (var name in new[] { "CollectorCard0", "CollectorCard1", "CollectorCard2" })
                 { var button = Find(window, name); button.BringIntoView(); Flush(); Visible(button, window); }
             }

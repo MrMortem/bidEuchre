@@ -37,7 +37,7 @@ The user approved an exterior export mask. Sixteen cards had opaque white/cream 
 
 The old outer strokes are removed along each card's own silhouette before applying the common frame, preventing doubled outlines and mismatched corner fragments. Connected printed border paper is harmonized to the shared cream; interior scenes and dark Joker lettering retain their original RGBA pixels. Original Drive artwork and pre-frame inputs are preserved.
 
-All 32 approved individual PNGs are now imported byte-for-byte into `assets/pixel/curated-joker-*.png`, replacing the old artwork in both desktop and browser clients. The active import manifest is `assets/curated-source/2026-11-16-euchatro-joker-frames/manifest.json`. It pins the approved exports by checksum so ordinary asset rebuilds retain the new borders.
+All 32 approved individual PNGs are now imported byte-for-byte into `assets/pixel/curated-joker-*.png`, replacing the old artwork in the desktop client. The active import manifest is `assets/curated-source/2026-11-16-euchatro-joker-frames/manifest.json`. It pins the approved exports by checksum so ordinary asset rebuilds retain the new borders.
 
 Verified all 32 identities, exact source hashes, matching corner silhouettes and border pixels, transparent corners/gutters, preserved scenes and dark Joker lettering, and byte-for-byte agreement between atlas crops and individual sprites. Visual review found no clipped lettering or doubled outer strokes. Import checks additionally compare game textures and desktop embedded resources against the approved sprites.
 
@@ -46,7 +46,7 @@ Rebuild from the repository root:
 ```sh
 dotnet run --project tools/CuratedCardArtBuilder -- --jokers
 dotnet run --project tools/CuratedCardArtBuilder
-node --test tests/web/joker-asset-sheet.test.cjs tests/web/curated-campaign-art.test.cjs
+node --test tests/assets/joker-asset-sheet.test.cjs tests/assets/curated-campaign-art.test.cjs
 ```
 
 The sheet builder defaults to preserved pre-frame inputs in `assets/curated-source/2026-11-16-joker-frame-inputs`, so rebuilding never applies the frame a second time to already imported game sprites. Optional arguments after `--jokers`: source pixel directory, then output directory. The source directory must contain `curated-art.json` and its PNGs. The exporter verifies that its source IDs exactly match the current game catalogue. Intentional changes to the approved sprite bytes also require updating their `runtimeSha256` checksums in the active import manifest.

@@ -8,10 +8,13 @@ internal static class CampaignBotPolicyTests
     private static CardId Id(string code) { var card = Card.Parse(code); return new((int)card.Suit * 6 + (int)card.Rank - 9); }
 
     // East deals, so the human bids first. West holds both black bowers and the top Spades.
-    private static GameEngine Table(params GumballId[] unlocks) => GameEngine.CreateFixture(new FixtureStart(
+    private static GameEngine Table(params GumballId[] unlocks) => Table(3, false, unlocks);
+
+    private static GameEngine Table(int dealer, bool strongPartner, params GumballId[] unlocks) => GameEngine.CreateFixture(new FixtureStart(
         ["You", "West", "Partner", "East"],
-        [Hand("9H TH QH KH 9D TD"), Hand("JS JC AS KS QS AH"), Hand("AD KD QD JD 9C TC"), Hand("9S TS JH AC KC QC")],
-        3, [0, 0],
+        [Hand("9H TH QH KH 9D TD"), Hand(strongPartner ? "AD KD QD JD 9C TC" : "JS JC AS KS QS AH"),
+            Hand(strongPartner ? "JS JC AS KS QS AH" : "AD KD QD JD 9C TC"), Hand("9S TS JH AC KC QC")],
+        dealer, [0, 0],
         Campaign: CampaignSnapshot.Create(5) with { Inventory = new([], [], unlocks) },
         Options: new MatchOptions(24) { HandLimit = 8, NegativeThreshold = -24 }));
 
@@ -31,6 +34,46 @@ internal static class CampaignBotPolicyTests
         game.ExecuteCampaignAction(0, new CampaignCommand.Pass());
         Act(game, 1);
         Assert.True(Choice(game, 2) is CampaignCommand.Pass, "A hand that cannot beat the high bid must pass.");
+    }
+
+    public static void PartnerPassesBeforeHumanActs()
+    {
+        var game = Table(dealer: 1, strongPartner: true);
+        Assert.Equal<CampaignCommand>(new CampaignCommand.Pass(), Choice(game, 2));
+    }
+
+    public static void PartnerPassesAfterHumanBids()
+    {
+        var game = Table(dealer: 3, strongPartner: true);
+        game.ExecuteCampaignAction(0, new CampaignCommand.Bid(BidLevel.Three));
+        game.ExecuteCampaignAction(1, new CampaignCommand.Pass());
+        Assert.Equal<CampaignCommand>(new CampaignCommand.Pass(), Choice(game, 2));
+    }
+
+    public static void PartnerBidsNormallyAfterHumanPasses()
+    {
+        var game = Table(dealer: 3, strongPartner: true);
+        game.ExecuteCampaignAction(0, new CampaignCommand.Pass());
+        game.ExecuteCampaignAction(1, new CampaignCommand.Pass());
+        Assert.Equal<CampaignCommand>(new CampaignCommand.Bid(BidLevel.Four), Choice(game, 2));
+    }
+
+    public static void PartnerDealerMakesForcedBid()
+    {
+        var game = Table(dealer: 2, strongPartner: false);
+        foreach (var seat in new[] { 3, 0, 1 })
+            game.ExecuteCampaignAction(seat, new CampaignCommand.Pass());
+
+        Assert.Equal<CampaignCommand>(new CampaignCommand.Bid(BidLevel.Three), Choice(game, 2));
+        Act(game, 2);
+        Assert.Equal(GamePhase.ChoosingContract, game.Phase);
+        Assert.Equal(2, game.Bidder!.Value);
+    }
+
+    public static void OpponentBidsNormallyBeforeHumanActs()
+    {
+        var game = Table(dealer: 0, strongPartner: false);
+        Assert.Equal<CampaignCommand>(new CampaignCommand.Bid(BidLevel.Four), Choice(game, 1));
     }
 
     public static void BidderNamesItsLongSuit()

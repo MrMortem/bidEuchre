@@ -75,7 +75,7 @@ internal static class CampaignShopUseScreen
 
         Control Item(FeatureDefinition item, int? slot, bool available)
         {
-            var frame = new Border
+            var frame = slot.HasValue ? CampaignTableControls.CardFace(item) : new Border
             {
                 Padding = new Thickness(4), BorderThickness = new Thickness(2), CornerRadius = new CornerRadius(4),
                 Background = MainWindow.Panel, BorderBrush = MainWindow.Line,
@@ -91,7 +91,7 @@ internal static class CampaignShopUseScreen
             var button = new Button
             {
                 Name = slot is { } index ? $"ShopHeldTarot{index}" : "ShopPurchasedItem",
-                Padding = new Thickness(0), Width = 118, IsEnabled = available,
+                Padding = new Thickness(0), Width = slot.HasValue ? double.NaN : 118, IsEnabled = available,
                 Cursor = new Cursor(StandardCursorType.Hand)
             };
             CampaignCardFocus.Apply(button, frame);
@@ -105,18 +105,14 @@ internal static class CampaignShopUseScreen
             return button;
         }
 
-        var inventoryRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        for (var slot = 0; slot < held.Length; slot++)
-            inventoryRow.Children.Add(Item(FeatureCatalog.Get(FeatureCategory.Tarot, held[slot].ToString()), slot, true));
-        if (held.Length == 0) inventoryRow.Children.Add(Center("No tickets in inventory", Muted, 12));
+        var inventory = run.Resources.Inventory;
+        var heldCards = CampaignTableControls.Items(inventory).Select(entry => entry.Category == FeatureCategory.Tarot
+            ? Item(entry.Definition, entry.Slot, true) : CampaignTableControls.StoredItem(entry.Definition)).ToArray();
         var items = new StackPanel
         {
-            Orientation = Orientation.Horizontal, Spacing = 32, HorizontalAlignment = HorizontalAlignment.Center,
-            Children =
-            {
-                new StackPanel { Spacing = 5, Children = { Center(session.PurchasedItemUsed ? "PURCHASE USED" : "PURCHASE · REQUIRED", session.PurchasedItemUsed ? Green : Gold, 11), Item(bought, null, !session.PurchasedItemUsed) } },
-                new StackPanel { Spacing = 5, Children = { Center("YOUR TICKETS · OPTIONAL", Muted, 11), inventoryRow } }
-            }
+            HorizontalAlignment = HorizontalAlignment.Center, Spacing = 5,
+            Children = { Center(session.PurchasedItemUsed ? "PURCHASE USED" : "PURCHASE · REQUIRED", session.PurchasedItemUsed ? Green : Gold, 11),
+                Item(bought, null, !session.PurchasedItemUsed) }
         };
         var offered = new StackPanel { Name = "ShopOfferedCards", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
         foreach (var (card, index) in cards.Select((card, index) => (card, index)))
@@ -186,10 +182,10 @@ internal static class CampaignShopUseScreen
             panel.Children.Insert(1, report);
         }
         Refresh();
-        return MenuParts.Scene(motion, panel, new ScrollViewer
+        return CampaignInventoryScreen.Build(MenuParts.Scene(motion, panel, new ScrollViewer
         {
             Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        });
+        }), inventory, motion, itemCards: heldCards);
     }
 
     private static TextBlock Center(string text, IBrush ink, double size)

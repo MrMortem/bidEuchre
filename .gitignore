@@ -29,5 +29,5 @@ engines/hybrid/data/
 engines/hybrid/.venv/
 engines/hybrid/python/*.egg-info/
 
-# Browser regression dependencies
+# Node dependencies
 **/node_modules/

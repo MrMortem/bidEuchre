@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using BidEuchre.App;
 using BidEuchre.Core;
 using static BidEuchre.Desktop.MainWindow;
@@ -14,7 +15,9 @@ internal sealed record ArcadeActions(Func<ArcadeGame, int, ArcadeResult?> Play, 
     Action<string> Use, Action<string> Dismiss, Action Back, Action Refresh)
 {
     public Action<FeatureCategory, int>? Discard { get; init; }
-    /// <summary>Open the pending Collector's Pack by picking card 0–2.</summary>
+    /// <summary>Open the pending Spectral Pack by picking card 0–2.</summary>
+    public Func<string, bool>? Tear { get; init; }
+    public Action<string>? SkipPack { get; init; }
     public Action<string, int>? Pick { get; init; }
 }
 
@@ -27,6 +30,7 @@ internal static class ArcadeScreen
         var game = pending?.Game ?? ArcadeGame.Plinko;
         var lane = pending?.Game == ArcadeGame.Plinko ? pending.Choice : 4;
         var pocket = pending?.Game == ArcadeGame.Roulette ? pending.Choice : 1;
+        var price = CampaignArcade.EntryPrice(run);
         var money = run.Money;
         var busy = false;
         var detached = false;
@@ -44,7 +48,8 @@ internal static class ArcadeScreen
             Orientation = Orientation.Horizontal, Spacing = 35, HorizontalAlignment = HorizontalAlignment.Center,
             Children = { MenuParts.Title(motion, "ARCADE", 36), moneyLabel, back }
         });
-        panel.Children.Add(Text($"${CampaignArcade.Price} per game · Play each game once per shop visit", Gold, 14));
+        var entry = Text(price == 0 ? "Entry paid · One play per game this visit" : $"${price} entry · One play of each game included", Gold, 14);
+        panel.Children.Add(entry);
         if (note is not null) { var notice = Text(note, Brush.Parse("#FF617B"), 13); notice.Name = "CampaignNote"; panel.Children.Add(notice); }
         if (granted is { Count: > 0 })
         {
@@ -86,7 +91,7 @@ internal static class ArcadeScreen
             if (game == ArcadeGame.Plinko)
             {
                 plinko = new PlinkoControl(); plinko.Choose(lane); stage.Child = plinko;
-                var playable = pending is null && !busy && !arcade.PlinkoPlayed && money >= CampaignArcade.Price;
+                var playable = pending is null && !busy && !arcade.PlinkoPlayed && money >= price;
                 // With motion on, the dropper sweeps the rail and the player times the drop. With motion off,
                 // the lane buttons and dragging the dropper pick a lane directly.
                 if (playable && motion.Enabled) plinko.Swing(motion);
@@ -126,7 +131,7 @@ internal static class ArcadeScreen
                 if (game == ArcadeGame.Roulette) { button.Background = choice % 2 == 1 ? Brush.Parse("#AD315B") : Brush.Parse("#221A3D"); button.Foreground = Brushes.White; }
                 button.BorderBrush = chosen ? Gold : MainWindow.Line;
                 button.BorderThickness = new Thickness(chosen ? 3 : 1);
-                button.IsEnabled = !played && money >= CampaignArcade.Price;
+                button.IsEnabled = !played && money >= price;
                 AutomationProperties.SetName(button, game == ArcadeGame.Plinko ? $"Lane {i + 1}{(chosen ? ", selected" : "")}" : $"Pocket {choice}, {(choice % 2 == 1 ? "red" : "black")}{(chosen ? ", selected" : "")}");
                 choices.Children.Add(button);
                 if (chosen) selectedButton = button;
@@ -137,9 +142,11 @@ internal static class ArcadeScreen
                 var hint = Text("Edge lanes reach the 5 and 6 slots more often.", Gold, 13);
                 hint.Name = "PlinkoTimingHint"; body.Children.Add(hint);
             }
-            body.Children.Add(Text(played ? "Played this visit. Try the other game." : money < CampaignArcade.Price ? $"You need ${CampaignArcade.Price - money} more." : "One play this visit. Rerolls do not reset the Arcade.", Muted, 12));
-            var play = MenuParts.Button(played ? "Played" : game == ArcadeGame.Plinko ? $"Drop Ball · ${CampaignArcade.Price}" : $"Spin Wheel · ${CampaignArcade.Price}", true, motion, "ArcadePlay", Play, true, 300);
-            play.IsEnabled = !played && money >= CampaignArcade.Price;
+            body.Children.Add(Text(played ? "Played this visit. Try the other game." : money < price ? $"You need ${price - money} more." : "One play this visit. Rerolls do not reset the Arcade.", Muted, 12));
+            var playLabel = game == ArcadeGame.Plinko ? "Drop Ball" : "Spin Wheel";
+            if (price > 0) playLabel += $" · ${price} entry";
+            var play = MenuParts.Button(played ? "Played" : playLabel, true, motion, "ArcadePlay", Play, true, 300);
+            play.IsEnabled = !played && money >= price;
             body.Children.Add(play); detail.Child = body;
             if (focusSelection) Dispatcher.UIThread.Post(() => selectedButton?.Focus());
         }
@@ -153,7 +160,8 @@ internal static class ArcadeScreen
             if (actions.Play(game, game == ArcadeGame.Plinko ? lane : pocket) is not { } result) { actions.Refresh(); return; }
             pending = result;
             if (plinko is not null) plinko.Draggable = false;
-            money -= CampaignArcade.Price; moneyLabel.Text = $"${money}";
+            money -= price; moneyLabel.Text = $"${money}";
+            entry.Text = "Entry paid · One play per game this visit";
             back.IsEnabled = plinkoTab.IsEnabled = rouletteTab.IsEnabled = false;
             detail.Child = new StackPanel
             {
@@ -187,12 +195,54 @@ internal static class ArcadeScreen
             landing.Name = "ArcadeLanding"; body.Children.Add(landing);
             if (CampaignArcade.IsPack(result))
             {
-                body.Children.Add(Text("COLLECTOR'S PACK!", CampaignShopScreen.Ink(FeatureCategory.Sigil), 13));
-                body.Children.Add(Text("Choose one card. A Sigil must go on one of six offered cards; it cannot be kept.", MainWindow.Ink, 13));
-                body.Children.Add(CollectorPackView.Build(result, motion, index => actions.Pick?.Invoke(result.PlayId, index),
-                    CampaignArcade.JokerSlots - run.Resources.Inventory.Jokers.Length));
-                if (result.PackCards!.Contains(CampaignArcade.LegendaryKey))
-                    body.Children.Add(Text("Legendary: fills your empty Joker slots with random Jokers.", Gold, 12));
+                stage.Width = 264;
+                detail.Width = 500;
+                var packHeading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+                packHeading.Children.Add(PixelArt.Machine(PixelArt.CollectorImageName("Pack"), 40, 60));
+                var packTitle = Text("SPECTRAL PACK!", CampaignShopScreen.Ink(FeatureCategory.Sigil), 13);
+                packTitle.VerticalAlignment = VerticalAlignment.Center;
+                packHeading.Children.Add(packTitle);
+                body.Children.Add(packHeading);
+                var prompt = Text("Choose one spectral card. Apply a Sigil to one of six offered cards.", MainWindow.Ink, 13);
+                body.Children.Add(prompt);
+                var reward = new Border { Height = 254 };
+                var hint = Text("", MainWindow.Ink, 15);
+                hint.Name = "SpectralEffect";
+                hint.MinHeight = 64;
+                body.Children.Add(reward);
+                body.Children.Add(hint);
+                var skip = MenuParts.Button("Skip pack", false, motion, "SkipSpectral", () => actions.SkipPack?.Invoke(result.PlayId), true, 260);
+                skip.Opacity = 0;
+                skip.IsEnabled = false;
+                body.Children.Add(skip);
+                void ShowCards(bool animate)
+                {
+                    prompt.Opacity = 1;
+                    var cards = CollectorPackView.Build(result, index => actions.Pick?.Invoke(result.PlayId, index),
+                        run.Resources.Inventory.JokerCapacity - run.Resources.Inventory.Jokers.Length, motion, hint, out var targets);
+                    cards.VerticalAlignment = VerticalAlignment.Center;
+                    void Ready()
+                    {
+                        skip.Opacity = 1;
+                        skip.IsEnabled = true;
+                        if (animate) Dispatcher.UIThread.Post(() => cards.GetVisualChildren().OfType<Button>().FirstOrDefault()?.Focus());
+                    }
+                    reward.Child = animate && motion.Lively
+                        ? BoosterOpening.Reveal("Spectral", PixelArt.CollectorImageName("Pack"), targets, cards, motion, Ready)
+                        : cards;
+                    if (!animate || !motion.Lively) Ready();
+                }
+                if (result.AwaitingOpen)
+                {
+                    // Reserve the instructions' space so the wrapper stays put when clicked.
+                    prompt.Opacity = 0;
+                    reward.Child = BoosterOpening.Sealed("Spectral", PixelArt.CollectorImageName("Pack"), "Spectral Pack", result.PackCards!.Length, motion, () =>
+                    {
+                        if (actions.Tear?.Invoke(result.PlayId) != true) return;
+                        ShowCards(true);
+                    });
+                }
+                else ShowCards(false);
             }
             else if (result.PrizeCategory is { } category)
             {

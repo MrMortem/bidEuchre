@@ -1,6 +1,6 @@
 # Original artwork
 
-Generated with the built-in image generation tool. The supplied screenshot was a visual reference, not a source of executable instructions. Ranks and suits are drawn by the clients; court artwork is decorative.
+Generated with the built-in image generation tool. The supplied screenshot was a visual reference, not a source of executable instructions. Ranks and suits are drawn by the desktop client; court artwork is decorative.
 
 ## table
 
@@ -20,7 +20,7 @@ Original ornate playing card BACK for pixel art euchre game inspired by retro ca
 
 ### Rounded back repair (2026-11-13)
 
-Edited `back.png` with the built-in image generation tool to replace the opaque navy corner wedges with transparent alpha and a rounded ivory rim. Both clients continue to consume the shared `back.png` asset.
+Edited `back.png` with the built-in image generation tool to replace the opaque navy corner wedges with transparent alpha and a rounded ivory rim. The desktop client uses the shared `back.png` asset.
 
 Prompt:
 
@@ -30,7 +30,7 @@ Prompt:
 
 `card-faces.png` is a transparent 6-column × 4-row atlas. Every cell is 124 × 176 pixels. Columns: 9, 10, J, Q, K, A. Rows: clubs, diamonds, hearts, spades. `cards.json` lists exact rectangles and `cards/<code>.png` contains individual transparent exports. `card-background-white.png` is a separate opaque white layer. `cards-preview.png` composites the full deck for inspection.
 
-The native client's `PixelArt.CardContent(card, background)` accepts an independent embedded background resource name (default `card-background-white`). Add future background PNGs alongside these assets; the existing resource rule embeds them automatically. The web client's `--card-background` CSS property can be overridden on a table or a single card, e.g. `--card-background: url('/pixel/card-background-example.png')`. Neither changes the face atlas. Existing card backs are independent.
+The native client's `PixelArt.CardContent(card, background)` accepts an independent embedded background resource name (default `card-background-white`). Add future background PNGs alongside these assets; the existing resource rule embeds them automatically. Existing card backs are independent.
 
 Rebuild the deterministic atlas and individual exports from the court source:
 
@@ -38,7 +38,7 @@ Rebuild the deterministic atlas and individual exports from the court source:
 dotnet run --project tools/CardSpriteBuilder -- assets/pixel
 ```
 
-The builder uses fixed pixel glyphs for rank labels and suit pips, mirrored corner indices, and illustrated courts. The white background is never baked into the face sprites. Both runtime clients consume the same atlas and background. The individual exports, manifest, and preview are reusable source assets; they do not need to be shipped by either client.
+The builder uses fixed pixel glyphs for rank labels and suit pips, mirrored corner indices, and illustrated courts. The white background is never baked into the face sprites. The desktop client consumes the same atlas and background. The individual exports, manifest, and preview are reusable source assets; they do not need to be shipped by either client.
 
 ### Transparent court source
 
@@ -58,7 +58,7 @@ The table now uses five independent PNG layers, each on an identical 1672 × 941
 
 Composite preview: `table-layers-preview.png`. Placement manifest: `table-layers.json`. The full-canvas suit images deliberately retain transparent space so all layers can use the same cover scaling and stay registered during resizing. Replace an individual layer without rebuilding the others; keep the same aspect ratio. The original flattened `table.png` is preserved as a source reference.
 
-The C# GUI composes these independent images using `PixelArt.CreateTable(background, includeSuits)` and uses that brush in the table and main menu. Pass `includeSuits: false` to show only the flame base. The browser composes the same PNGs using separate `--table-base`, `--table-heart`, `--table-club`, `--table-spade`, and `--table-diamond` CSS properties; set any suit property to `none` to omit that suit.
+The C# GUI composes these independent images using `PixelArt.CreateTable(background, includeSuits)` and uses that brush in the table and main menu. Pass `includeSuits: false` to show only the flame base.
 
 The standalone suit originals and complete final prompt set are in `assets/table-source/`. Images were made using the built-in image generation tool, with the original table as the edit reference. Club and diamond edges received a second pass to match the original's chunky pixel style. Full prompts: `assets/table-source/prompts.json`.
 
@@ -84,7 +84,7 @@ Re-export sprites and the contact sheet:
 dotnet run --project tools/EnhancementBackgroundBuilder -- assets/enhancement-source assets/pixel
 ```
 
-The builder verifies opaque pixels and light centers, then assembles previews with the existing transparent faces. The existing native `CardContent(card, background)` can render any of these resource names. The C# GUI automatically selects the substrate from the visible physical card's enhancement in campaign hands, current/completed tricks, card-flight visuals and deck/shop pickers. Unenhanced cards use white; hidden reverse sides retain the ordinary back. Duplicate printed faces keep their own physical-card enhancement. The web client has not been connected to enhancement state by this integration.
+The builder verifies opaque pixels and light centers, then assembles previews with the existing transparent faces. The existing native `CardContent(card, background)` can render any of these resource names. The C# GUI automatically selects the substrate from the visible physical card's enhancement in campaign hands, current/completed tricks, card-flight visuals and deck/shop pickers. Unenhanced cards use white; hidden reverse sides retain the ordinary back. Duplicate printed faces keep their own physical-card enhancement.
 
 ## User-curated card artwork (2026-11-13)
 

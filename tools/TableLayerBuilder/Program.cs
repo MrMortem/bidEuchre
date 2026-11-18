@@ -1,7 +1,7 @@
 using System.Text.Json;
 using SkiaSharp;
 
-// Put all five layers on one canvas so both clients can apply the same cover transform.
+// Put all five layers on one canvas so the desktop client can scale them together.
 var sourceRoot = Path.GetFullPath(args.ElementAtOrDefault(0) ?? "assets/table-source");
 var outputRoot = Path.GetFullPath(args.ElementAtOrDefault(1) ?? "assets/pixel");
 using var sourceBase = SKBitmap.Decode(Path.Combine(sourceRoot, "table-flames.png"));

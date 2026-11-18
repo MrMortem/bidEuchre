@@ -116,8 +116,9 @@ internal static class GumballDuplicateTests
             Assert.Equal(selected.ToString(), next.Shop.Offers.Single(o => o.Id == offer.Id).FeatureId);
             Assert.True(next.Shop.Offers.Single(o => o.Id == offer.Id).Sold);
             var json = JsonNode.Parse(File.ReadAllText(path))!;
-            // This legacy shape predates both duplicate counts and the Arcade.
+            // This legacy shape predates duplicate counts, the Arcade, and Joker boosters.
             json["Run"]!["Shop"]!.AsObject().Remove("Arcade");
+            json["Run"]!["Shop"]!.AsObject().Remove("Booster");
             json["Run"]!["Resources"]!["Inventory"]!.AsObject().Remove("GumballExtraCopies");
             File.WriteAllText(path, json.ToJsonString());
             Assert.Equal(0, ExtraCount(CampaignStore.Load(path)!.Resources.Inventory));

@@ -17,14 +17,29 @@ public sealed record ShopOffer(string Id, FeatureCategory Category, string Featu
 {
     /// <summary>A hidden, already-paid Arcade prize backing the ordinary six-card use session.</summary>
     public bool IsArcadePrize { get; init; }
+    // A claimed spectral keeps the Fortune Teller booth on the shelf as sold.
+    public bool IsTellerSigil { get; init; }
     /// <summary>Tickets the Fortune Teller has printed and paid for, waiting for the player to choose one. Null when none are waiting.</summary>
     public string[]? Printed { get; init; }
     /// <summary>The six physical cards offered for this purchase. Saved once; reopening never redraws them.</summary>
     public CardId[]? TargetCards { get; init; }
 }
 public sealed record ShopUseSession(string OfferId, FeatureCategory Category, string FeatureId, bool PurchasedItemUsed);
+public sealed record JokerBooster(string Theme, JokerId[]? Choices = null, bool Sold = false)
+{
+    public bool AwaitingOpen { get; init; }
+}
 public sealed record ShopState(int MatchJustFinished, ShopOffer[] Offers, int RerollCount = 0)
 {
+    public bool SodaOpened { get; init; }
+    public bool SodaPurchased { get; init; }
+    public int GumballPulls { get; init; }
+    public JokerBooster? Booster { get; init; }
+    public JokerBooster? BonusBooster { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public JokerBooster? PendingBooster => Booster?.Choices is not null ? Booster : BonusBooster?.Choices is not null ? BonusBooster : null;
+    // Older visits always included the Arcade and have no roll.
+    public int? ArcadeRoll { get; init; }
     public ArcadeState? Arcade { get; init; }
     /// <summary>A paid immediate-use purchase and its saved six-card opportunity, retained until explicitly finished.</summary>
     public ShopUseSession? UseSession { get; init; }
@@ -33,7 +48,8 @@ public enum ArcadeGame { Plinko, Roulette }
 public sealed record ArcadeResult(string PlayId, ArcadeGame Game, int Choice, int Landing, int Score,
     int[] Path, FeatureCategory? PrizeCategory, string? FeatureId, CardId[] TargetCards)
 {
-    /// <summary>A Collector's Pack: three distinct Sigil names or "Legendary". Null for Tarot prizes and older saves.</summary>
+    /// <summary>A Spectral Pack: three distinct Sigil names or "Legendary". Null for Tarot prizes and older saves.</summary>
     public string[]? PackCards { get; init; }
+    public bool AwaitingOpen { get; init; }
 }
 public sealed record ArcadeState(bool PlinkoPlayed = false, bool RoulettePlayed = false, ArcadeResult? Pending = null);

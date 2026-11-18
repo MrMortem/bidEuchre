@@ -38,7 +38,7 @@ From the repository root:
 
 ```sh
 dotnet run --project tools/CuratedCardArtBuilder -- --enhancements
-node --test tests/web/enhancement-asset-sheet.test.cjs
+node --test tests/assets/enhancement-asset-sheet.test.cjs
 ```
 
 Optional arguments after `--enhancements`: source directory containing `curated-art.json` and its PNGs, then output directory. The exporter never writes to the runtime asset directory by default.
@@ -47,4 +47,4 @@ Verification checks catalogue identities, source checksums, exact atlas crops, c
 
 ## Runtime import
 
-All eight individual sprites are now imported byte-for-byte into the game through `assets/curated-source/2026-11-16-euchatro-enhancements/manifest.json`. The normal curated-art rebuild pins these approved exports by checksum and preserves their alpha. Desktop and browser enhancement rendering use the PNG silhouettes without an opaque rectangular backing; playing-card ink and interaction highlights remain separate.
+All eight individual sprites are now imported byte-for-byte into the game through `assets/curated-source/2026-11-16-euchatro-enhancements/manifest.json`. The normal curated-art rebuild pins these approved exports by checksum and preserves their alpha. Desktop enhancement rendering uses the PNG silhouettes without an opaque rectangular backing; playing-card ink and interaction highlights remain separate.

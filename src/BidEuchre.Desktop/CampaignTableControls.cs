@@ -17,10 +17,20 @@ internal static class CampaignTableControls
     internal static string CategoryName(FeatureCategory category) => category == FeatureCategory.Tarot ? "Ticket" : category.ToString();
 
     /// <summary>Replaces a strip row with <paramref name="cards"/>, padded to its slot count with empty outlines.</summary>
-    public static void Fill(Panel row, int slots, IEnumerable<Control> cards)
+    public static void Fill(Panel row, int slots, PixelMotion motion, int firstPhase, IEnumerable<Control> cards)
     {
         row.Children.Clear();
-        row.Children.AddRange(cards);
+        foreach (var card in cards)
+        {
+            var face = new Viewbox { Width = CardWidth, Height = CardHeight, Child = card };
+            var shadow = CardShadow.Glow(face, CardShadow.Drop(.3), radius: 6);
+            // Keep the shadow on the strip while the artwork moves above it.
+            row.Children.Add(new Grid
+            {
+                Width = CardWidth, Height = CardHeight,
+                Children = { shadow, motion.Float(face, firstPhase + row.Children.Count) }
+            });
+        }
         while (row.Children.Count < slots) row.Children.Add(EmptySlot());
     }
 
@@ -29,6 +39,9 @@ internal static class CampaignTableControls
         var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
         return Named(CardFace(definition), definition.Name, joker.Value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {joker.Value}");
     }
+
+    internal static Control StoredItem(FeatureDefinition definition) =>
+        Named(CardFace(definition), definition.Name, definition.Description);
 
     /// <summary>The Tarots and Sigils held, in the order they are shown: one shared inventory.</summary>
     public static IEnumerable<(FeatureCategory Category, int Slot, FeatureDefinition Definition)> Items(CampaignInventory inventory) =>
@@ -101,12 +114,12 @@ internal static class CampaignTableControls
         _ => null
     };
 
-    private static Border CardFace(FeatureDefinition definition)
+    internal static Border CardFace(FeatureDefinition definition)
     {
         var face = new Border
         {
-            Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(6), Background = Brushes.White,
-            BorderBrush = Brush.Parse("#D8CDB9"), BorderThickness = new Thickness(1),
+            Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(6), Background = MainWindow.PanelRaised,
+            BorderBrush = MainWindow.Line, BorderThickness = new Thickness(1),
             Child = PixelArt.CampaignIcon(definition)
         };
         Avalonia.Automation.AutomationProperties.SetName(face, $"{CategoryName(definition.Category)}: {definition.Name}");

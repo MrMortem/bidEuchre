@@ -153,6 +153,7 @@ public sealed partial class GameEngine
             viewerSeat == 0 ? _resources.Inventory.Copy() : CampaignInventory.Empty, viewerSeat is { } wallet ? _resources.Wallets[wallet] : 0, HandNumber, _targetScore, _pendingChoice)
         {
             LastTrick = _campaignTrickHistory.GetValueOrDefault(_completedTricks.Count) ?? [],
+            HandLimit = _matchOptions.HandLimit,
             EffectSequence = _effectSequence,
             ScoringEffects = Array.AsReadOnly(_scoringEffects.ToArray()),
             PokerResult = _pokerResult

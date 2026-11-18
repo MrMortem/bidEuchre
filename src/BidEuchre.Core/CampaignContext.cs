@@ -12,7 +12,9 @@ public sealed record CampaignSnapshot(long Revision, CardState[] Deck, CampaignI
         && Deck.All(c => c is not null && c.Id.Value is >= 0 and < 24 && Enum.IsDefined(c.Face.Suit) && Enum.IsDefined(c.Face.Rank)
             && (c.Enhancement is null || Enum.IsDefined(c.Enhancement.Value)) && (c.Sigil is null || Enum.IsDefined(c.Sigil.Value)))
         && Deck.Select(c => c.Id).Distinct().Count() == 24
-        && Inventory.Jokers is { Length: <= 5 } && Inventory.Tarot is not null && Inventory.Unlocks is not null
+        && Inventory.Sodas is not null && Inventory.Sodas.All(s => Enum.IsDefined(s) && (SodaRules.Prerequisite(s) is not { } required || Inventory.Has(required)))
+        && Inventory.Sodas.Distinct().Count() == Inventory.Sodas.Length
+        && Inventory.Jokers is not null && Inventory.Jokers.Length <= Inventory.JokerCapacity && Inventory.Tarot is not null && Inventory.Unlocks is not null
         && Inventory.Jokers.All(j => j is not null && Enum.IsDefined(j.Id)) && Inventory.Jokers.Select(j => j.Id).Distinct().Count() == Inventory.Jokers.Length
         && Inventory.Tarot.All(Enum.IsDefined) && Inventory.Unlocks.All(Enum.IsDefined)
         && Inventory.Sigils is not null && Inventory.Sigils.All(Enum.IsDefined)
