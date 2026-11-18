@@ -49,7 +49,8 @@ public sealed partial class GameEngine
             FirstHumanRoundCard = _firstHumanRoundCard,
             LastMatchCard = _lastMatchCard,
             RollerValue = _rollerValue,
-            DejaValue = _dejaValue,
+            DejaValue = 0,
+            RepeatsPreviousTrump = _repeatsPreviousTrump,
             EffectSequence = _effectSequence,
             ScoringEffects = _scoringEffects.ToArray(),
             Scores = _scores.ToArray(),
@@ -89,7 +90,14 @@ public sealed partial class GameEngine
         game._firstHumanRoundCard = snapshot.FirstHumanRoundCard;
         game._lastMatchCard = snapshot.LastMatchCard;
         game._rollerValue = snapshot.RollerValue;
-        game._dejaValue = snapshot.DejaValue;
+        // Legacy live rounds incremented the saved counter when the chosen trump matched.
+        // The inventory still held the counter from before the round until it was scored.
+        var lastRoundWasPoker = snapshot.HandHistory.LastOrDefault()?.PokerResult is not null;
+        if (snapshot.Contract is null && lastRoundWasPoker)
+            game._resources = game._resources with { PreviousContract = null };
+        game._repeatsPreviousTrump = snapshot.RepeatsPreviousTrump ?? (snapshot.Contract is not null && !lastRoundWasPoker
+            && snapshot.Resources.Inventory.Jokers.FirstOrDefault(j => j.Id == JokerId.DejaVu) is { } dejaVu
+            && snapshot.DejaValue > dejaVu.Value);
         game._effectSequence = snapshot.EffectSequence;
         game._scoringEffects.AddRange(snapshot.ScoringEffects);
         snapshot.Scores.CopyTo(game._scores, 0);

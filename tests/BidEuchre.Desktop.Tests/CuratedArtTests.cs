@@ -104,7 +104,7 @@ internal static class CuratedArtTests
         EnhancementSprites(motion);
         BossArenas(motion);
         TicketCollection(motion);
-        DoubleDownCollection(motion);
+        BoomerangCollection(motion);
         ShopMachines(motion);
         var picker = CampaignDeckPicker.Build([new(new(0), face, EnhancementId.Glass, SigilId.Fish)], 0, _ => { }, () => { }, motion, "Curated picker");
         ContainsSigil(picker, SigilId.Fish);
@@ -295,7 +295,7 @@ internal static class CuratedArtTests
         finally { window.Close(); }
     }
 
-    private static void DoubleDownCollection(PixelMotion motion)
+    private static void BoomerangCollection(PixelMotion motion)
     {
         var window = new Window { Width = 1120, Height = 800, Content = CollectionPage.Build(() => { }, motion) };
         try
@@ -305,9 +305,9 @@ internal static class CuratedArtTests
             tile.BringIntoView(); Dispatcher.UIThread.RunJobs();
             var expected = PixelArt.CampaignIcon(FeatureCatalog.Get(FeatureCategory.Joker, "DoubleDown")).Source;
             if (!tile.GetVisualDescendants().OfType<Image>().Any(image => ReferenceEquals(image.Source, expected) && image.Bounds.Height > 0)
-                || !tile.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Double Down"))
-                throw new Exception("Double Down must show its approved Boomerang portrait under its unchanged gameplay name.");
-            Capture(window, "double-down-collection");
+                || !tile.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Boomerang Joker"))
+                throw new Exception("Boomerang Joker must show its approved portrait and display name.");
+            Capture(window, "boomerang-collection");
         }
         finally { window.Close(); }
     }

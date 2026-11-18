@@ -44,7 +44,9 @@ public sealed partial record CampaignMatchSnapshot
     public required bool FirstHumanRoundCard { get; init; }
     public required CardId? LastMatchCard { get; init; }
     public required int RollerValue { get; init; }
+    // Older checkpoints stored the accumulated streak here.
     public required int DejaValue { get; init; }
+    public bool? RepeatsPreviousTrump { get; init; }
     public required int EffectSequence { get; init; }
     public CampaignEffectEvent[] ScoringEffects { get; init; } = [];
     public required int[] Scores { get; init; }

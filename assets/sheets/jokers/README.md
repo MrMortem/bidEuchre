@@ -1,6 +1,6 @@
 # Euchatro Joker asset sheet
 
-All 32 active Jokers, in game catalogue order. Double Down uses the approved Boomerang artwork.
+All 32 active Jokers, in game catalogue order. Boomerang Joker uses the approved Boomerang artwork under its existing `joker:double-down` ID.
 
 ## Files
 

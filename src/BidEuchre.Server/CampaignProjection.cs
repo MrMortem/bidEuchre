@@ -27,7 +27,7 @@ public static class CampaignProjection
         var inventory = run.Resources.Inventory;
         return new
         {
-            jokers = inventory.Jokers.Select(j => new { j.Id, j.Value, sellValue = CampaignShop.JokerSellValue,
+            jokers = inventory.Jokers.Select(j => new { j.Id, Value = j.DisplayValue(), sellValue = CampaignShop.JokerSellValue,
                 sell = Can(CanSellJoker(run), "Jokers can be sold in the shop.") }).ToArray(),
             tarot = inventory.Tarot.Select((id, slot) => new { slot, id, targetCount = CampaignShop.TarotTargets(id) }).ToArray(),
             sigils = inventory.Sigils.Select((id, slot) => new { slot, id, targetCount = 1 }).ToArray(),

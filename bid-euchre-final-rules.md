@@ -336,6 +336,7 @@ instead keep a purchased consumable for a future match if a slot is available.
 Stored consumables cannot otherwise be used in the shop or pre-match screen.
 
 - **Duck Sigil:** When played, 1 in 3 chance to earn +4 points.
+- **Three's Company:** When your team makes a bid of exactly 3, earn +1 point.
 - **Snake Eyes:** If your team wins a trick containing 2 or more Aces, +4 points.
 - **Roller Coaster:** +0 points each round when High/Low is trump. +1 when your
   team wins a High/Low trick. −1 when your team loses one. Award only that round’s
@@ -348,13 +349,17 @@ Stored consumables cannot otherwise be used in the shop or pre-match screen.
   +1 point. Multiple Clubs still grant one bonus.
 - **Royal Council:** Tricks your team wins that contain an Ace, King, Queen,
   and Jack are worth ×2 points.
-- **Double Down:** Retrigger the first card you play each round. Earlier plays
+- **Déjà Vu:** When trump matches the previous round, earn a flat +1 point for
+  each trick your team wins, even if the bid fails.
+- **Boomerang Joker:** Retrigger the first card you play each round. Earlier plays
   by other players do not consume it. Frog and Lucky Duck each add their own
   independent activation; replayed effects do not create further replay chains.
   A Bouncy activation replays earlier eligible on-play effects once. Glass
   multiplies card-effect points, including those from the extra activation.
 - **Last Laugh:** Double all points and effects from the final trick of each
   round. This timing applies every round of the match.
+- **Cheater:** At the start of each round, choose another player. One random
+  card from that player's hand is revealed privately to you.
 
 ## 12. Campaign Bidding
 
