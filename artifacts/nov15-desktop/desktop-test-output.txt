@@ -1,0 +1,78 @@
+PASS  Panic Button duplicates show their count and explicitly explain no successful contract payout
+PASS  Duplicate gumball pulls save their count and identify the reward after all nine unlocks
+PASS  Astronomer remains usable with all unlocks, full inventory, and before the next match
+PASS  Shop badges explain full slots and funds, preserve Buy & Use, and show Joker sell values
+PASS  Shop reroll charges once, rejects stale controls, persists and resumes escalating price
+PASS  Hand and final history
+PASS  Score explanations show structured hand/final history and a live public money/effect log at compact size
+PASS  Public log during play
+PASS  Campaign final hand history remains readable after automatic result transition
+PASS  Campaign retained history
+PASS  Real table controls restore and persist last setup across setup navigation
+PASS  Stable engine selection, visible missing state and safe table validation
+PASS  Free-play winners, same-table fresh rematch, prior disposal and New table
+PASS  Completed campaign retains its result lifecycle without free-play controls
+PASS  Automatic privacy hides handoff and rejects stale controls (False)
+PASS  Automatic privacy hides handoff and rejects stale controls (True)
+PASS  Partner's Best both exchanges and next-deal privacy
+PASS  Queued Reveal cancels safely when its table is disposed
+PASS  Privacy preference, manual mode, one-human and spectator exclusions
+PASS  Contract acknowledgment gates human, bot and special-contract actions independently of settings
+PASS  A paused contract sort retries after resume instead of recording a failed stage
+PASS  Caller and suit/mode remain readable, hold before play, suppress replay and recover from settings/session changes
+PASS  Free-play pause serializes bot actions, rejects hidden mutation, resumes and disposes
+PASS  Campaign pause serializes bot actions, rejects hidden mutation, resumes and disposes
+PASS  Live graphics settings preserve free-play table (bot delay)
+PASS  Live graphics settings preserve free-play table (pending deal)
+PASS  Live graphics settings preserve campaign table (bot delay)
+PASS  Live graphics settings preserve campaign table (pending deal)
+PASS  Completed campaign match wins settings navigation without a forfeit or paused result
+PASS  All active enhancement backgrounds and white fallback preserve printed face sprites
+PASS  Deck/shop cards automatically select their individual enhancement substrates
+PASS  Campaign hands and current/completed tricks preserve enhancements for duplicate printed cards; ordinary Table stays white
+PASS  CornerSigils
+PASS  ReachableHands
+PASS  ReorderSlots
+PASS  PlayFlightOrigins
+PASS  Supplied Jokers, tickets, shop machines, Gumballs, Sigils and enhanced card badges use imported artwork
+PASS  Catalog card icons and the Double Down shop card render without missing artwork failures
+PASS  Main menu opens the collection on Jokers and Back returns at 1280, 1100
+PASS  All six collection categories expose complete art and rules, scroll by pointer and keyboard, and remain reachable at 1280, 900
+PASS  All six collection categories expose complete art and rules, scroll by pointer and keyboard, and remain reachable at 653, 453
+PASS  Main menu opens the collection on Jokers and Back returns at 653, 453
+PASS  Campaign labels name bids, seats and card faces
+PASS  Lowballer precedes higher bid levels
+PASS  Wild choices stay on the card
+PASS  Free-play table fits 1320, 860 with requested scale 1
+PASS  Campaign table fits 1320, 860 with requested scale 1
+PASS  Free-play table fits 1320, 860 with requested scale 1.5
+PASS  Campaign table fits 1320, 860 with requested scale 1.5
+PASS  Free-play table fits 1280, 720 with requested scale 1
+PASS  Campaign table fits 1280, 720 with requested scale 1
+PASS  Free-play table fits 1280, 720 with requested scale 1.5
+PASS  Campaign table fits 1280, 720 with requested scale 1.5
+PASS  Free-play table fits 980, 680 with requested scale 1
+PASS  Campaign table fits 980, 680 with requested scale 1
+PASS  Free-play table fits 980, 680 with requested scale 1.5
+PASS  Campaign table fits 980, 680 with requested scale 1.5
+PASS  Wild suit picker waits for a suit and submits that legal play
+PASS  UI scale adapts on resize and restores the requested scale
+PASS  Compact Ante keeps Main Menu visible
+PASS  Settings reports failed saves in the active page, retains values and clears errors after retry
+PASS  Menu entries scroll into keyboard and pointer reach at every effective size/scale
+PASS  Shop purchase and owned-card controls are completely reachable at every effective size/scale
+PASS  Campaign cards visibly focus, scroll into view and activate from the keyboard with Motion off
+PASS  Campaign malformed shop opens a playable recovery screen
+PASS  Campaign invalid version opens a playable recovery screen
+PASS  Continue restores exact cards and manual-order policy; explicit Forfeit charges immediately
+PASS  Restored automatic arrangement resumes its completed stage and applies a later contract-stage sort
+PASS  Window close preserves the same live match; restored terminal checkpoints settle once before presentation
+PASS  Legacy restart displays its limitation without life loss; failed restore keeps its checkpoint and offers retry
+PASS  Deck picker accepts card-face clicks and confirms the selected card
+PASS  Sigil Buy & Use supports cancel, target selection, confirmation and saving
+PASS  Sigil Buy then Use supports cancel, target selection, confirmation and saving
+PASS  Stored Tarots and Sigils share a shelf and are played from the shop and the Ante screen
+PASS  Gumball machine sells one blind pull and reports its bid (motion off)
+PASS  Gumball machine sells one blind pull and reports its bid (animated)
+PASS  Ante screen shows three match panels and starts the current one (ANTE 2)
+PASS  Ante screen shows three match panels and starts the current one (ANTE 6)

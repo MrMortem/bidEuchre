@@ -318,6 +318,15 @@ internal static class CampaignArcadeUiTests
                 }
                 Await(() => Claimable(window));
                 Capture(window, $"arcade-{game}-spectral-picker");
+                if (!reduced)
+                {
+                    var card = Find(window, "CollectorCard0");
+                    var art = (Image)card.Content!;
+                    var position = art.TranslatePoint(default, window);
+                    var hitOrigin = card.TranslatePoint(default, window);
+                    Await(() => art.TranslatePoint(default, window) != position);
+                    Require(card.TranslatePoint(default, window) == hitOrigin, "The Spectral card must float inside a fixed hit area.");
+                }
                 Require(Strip() is null && Enumerable.Range(0, 3).All(i => Find(window, $"CollectorCard{i}").IsEnabled),
                     "All three choices must become available together.");
                 Require(plays == 1 && run.Money == 18 && started.ElapsedMilliseconds >= 2200,
@@ -404,6 +413,8 @@ internal static class CampaignArcadeUiTests
                     : $"{FeatureCatalog.CollectorTitle(Enum.Parse<SigilId>(key))} — {key} Sigil";
                 var button = Find(window, $"CollectorCard{i}");
                 Require(button.IsEnabled && AutomationProperties.GetName(button) == expected, $"Pack card {i} must be a named, reduced-motion-ready choice: {expected}.");
+                Require(button.GetVisualDescendants().OfType<Border>().Any(face => face.BoxShadow.Count > 0),
+                    "Spectral cards must retain their drop shadows when motion is off.");
             }
             Require(window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text == "SPECTRAL PACK!")
                 && window.GetVisualDescendants().OfType<Image>().Any(i => ReferenceEquals(i.Source, PixelArt.CollectorImage("Pack"))),
@@ -420,7 +431,8 @@ internal static class CampaignArcadeUiTests
             window.MouseMove(point);
             Await(() => art.TranslatePoint(new Point(art.Bounds.Width / 2, art.Bounds.Height / 2), window)!.Value.Y < point.Y - 5);
             var effect = FeatureCatalog.Get(FeatureCategory.Sigil, result.PackCards![index]).Description;
-            Require(art.Width >= 136 && window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Name == "SpectralEffect" && t.Text?.Contains(effect) == true),
+            Require(art.Width >= 136 && window.GetVisualDescendants().OfType<Border>().Any(b => b.Name == "CampaignCardExplanation"
+                && b.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Text?.Contains(effect) == true)),
                 "Hovering the enlarged Spectral card must show its Sigil effect.");
             window.MouseDown(point, MouseButton.Left);
             window.MouseUp(point, MouseButton.Left);

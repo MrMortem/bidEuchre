@@ -1,6 +1,9 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Input;
 using Avalonia.Headless;
 using Avalonia.Threading;
@@ -37,6 +40,75 @@ internal static class CampaignShopUiTests
 
     private static string Text(Control control) => string.Join(" ", control.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text));
     private static PixelMotion Still() { var motion = new PixelMotion(); motion.SetEnabled(false); return motion; }
+
+    public static void CardExplanations()
+    {
+        var inventory = CampaignInventory.Empty with { Jokers = [new(JokerId.Clubhouse)], Sigils = [SigilId.Fish] };
+        var run = CampaignShop.Open(new CampaignRun(Money: 30, Phase: CampaignPhase.Shop)
+        {
+            Resources = CampaignSnapshot.Create(124) with { Inventory = inventory, Wallets = [30, 0, 0, 0] }
+        });
+        var actions = new ShopActions(_ => { }, _ => { }, _ => { }, (_, _) => { }, () => { }, () => { })
+        { Pull = _ => null, Refresh = () => { } };
+        var window = new Window { Width = 1620, Height = 1000 };
+        var host = new LayoutTransformControl { LayoutTransform = new ScaleTransform(1.5, 1.5) };
+        window.Content = host;
+        try
+        {
+            host.Child = CampaignShopScreen.Build(run, actions, Still());
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            var offerId = run.Shop!.Offers.First(o => o.Category == FeatureCategory.Joker).Id;
+            var offer = Find(window, $"Offer{offerId}");
+            var description = FeatureCatalog.Get(FeatureCategory.Joker, run.Shop.Offers.First(o => o.Id == offerId).FeatureId).Description;
+            var pointer = offer.TranslatePoint(new Point(offer.Bounds.Width / 2, offer.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(pointer);
+            CheckPanel(offer, description, below: true);
+            Require(!window.GetVisualDescendants().OfType<Button>().Any(b => b.Name == $"Buy{offerId}"), "Hover must not select or buy an offer.");
+            window.MouseMove(new Point(0, 0));
+            WaitFor(() => Panel() is null);
+            Click(offer);
+            Require(Find(window, $"Buy{offerId}").IsEnabled && !Text(host).Contains(description),
+                "Selecting a Joker must keep its purchase action in the side panel.");
+
+            host.Child = CampaignAnteScreen.Build(run, () => { }, () => { }, null, Still());
+            Dispatcher.UIThread.RunJobs();
+            var item = Find(window, "AnteItemSigil0");
+            Require(item.Focus(NavigationMethod.Tab), "The Ante item must accept keyboard focus.");
+            var fish = FeatureCatalog.Get(FeatureCategory.Sigil, "Fish").Description;
+            var clubhouse = FeatureCatalog.Get(FeatureCategory.Joker, "Clubhouse").Description;
+            CheckPanel(item, fish, below: true);
+            var anteJoker = window.GetVisualDescendants().OfType<Border>().Single(b => AutomationProperties.GetName(b) == "Joker: Clubhouse");
+            window.MouseMove(anteJoker.TranslatePoint(new Point(anteJoker.Bounds.Width / 2, anteJoker.Bounds.Height / 2), window)!.Value);
+            CheckPanel(anteJoker, clubhouse, below: true);
+            window.MouseMove(new Point(0, 0));
+            CheckPanel(item, fish, below: true);
+
+            var joker = CampaignTableControls.Joker(inventory.Jokers[0]);
+            host.Child = new Grid { Children = { joker } };
+            joker.HorizontalAlignment = HorizontalAlignment.Right;
+            joker.VerticalAlignment = VerticalAlignment.Bottom;
+            Dispatcher.UIThread.RunJobs();
+            Require(joker.Focus(NavigationMethod.Tab), "A table Joker must accept keyboard focus.");
+            CheckPanel(joker, clubhouse, below: false);
+        }
+        finally { window.Close(); }
+        Console.WriteLine("PASS  Campaign card explanations support hover and keyboard focus at 150%");
+
+        Border? Panel() => window.GetVisualDescendants().OfType<Border>().SingleOrDefault(b => b.Name == "CampaignCardExplanation");
+        void CheckPanel(Control anchor, string description, bool below)
+        {
+            WaitFor(() => Panel() is { Bounds.Width: > 0 } shown && Text(shown).Contains(description));
+            var panel = Panel()!;
+            var start = panel.TranslatePoint(default, window)!.Value;
+            var end = panel.TranslatePoint(new Point(panel.Bounds.Width, panel.Bounds.Height), window)!.Value;
+            var anchorTop = anchor.TranslatePoint(default, window)!.Value.Y;
+            var anchorBottom = anchor.TranslatePoint(new Point(0, anchor.Bounds.Height), window)!.Value.Y;
+            Require(start.X >= 0 && start.Y >= 0 && end.X <= window.Bounds.Width && end.Y <= window.Bounds.Height,
+                $"The explanation must stay inside the window: {start}–{end} in {window.Bounds.Size}.");
+            Require(below ? start.Y >= anchorBottom - 1 : end.Y <= anchorTop + 1, "The explanation must anchor below the card or flip at the bottom edge.");
+        }
+    }
 
     private static void Capture(Window window, string name)
     {
@@ -77,16 +149,27 @@ internal static class CampaignShopUiTests
             var tray = Find(window, "SodaTrayCan");
             var face = window.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "SodaCabinet");
             Require(face.Width == GumballMachine.FaceWidth && face.Height == GumballMachine.FaceHeight, "Both machines must use the same shop footprint.");
+            double? landingAngle = null;
             if (animate)
             {
                 Require(!tray.IsVisible, "The tray must wait for the can to land.");
                 var falling = window.GetVisualDescendants().OfType<Image>().Single(c => c.Name == "DispensingSoda");
                 var cabinet = (Canvas)falling.Parent!.Parent!;
+                var topButton = cabinet.Children.OfType<Border>().SingleOrDefault(c => c.Name == "SodaTopButtonPress");
+                Require(topButton is not null && Canvas.GetTop(topButton) == 113, "The selection press must be on the top button.");
+                WaitFor(() => topButton!.Opacity > .5);
+                var spin = ((Avalonia.Media.TransformGroup)falling.RenderTransform!).Children.OfType<Avalonia.Media.RotateTransform>().Single();
                 WaitFor(() => Math.Abs(((Avalonia.Media.TranslateTransform)cabinet.RenderTransform!).X) > 1);
-                WaitFor(() => Canvas.GetTop(falling) > 180);
+                WaitFor(() => Canvas.GetTop(falling) > 230);
+                landingAngle = spin.Angle;
             }
             WaitFor(() => tray.IsVisible);
             tray.BringIntoView(); Dispatcher.UIThread.RunJobs();
+            var trayArt = tray.GetVisualDescendants().OfType<Image>().Single();
+            var restAngle = (trayArt.RenderTransform as Avalonia.Media.RotateTransform)?.Angle ?? 0;
+            Require(Math.Abs(restAngle) is >= 90 and <= 95, "The can must rest sideways with at most five degrees of tilt.");
+            if (landingAngle is { } angle)
+                Require(Math.Abs(angle - restAngle) <= 5, "The can must reach the tray sideways in its landing direction.");
             var center = tray.TranslatePoint(new Point(tray.Bounds.Width / 2, tray.Bounds.Height / 2), window)!.Value;
             window.MouseDown(center, MouseButton.Left);
             window.MouseUp(center, MouseButton.Left);
@@ -96,23 +179,34 @@ internal static class CampaignShopUiTests
             var inspect = window.GetVisualDescendants().OfType<Grid>().Single(g => g.Name == "SodaInspection");
             var effect = inspect.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "SodaEffect");
             var pour = inspect.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "SodaPour");
-            var lid = inspect.GetVisualDescendants().OfType<Image>().Single(i => i.Name == "OpenedSodaLid");
+            var lid = inspect.GetVisualDescendants().OfType<Control>().Single(i => i.Name == "OpenedSodaLid");
+            var title = inspect.GetVisualDescendants().OfType<TextBlock>().Single(t => t.Text == soda.Name);
+            var back = Find(window, "CloseSodaInspection");
             if (animate)
             {
                 Require(!lid.IsVisible, "The can must arrive with its original closed lid.");
-                Require(!effect.IsVisible, "The effect should wait for the first opening.");
+                Require(effect.Opacity == 0, "The effect should wait for the first opening.");
                 WaitFor(() => inspect.GetVisualDescendants().OfType<Image>().Any(i => i.Name == "SodaPopOut" && i.Height > 50 && i.Height < 340));
                 WaitFor(() => pour.IsVisible);
-                Require(lid.IsVisible && !effect.IsVisible, "The opened lid must be visible during the pour, before the effect.");
+                Require(lid.IsVisible && effect.Opacity == 0, "The opened lid must be visible during the pour, before the effect.");
+                var titleAt = title.TranslatePoint(default, inspect);
+                var backAt = back.TranslatePoint(default, inspect);
+                var splash = inspect.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "SodaSplash");
+                Require(!splash.IsVisible, "The splash must wait until the liquid reaches the floor.");
+                WaitFor(() => splash.IsVisible);
+                Require(pour.IsVisible && effect.Opacity == 0, "The liquid must splash before revealing the effect.");
                 if (Environment.GetEnvironmentVariable("BIDEUCHRE_RENDER_TESTS") is not null)
                 {
                     var captureAt = AnimationClock.Now + .26;
                     WaitFor(() => AnimationClock.Now >= captureAt);
                     Capture(window, "soda-pouring");
                 }
-                WaitFor(() => effect.IsVisible);
+                WaitFor(() => effect.Opacity >= 1);
+                Require(!splash.IsVisible, "The splash must finish before the effect is revealed.");
+                Require(titleAt == title.TranslatePoint(default, inspect) && backAt == back.TranslatePoint(default, inspect),
+                    "The title and Back to shop button must stay still as the effect appears.");
             }
-            Require(lid.IsVisible && effect.IsVisible && !pour.IsVisible, "The finished opening must show the effect with the stream stopped.");
+            Require(lid.IsVisible && effect.Opacity == 1 && !pour.IsVisible, "The finished opening must show the effect with the stream stopped.");
             Require(inspect.GetVisualDescendants().OfType<Image>().Single(i => i.Name == "InspectedSoda").Height >= 350
                 && Text(inspect).Contains(soda.Name) && Text(inspect).Contains(soda.Description), "Inspection must enlarge and explain the dispensed can.");
             Capture(window, "soda-purchased");
@@ -120,7 +214,7 @@ internal static class CampaignShopUiTests
             Require(tray.IsEffectivelyEnabled && CampaignStore.Load(path)!.Money == 22, "Closing inspection must restore the tray without charging again.");
             Require(CampaignStore.Load(path)!.Shop!.SodaOpened, "The save must remember opening the can.");
             Click(tray);
-            Require(window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "SodaEffect").IsVisible,
+            Require(window.GetVisualDescendants().OfType<StackPanel>().Single(p => p.Name == "SodaEffect").Opacity == 1,
                 "Reopening the same soda should show its effect immediately.");
             Click(Find(window, "CloseSodaInspection"));
             Click(buy);
@@ -474,9 +568,12 @@ internal static class CampaignShopUiTests
                 var blockedCard = Find(window, $"BoosterPick{choices[0]}");
                 window.MouseMove(blockedCard.TranslatePoint(new Point(blockedCard.Bounds.Width / 2, blockedCard.Bounds.Height / 2), window)!.Value);
                 var blockedEffect = FeatureCatalog.Get(FeatureCategory.Joker, choices[0].ToString()).Description;
-                WaitFor(() => window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Name == "BoosterEffect" && t.Text?.Contains(blockedEffect) == true));
+                WaitFor(() => window.GetVisualDescendants().OfType<Border>().Any(b => b.Name == "CampaignCardExplanation" && Text(b).Contains(blockedEffect)));
                 window.MouseMove(new Point(1, 1));
                 Dispatcher.UIThread.RunJobs();
+                Require(((Control)blockedCard.Parent!).Focus(NavigationMethod.Tab), "Keyboard players must be able to inspect a Joker while picking is blocked.");
+                WaitFor(() => window.GetVisualDescendants().OfType<Border>().Any(b => b.Name == "CampaignCardExplanation" && Text(b).Contains(blockedEffect)));
+                Find(window, "SkipBooster").Focus(NavigationMethod.Tab);
                 if (!skip) Capture(window, "shop-joker-booster");
                 if (!skip)
                 {
@@ -501,11 +598,16 @@ internal static class CampaignShopUiTests
                     var art = pick.GetVisualDescendants().OfType<Image>().Single();
                     art.BringIntoView();
                     Dispatcher.UIThread.RunJobs();
+                    Require(pick.GetVisualDescendants().OfType<Border>().Any(face => face.BoxShadow.Count > 0),
+                        "The opened Joker card must cast a shadow.");
                     var point = art.TranslatePoint(new Point(art.Bounds.Width / 2, art.Bounds.Height / 2), window)!.Value;
+                    var hitOrigin = pick.TranslatePoint(default, window);
+                    WaitFor(() => art.TranslatePoint(new Point(art.Bounds.Width / 2, art.Bounds.Height / 2), window) != point);
+                    Require(pick.TranslatePoint(default, window) == hitOrigin, "The Joker must float inside a fixed hit area.");
                     window.MouseMove(point);
                     WaitFor(() => art.TranslatePoint(new Point(art.Bounds.Width / 2, art.Bounds.Height / 2), window)!.Value.Y < point.Y - 5);
                     var effect = FeatureCatalog.Get(FeatureCategory.Joker, choices[2].ToString()).Description;
-                    Require(art.Width >= 168 && window.GetVisualDescendants().OfType<TextBlock>().Any(t => t.Name == "BoosterEffect" && t.Text?.Contains(effect) == true),
+                    Require(art.Width >= 168 && window.GetVisualDescendants().OfType<Border>().Any(b => b.Name == "CampaignCardExplanation" && Text(b).Contains(effect)),
                         "Hovering the enlarged Joker must show its effect.");
                     window.MouseDown(point, MouseButton.Left);
                     window.MouseUp(point, MouseButton.Left);

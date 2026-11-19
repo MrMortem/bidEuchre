@@ -109,6 +109,9 @@ internal static class ScoreExplanationTests
     {
         var layered = Begin(bid: BidLevel.Four, variant: GumballId.Chaos,
             jokers: [JokerId.LastLaugh, JokerId.Clubhouse], enhancement: EnhancementId.Stone, sigil: SigilId.Fish, duplicates: true);
+        var seat = layered.CurrentSeat!.Value;
+        layered.ExecuteCampaignAction(seat, layered.CreateCampaignView(seat).LegalActions.OfType<CampaignCommand.Play>().First());
+        Assert.Equal(3, layered.Scores[0], "Chaos doubling is applied at settlement, after the live effect points show.");
         Finish(layered);
         var result = Result(layered); var us = Team(result, 0); var them = Team(result, 1);
         Assert.True(result["MadeContract"]!.GetValue<bool>());

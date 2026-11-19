@@ -82,6 +82,9 @@ internal static class PixelArt
 
     internal static string CollectorImageName(string packKey) => "curated-collector-" + packKey.ToLowerInvariant();
 
+    public const int SodaTopFrames = 7;
+    public static IImage SodaTopFrame(int frame) => Tile("open-soda-top", 0, frame, 1, SodaTopFrames);
+
     private static IImage Tile(string name, int column, int row, int columns, int rows)
     {
         var key = $"{name}:{column}:{row}";

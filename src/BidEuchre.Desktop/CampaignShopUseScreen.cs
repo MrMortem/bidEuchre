@@ -102,7 +102,7 @@ internal static class CampaignShopUseScreen
                 selectedSlot = slot; selected = true; chosen.Clear(); Refresh();
             };
             itemFrames.Add((slot, frame));
-            return button;
+            return CampaignCardExplanation.Attach(button, item);
         }
 
         var inventory = run.Resources.Inventory;

@@ -48,7 +48,7 @@ internal static class TableRenderingTests
             try { action(); Console.WriteLine("PASS  " + name); }
             catch (Exception error) { failures.Add(name + ": " + error.Message); Console.WriteLine("FAIL  " + failures[^1]); }
         }
-        Test("Owned inventory cards float above fixed shadows and respect motion settings", () =>
+        Test("Owned inventory cards float inside fixed slots and respect motion settings", () =>
         {
             var motion = new PixelMotion();
             var row = CampaignInventoryScreen.Row();
@@ -59,17 +59,22 @@ internal static class TableRenderingTests
             {
                 window.Show(); Flush();
                 var slot = (Grid)row.Children[0];
-                var shadow = (Border)slot.Children[0];
+                var occupiedOutline = (Border)slot.Children[0];
+                var shadow = (Border)slot.Children[1];
                 var outline = (Border)row.Children[1];
+                var slotBounds = Bounds(occupiedOutline, window);
+                Require(occupiedOutline.BorderThickness.Left > 0 && slotBounds.Size == Bounds(outline, window).Size,
+                    "Occupied and empty inventory slots should have matching outlines.");
                 var anchor = Bounds(shadow, window);
                 var initial = face.TranslatePoint(default, window);
                 CampaignShopUiTests.WaitFor(() => face.TranslatePoint(default, window) != initial);
                 Require(Bounds(shadow, window) == anchor && shadow.BoxShadow.Count > 0 && !shadow.IsHitTestVisible,
                     "The card should move independently above a stationary shadow.");
+                Require(Bounds(occupiedOutline, window) == slotBounds, "The occupied outline should stay still as its card floats.");
                 Require(outline.RenderTransform is null && outline.BoxShadow.Count == 0, "Empty slots should remain flat.");
                 motion.SetReduced(true);
                 var still = face.TranslatePoint(default, window);
-                Require(slot.Children[1].RenderTransform!.Value.IsIdentity, "Reduced motion should settle the artwork.");
+                Require(slot.Children[2].RenderTransform!.Value.IsIdentity, "Reduced motion should settle the artwork.");
                 motion.SetReduced(false);
                 motion.SetEnabled(false);
                 Require(face.TranslatePoint(default, window) == still && shadow.BoxShadow.Count > 0,

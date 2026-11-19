@@ -101,9 +101,15 @@ internal static class CampaignShopScreen
                 ? Face("SPECTRAL", ink, PixelArt.Machine(PixelArt.CollectorImageName(definition.Key), Art, Art),
                     definition.Name + " Sigil", tag, blocked)
                 : Face(definition, ink, tag, blocked);
-            if (offer.Sold) { face.Opacity = .4; face.Margin = new Thickness(0, Lift, 0, 0); return face; }
-            return Selectable(face, ink, $"Offer{offer.Id}", $"{CampaignTableControls.CategoryName(offer.Category)}: {definition.Name}, ${price}{(blocked is null ? "" : ", " + blocked)}",
+            if (offer.Sold)
+            {
+                face.Opacity = .4;
+                face.Margin = new Thickness(0, Lift, 0, 0);
+                return CampaignCardExplanation.Attach(face, definition);
+            }
+            var card = Selectable(face, ink, $"Offer{offer.Id}", $"{CampaignTableControls.CategoryName(offer.Category)}: {definition.Name}, ${price}{(blocked is null ? "" : ", " + blocked)}",
                 () => OfferDetail(run, offer, definition, actions, motion));
+            return CampaignCardExplanation.Attach(card, definition);
         }
 
         // The Fortune Teller has a menu of her own; her card only says whether she is open.
@@ -268,21 +274,22 @@ internal static class CampaignShopScreen
         foreach (var joker in inventory.Jokers)
         {
             var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
-            var value = joker.DisplayValue();
             var face = OwnedJokerFace(definition, true);
-            ownedJokers.Add(Selectable(face, Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name + ", sell for $2", () => Detail(
-                "YOUR JOKER", Gold, definition.Name, value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {value}", null,
-                MenuParts.Button("Sell +$2", false, motion, $"Sell{joker.Id}", () => actions.Sell(joker.Id), true, 264))));
+            var card = Selectable(face, Gold, $"Owned{joker.Id}", "Your Joker: " + definition.Name + ", sell for $2", () => Detail(
+                "YOUR JOKER", Gold, definition.Name, null, null,
+                MenuParts.Button("Sell +$2", false, motion, $"Sell{joker.Id}", () => actions.Sell(joker.Id), true, 264)));
+            ownedJokers.Add(CampaignCardExplanation.Attach(card, definition, CampaignTableControls.JokerDescription(joker, definition)));
         }
         // The ordinary shelf only offers discard; inventory tickets become usable inside a purchase's six-card menu.
         var ownedItems = new List<Control>();
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
             var ink = Ink(category);
-            ownedItems.Add(Selectable(CampaignTableControls.CardFace(definition), ink, $"Owned{category}{slot}", $"Your {CampaignTableControls.CategoryName(category)}: {definition.Name}", () => Detail(
-                $"YOUR {CampaignTableControls.CategoryName(category).ToUpperInvariant()}", ink, definition.Name, definition.Description,
+            var card = Selectable(CampaignTableControls.CardFace(definition), ink, $"Owned{category}{slot}", $"Your {CampaignTableControls.CategoryName(category)}: {definition.Name}", () => Detail(
+                $"YOUR {CampaignTableControls.CategoryName(category).ToUpperInvariant()}", ink, definition.Name, null,
                 category == FeatureCategory.Tarot ? "Use during a match on cards in your hand, or while a purchase's six-card menu is open." : "Use during a match on cards in your hand.",
-                MenuParts.Button("Discard", false, motion, $"Discard{category}{slot}", () => actions.DiscardItem(category, slot), true, 264))));
+                MenuParts.Button("Discard", false, motion, $"Discard{category}{slot}", () => actions.DiscardItem(category, slot), true, 264)));
+            ownedItems.Add(CampaignCardExplanation.Attach(card, definition));
         }
 
         // Each gumball pulled so far, in its own colour; its bid is in the tooltip.
@@ -340,7 +347,7 @@ internal static class CampaignShopScreen
             }
         });
         if (showSoda) Select(null, VendingDetail());
-        else Select(null, Detail("SHOP", Muted, "Pick a card", "Press a card to see what it does and what it costs.", null));
+        else Select(null, Detail("SHOP", Muted, "Pick a card", "Select a card to see the available actions.", null));
         var scroll = new ScrollViewer { Content = panel, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto };
         scroll.SizeChanged += (_, e) => market.MaxWidth = Math.Max(1, e.NewSize.Width - panel.Margin.Left - panel.Margin.Right - 16);
         shopLayer.Children.Add(scroll);
@@ -362,7 +369,7 @@ internal static class CampaignShopScreen
             var definition = FeatureCatalog.Get(FeatureCategory.Joker, state.Id.ToString());
             var canSell = full && !booster.AwaitingOpen;
             var face = OwnedJokerFace(definition, canSell);
-            ToolTip.SetTip(face, $"{definition.Name}: {definition.Description}");
+            var description = CampaignTableControls.JokerDescription(state, definition);
             if (canSell)
             {
                 var card = new Button { Name = $"Owned{state.Id}", Padding = new Thickness(0) };
@@ -370,9 +377,9 @@ internal static class CampaignShopScreen
                 AutomationProperties.SetName(card, $"Your Joker: {definition.Name}");
                 card.Click += (_, _) => sale.Content = MenuParts.Button($"Sell {definition.Name} +${CampaignShop.JokerSellValue}", false,
                     motion, $"BoosterSell{state.Id}", () => sell(state.Id), true, 360);
-                shelf.Add(card);
+                shelf.Add(CampaignCardExplanation.Attach(card, definition, description));
             }
-            else shelf.Add(face);
+            else shelf.Add(CampaignCardExplanation.Attach(face, definition, description));
         }
         var layout = new Grid { RowDefinitions = new RowDefinitions("*,Auto") };
         Grid.SetRow(sale, 1);
@@ -405,12 +412,6 @@ internal static class CampaignShopScreen
         if (note is not null) panel.Children.Add(Label(note, Danger, 12));
         var row = Row(10);
         panel.Children.Add(new Viewbox { StretchDirection = StretchDirection.DownOnly, Child = row });
-        var effect = new TextBlock
-        {
-            Name = "BoosterEffect", FontSize = 17, Foreground = MainWindow.Ink, MinHeight = 64,
-            MaxWidth = 660, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center
-        };
-        panel.Children.Add(effect);
         foreach (var id in booster.Choices!)
         {
             var joker = FeatureCatalog.Get(FeatureCategory.Joker, id.ToString());
@@ -428,9 +429,10 @@ internal static class CampaignShopScreen
             card.Children.Add(art);
             card.Children.Add(Label(joker.Name, Gold, 15));
             pick.Content = card;
-            BoosterOpening.EnableHoverLift(pick, motion);
+            BoosterOpening.AnimateChoice(pick, motion, row.Children.Count);
             var slot = new Border { Background = Brushes.Transparent, Child = pick };
-            BoosterOpening.ShowEffectOnHover(slot, pick, effect, $"{joker.Name} — {joker.Description}");
+            if (full) AutomationProperties.SetName(slot, $"{joker.Name}, sell an owned Joker to keep this card");
+            CampaignCardExplanation.Attach(slot, joker.Name, joker.Description, focusTarget: full ? slot : pick);
             row.Children.Add(slot);
         }
         var skip = MenuParts.Button("Skip pack", false, motion, "SkipBooster", () => resolve(null), true, 260);
@@ -489,19 +491,20 @@ internal static class CampaignShopScreen
             : room ? null
             : offer.Category == FeatureCategory.Joker ? "Your Joker slots are full. Sell one first."
             : "Your card slots are full. Buy and use this offer now, or discard a held card to free a slot.";
-        return Detail(CampaignTableControls.CategoryName(offer.Category).ToUpperInvariant(), Ink(offer.Category), definition.Name, definition.Description, problem ?? hint,
+        return Detail(CampaignTableControls.CategoryName(offer.Category).ToUpperInvariant(), Ink(offer.Category), definition.Name, null, problem ?? hint,
             [.. buttons], problem is not null);
     }
 
-    private static Control Detail(string kind, IBrush ink, string name, string description, string? hint, params Control[] buttons) =>
+    private static Control Detail(string kind, IBrush ink, string name, string? description, string? hint, params Control[] buttons) =>
         Detail(kind, ink, name, description, hint, buttons, false);
 
-    private static Control Detail(string kind, IBrush ink, string name, string description, string? hint, Control[] buttons, bool warning)
+    private static Control Detail(string kind, IBrush ink, string name, string? description, string? hint, Control[] buttons, bool warning)
     {
         var stack = new StackPanel { Spacing = 10 };
         stack.Children.Add(Label(kind, ink, 11));
         stack.Children.Add(Label(name, Gold, 20));
-        stack.Children.Add(new TextBlock { Text = description, Foreground = MainWindow.Ink, FontSize = 14, TextWrapping = TextWrapping.Wrap, LineHeight = 20 });
+        if (description is not null)
+            stack.Children.Add(new TextBlock { Text = description, Foreground = MainWindow.Ink, FontSize = 14, TextWrapping = TextWrapping.Wrap, LineHeight = 20 });
         if (hint is not null)
             stack.Children.Add(new TextBlock { Text = hint, Foreground = warning ? Danger : Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap });
         foreach (var button in buttons) { button.Margin = new Thickness(0, 4, 0, 0); stack.Children.Add(button); }

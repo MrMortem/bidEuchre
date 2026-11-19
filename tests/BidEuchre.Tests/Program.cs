@@ -107,6 +107,7 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Settled bidding OvercalledDuelistDoesNotConsumeUse", () => Run(SettledBiddingTests.OvercalledDuelistDoesNotConsumeUse)),
     ("Settled bidding ForcedDealerVowAndFreePlayRemainLegal", () => Run(SettledBiddingTests.ForcedDealerVowAndFreePlayRemainLegal)),
     ("Settled effects Duck trials and replay", () => Run(SettledEffectTests.DuckTrialsAndReplay)),
+    ("Live campaign effect points survive resume and settle once", () => Run(SettledEffectTests.LivePointsSurviveResumeAndSettleOnce)),
     ("Settled effects team scope", () => Run(SettledEffectTests.TeamScopeAndQualifyingCards)),
     ("Settled effects Snake Eyes threshold", () => Run(SettledEffectTests.SnakeEyesThreshold)),
     ("Settled effects Roller Coaster rounds", () => Run(SettledEffectTests.RollerCoasterResetsEachRound)),
