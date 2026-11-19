@@ -46,6 +46,8 @@ public static class CampaignBotPolicy
             // Bid what the hand is worth in its best suit, never the all-or-nothing contracts.
             var worth = (int)Math.Floor(Enum.GetValues<Suit>().Max(suit => TrumpTricks(hand, suit)) + PartnerTricks);
             var affordable = bids.LastOrDefault(b => b.Level <= BidLevel.Six && (int)b.Level <= worth);
+            if (affordable is { Level: BidLevel.Three })
+                return legal.OfType<CampaignCommand.Bid>().FirstOrDefault(bid => bid.Variant == GumballId.OverAchiever) ?? affordable;
             if (affordable is not null) return affordable;
             return (CampaignCommand?)pass ?? bids[0];
         }

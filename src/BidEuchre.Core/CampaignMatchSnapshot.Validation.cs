@@ -18,6 +18,7 @@ public sealed partial record CampaignMatchSnapshot
     private bool Active(int seat) => Variant == GumballId.Duelist && DuelOpponent is { } opponent
         ? seat == Bidder || seat == opponent : !(Contract is { IsPartnersBest: true } or { IsAlone: true }) || seat != (Bidder!.Value + 2) % 4;
     private int Next(int seat) { do seat = (seat + 1) % 4; while (!Active(seat)); return seat; }
+    private int Leader(int intended) => GameRules.CampaignLeader(Variant, Bidder, intended);
     private bool Plays(SnapshotPlay[] plays, bool completed)
     {
         if (plays is null || plays.Any(p => p is null || !Seat(p.Seat) || !Id(p.Id)) || plays.Select(p => p.Seat).Distinct().Count() != plays.Length
@@ -103,17 +104,18 @@ public sealed partial record CampaignMatchSnapshot
             || HighBid is { } bid && !Enum.IsDefined(bid) || GameWinner is { } winner && winner is not (0 or 1)
             || Contract is not null && (!ValidContract(Contract) || Contract.Bid != HighBid || Bidder is null)
             || (Bidder is null) != (HighBid is null) || BiddingTurns is < 0 or > 4
-            || Variant is { } variant && variant is not (GumballId.Chaos or GumballId.Poker or GumballId.Telepath or GumballId.Duelist)
             || DuelOpponent is { } opponent && (opponent is not (1 or 3) || Variant != GumballId.Duelist)
             || LastMatchCard is { } last && !Id(last) || EffectSequence < 0) return false;
-        if (Variant is not null && (Bidder != 0 || !(Variant switch
+        if (Variant is not null && !(Variant switch
         {
-            GumballId.Chaos => HighBid is >= BidLevel.Four and <= BidLevel.Six,
-            GumballId.Poker => HighBid == BidLevel.Four,
-            GumballId.Telepath => HighBid is BidLevel.Five or BidLevel.Six,
-            GumballId.Duelist => HighBid is BidLevel.Four or BidLevel.Five,
+            GumballId.Chaos => Bidder == 0 && HighBid is >= BidLevel.Four and <= BidLevel.Six,
+            GumballId.Poker => Bidder == 0 && HighBid == BidLevel.Four,
+            GumballId.Telepath => Bidder == 0 && HighBid is BidLevel.Five or BidLevel.Six,
+            GumballId.Duelist => Bidder == 0 && HighBid is BidLevel.Four or BidLevel.Five,
+            GumballId.OverAchiever => HighBid == BidLevel.Three,
+            GumballId.RollerCoaster => HighBid is >= BidLevel.Four and <= BidLevel.Six && Contract is not { Mode: ContractMode.Trump },
             _ => false
-        }))) return false;
+        })) return false;
         if (DuelOpponent is not null && (BiddingTurns != 4 || !DuelistUsedThisMatch)
             || PokerRevealed && (Variant != GumballId.Poker || Contract is null)
             || TelepathDone && Variant != GumballId.Telepath
@@ -133,7 +135,7 @@ public sealed partial record CampaignMatchSnapshot
         for (var i = 0; i < CompletedTricks.Length; i++)
         {
             var t = CompletedTricks[i];
-            if (t is null || t.Number != i + 1 || !Plays(t.Plays, true) || t.Leader != t.Plays[0].Seat || t.Leader != (i == 0 ? Next(Dealer) : CompletedTricks[i - 1].Winner) || !t.Plays.Any(p => p.Seat == t.Winner)) return false;
+            if (t is null || t.Number != i + 1 || !Plays(t.Plays, true) || t.Leader != t.Plays[0].Seat || t.Leader != Leader(i == 0 ? Next(Dealer) : CompletedTricks[i - 1].Winner) || !t.Plays.Any(p => p.Seat == t.Winner)) return false;
         }
         if (!ValidScoringEffects()) return false;
         if (Phase is not (GamePhase.HandComplete or GamePhase.GameComplete))
@@ -187,6 +189,10 @@ public sealed partial record CampaignMatchSnapshot
                 if (b is null || b.Team != team || b.HandMultiplier < 1 || b.GumballBonuses is null
                     || b.GumballBonuses.Any(g => g is null || !Enum.IsDefined(g.Id) || g.Points < 0)
                     || b.FinalDelta != (team == 0 ? h.TeamZeroDelta : h.TeamOneDelta)) return false;
+                if (b.GumballEffect is { } effect && (team != h.Bidder % 2 || effect.Points == 0
+                    || effect.Points != GumballRewards.HandPoints(effect.Id, h.BiddingTeamTricks, h.DefendingTeamTricks)
+                    || (effect.Id == GumballId.OverAchiever ? h.Contract?.Bid != BidLevel.Three
+                        : h.Contract is not { Bid: >= BidLevel.Four and <= BidLevel.Six, Mode: ContractMode.High or ContractMode.Low }))) return false;
                 if (h.PokerResult is { } pokerResult)
                 {
                     if (b.PokerPoints != pokerResult.TeamPoints[team] || b.ContractPoints != 0 || b.CardPoints != 0 || b.JokerPoints != 0
@@ -259,7 +265,7 @@ public sealed partial record CampaignMatchSnapshot
         if (Phase is GamePhase.ExchangingBidderCard or GamePhase.ExchangingPartnerCard && (CurrentTrick.Length != 0 || CompletedTricks.Length != 0)) return false;
         if (Phase == GamePhase.Playing)
         {
-            var leader = CompletedTricks.Length == 0 ? Next(Dealer) : CompletedTricks[^1].Winner;
+            var leader = Leader(CompletedTricks.Length == 0 ? Next(Dealer) : CompletedTricks[^1].Winner);
             if (!Active(CurrentSeat!.Value) || (CurrentTrick.Length == 0 ? CurrentSeat != leader : CurrentTrick[0].Seat != leader || Next(CurrentTrick[^1].Seat) != CurrentSeat)) return false;
         }
         return true;

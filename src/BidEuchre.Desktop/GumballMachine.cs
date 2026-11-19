@@ -37,7 +37,8 @@ internal sealed class GumballMachine
     public static IBrush Colour(GumballId id) => Brush.Parse(id switch
     {
         GumballId.Lowballer => "#5BC8F5", GumballId.Chaos => "#FF5A5F", GumballId.Poker => "#3DDC84", GumballId.Duelist => "#FF9F1C",
-        GumballId.Telepath => "#C77DFF", GumballId.PartnersBest => "#FF7EB6", GumballId.Alone => "#F4F4F8", GumballId.HighLow => "#1FA84A", _ => "#FFD23F"
+        GumballId.Telepath => "#C77DFF", GumballId.PartnersBest => "#FF7EB6", GumballId.Alone => "#F4F4F8", GumballId.HighLow => "#1FA84A",
+        GumballId.RollerCoaster => "#E35DB1", _ => "#FFD23F"
     });
 
     /// <summary>One gumball: its sprite when it has one, otherwise a ball in its bid's colour with a

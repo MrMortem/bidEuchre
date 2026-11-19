@@ -50,6 +50,8 @@ internal static class GumballDuplicateTests
             (BidLevel.Four, null, ContractMode.Low, [GumballId.HighLow]),
             (BidLevel.Alone, null, ContractMode.High, [GumballId.Alone, GumballId.HighLow]),
             (BidLevel.Four, GumballId.Duelist, ContractMode.Low, [GumballId.Duelist, GumballId.HighLow]),
+            (BidLevel.Three, GumballId.OverAchiever, ContractMode.Trump, [GumballId.OverAchiever]),
+            (BidLevel.Four, GumballId.RollerCoaster, ContractMode.High, [GumballId.RollerCoaster, GumballId.HighLow]),
             (BidLevel.Three, null, ContractMode.Trump, [])
         };
         var extras = WithExtras(Enum.GetValues<GumballId>().Select(id => (id, 2)).ToArray());

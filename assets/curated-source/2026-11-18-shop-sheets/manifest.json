@@ -333,12 +333,9 @@
       "category": "gumball",
       "label": "Over Achiever",
       "file": "../2026-11-15-euchatro/labeled/gumball/gumball-over-achiever.png",
-      "runtimeId": null,
+      "runtimeId": "gumball:over-achiever",
       "resource": "curated-gumball-over-achiever",
-      "mappingStatus": "unimplemented-artwork",
-      "notes": [
-        "No matching FeatureCatalog item exists. Preserve artwork without adding or inferring gameplay."
-      ],
+      "mappingStatus": "confirmed",
       "sourceId": "1mO85T5UjYzH-DrXI8jkb4Fmlj65_uqBF",
       "sourceName": "Gumball Over Achiever.png",
       "source": "../2026-11-15-euchatro/originals/Gumball Over Achiever.png",

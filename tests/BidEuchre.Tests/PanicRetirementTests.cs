@@ -11,7 +11,7 @@ internal static class PanicRetirementTests
     {
         Assert.False(Enum.IsDefined(Retired), "The retired numeric identity must not remain playable.");
         Assert.Equal(8, (int)GumballId.HighLow);
-        Assert.Equal(8, CampaignInventory.GumballCount);
+        Assert.Equal(10, CampaignInventory.GumballCount);
         Assert.False(FeatureCatalog.All.Any(f => f.Id == "gumball:panic-button"));
         Assert.False(typeof(CampaignCommand).GetNestedTypes().Any(type => type.Name == "PanicButton"));
         foreach (var full in new[] { false, true })

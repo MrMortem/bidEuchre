@@ -6,14 +6,20 @@ public sealed partial class GameEngine
     {
         // Saves and hand settlement use the settled base score. The trick ledgers already
         // persist everything needed to reconstruct the score shown during play.
-        var team0 = (long)_scores[0] + _cardPoints[0] + _jokerPoints[0] + RoundJokerPoints();
-        var team1 = (long)_scores[1] + _cardPoints[1] + _jokerPoints[1];
+        var team0 = (long)_scores[0] + _cardPoints[0] + _jokerPoints[0] + RoundJokerPoints() + RoundGumballPoints(0);
+        var team1 = (long)_scores[1] + _cardPoints[1] + _jokerPoints[1] + RoundGumballPoints(1);
         foreach (var point in _trickPoints)
         {
             if (point.Team == 0) team0 += point.Amount;
             else team1 += point.Amount;
         }
         return [(int)Math.Clamp(team0, int.MinValue, int.MaxValue), (int)Math.Clamp(team1, int.MinValue, int.MaxValue)];
+    }
+
+    private int RoundGumballPoints(int team)
+    {
+        if (Bidder % 2 != team) return 0;
+        return GumballRewards.HandPoints(_variant, _tricksByTeam[team], _tricksByTeam[1 - team]);
     }
 
     private int RoundJokerPoints()
@@ -112,10 +118,14 @@ public sealed partial class GameEngine
         var breakdowns = new TeamScoreBreakdown[2];
         for (var team = 0; team < 2; team++)
         {
+            var points = RoundGumballPoints(team);
+            var effect = points != 0 ? new GumballHandEffect(_variant!.Value, points) : null;
+            if (effect is not null)
+                _events.Add($"{FeatureCatalog.Get(FeatureCategory.Gumball, effect.Id.ToString()).Name}: {Signed(effect.Points)} points for team {team + 1}.");
             _events.Add($"Team {team + 1}: contract {Signed(normal[team])}; cards {Signed(_cardPoints[team])}; Jokers {Signed(_jokerPoints[team])}; trick multipliers {Signed(_modifierPoints[team])}; hand ×{factor}; opponent bid bonus {Signed(team == 1 ? opponentBonus : 0)} after hand multiplier.");
             // Settlement and its public explanation share the same arithmetic and reward entries.
             breakdowns[team] = new(team, normal[team], _cardPoints[team], _jokerPoints[team], _modifierPoints[team], factor, team == 1 ? opponentBonus : 0)
-            { GumballBonuses = gumballBonuses.Where(reward => reward.Team == team).ToArray() };
+            { GumballEffect = effect, GumballBonuses = gumballBonuses.Where(reward => reward.Team == team).ToArray() };
         }
         return breakdowns;
     }

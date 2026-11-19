@@ -27,16 +27,25 @@ public static class GumballGrants
 
 /// <summary>A fixed duplicate gumball reward. Team uses the engine's zero-based team index.</summary>
 public sealed record GumballBidBonus(int Team, GumballId Id, int Points);
+public sealed record GumballHandEffect(GumballId Id, int Points);
 
 public static class GumballRewards
 {
+    internal static int HandPoints(GumballId? variant, int won, int lost) => variant switch
+    {
+        GumballId.OverAchiever => Math.Max(0, won - 3),
+        GumballId.RollerCoaster => won - lost,
+        _ => 0
+    };
+
     /// <summary>Per-type contributions for result explanations. These points apply once after all hand multipliers.</summary>
     public static GumballBidBonus[] SuccessfulBidBonuses(CampaignInventory inventory, int bidder, bool success,
         BidLevel bid, ContractMode mode, GumballId? variant)
     {
         if (bidder != 0 || !success) return [];
         var matching = new HashSet<GumballId>();
-        if (variant is GumballId.Chaos or GumballId.Poker or GumballId.Duelist or GumballId.Telepath) matching.Add(variant.Value);
+        if (variant is GumballId.Chaos or GumballId.Poker or GumballId.Duelist or GumballId.Telepath or GumballId.OverAchiever or GumballId.RollerCoaster)
+            matching.Add(variant.Value);
         if ((int)bid == 2) matching.Add(GumballId.Lowballer);
         if (bid == BidLevel.PartnersBest) matching.Add(GumballId.PartnersBest);
         if (bid == BidLevel.Alone) matching.Add(GumballId.Alone);

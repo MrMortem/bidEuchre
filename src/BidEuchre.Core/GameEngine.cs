@@ -140,7 +140,9 @@ public sealed partial class GameEngine
             if (IsCampaign) { _variant = _pendingBidVariant; _pendingBidVariant = null; }
             HighBid = bid;
             Bidder = seat;
-            _events.Add($"{_playerNames[seat]} bid {DisplayBid(bid.Value)}.");
+            var gumball = _variant is GumballId.OverAchiever or GumballId.RollerCoaster
+                ? $" with {FeatureCatalog.Get(FeatureCategory.Gumball, _variant.Value.ToString()).Name}" : "";
+            _events.Add($"{_playerNames[seat]} bid {DisplayBid(bid.Value)}{gumball}.");
         }
         else
         {
@@ -178,8 +180,8 @@ public sealed partial class GameEngine
             throw new GameRuleException("Only the auction winner may choose the contract.");
         }
 
-        if (mode != ContractMode.Trump && !GetContractModes().Contains(mode) && IsCampaign)
-            throw new GameRuleException("High and Low are locked until you pull the High/Low gumball.");
+        if (IsCampaign && !GetContractModes().Contains(mode))
+            throw new GameRuleException("That contract is unavailable for this campaign bid.");
         Contract = IsCampaign && (int)HighBid! == 2
             ? mode == ContractMode.Trump && trump is not null ? new Contract(HighBid.Value, mode, trump) : throw new GameRuleException("Bid 2 requires trump.")
             : Contract.Create(HighBid!.Value, mode, trump);
@@ -296,7 +298,7 @@ public sealed partial class GameEngine
         }
 
         if (IsCampaign && _variant == GumballId.Chaos) RollChaos();
-        CurrentSeat = winner;
+        CurrentSeat = IsCampaign ? CampaignLeader(winner) : winner;
     }
 
     public void ApplyIllegalPlayPenalty(int offendingSeat)
@@ -409,6 +411,7 @@ public sealed partial class GameEngine
         {
             return [ContractMode.Trump];
         }
+        if (IsCampaign && _variant == GumballId.RollerCoaster) return [ContractMode.High, ContractMode.Low];
         // Every campaign seat shares the inventory's High/Low unlock gate.
         if (IsCampaign && !_resources.Inventory.Unlocks.Contains(GumballId.HighLow)) return [ContractMode.Trump];
 
@@ -459,7 +462,8 @@ public sealed partial class GameEngine
     private void BeginTrickPlay()
     {
         Phase = GamePhase.Playing;
-        CurrentSeat = NextActiveSeat(Dealer);
+        var leader = NextActiveSeat(Dealer);
+        CurrentSeat = IsCampaign ? CampaignLeader(leader) : leader;
     }
 
     private int NextActiveSeat(int seat)

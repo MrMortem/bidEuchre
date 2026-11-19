@@ -70,7 +70,14 @@ internal static class ScoreHistoryControls
                 continue;
             }
             panel.Children.Add(Line($"contract {Signed(part.ContractPoints)} · cards {Signed(part.CardPoints)} · Jokers {Signed(part.JokerPoints)} · trick modifiers {Signed(part.TrickModifierPoints)}", Ink));
-            var subtotal = part.ContractPoints + part.CardPoints + part.JokerPoints + part.TrickModifierPoints;
+            var gumballPoints = 0;
+            if (part.GumballEffect is { } effect)
+            {
+                gumballPoints = effect.Points;
+                var name = FeatureCatalog.Get(FeatureCategory.Gumball, effect.Id.ToString()).Name;
+                panel.Children.Add(Line($"{name} {Signed(gumballPoints)}", Ink));
+            }
+            var subtotal = part.ContractPoints + part.CardPoints + part.JokerPoints + part.TrickModifierPoints + gumballPoints;
             panel.Children.Add(Line($"Subtotal {Signed(subtotal)} · hand ×{part.HandMultiplier} = {Signed(subtotal * part.HandMultiplier)}", Muted));
             var fixedRewards = new[] { $"opponent bid {Signed(part.OpponentBidBonus)}" }.Concat(part.GumballBonuses.Select(bonus =>
                 $"{FeatureCatalog.Get(FeatureCategory.Gumball, bonus.Id.ToString()).Name} {Signed(bonus.Points)}"));
