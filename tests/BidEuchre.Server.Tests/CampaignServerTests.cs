@@ -373,7 +373,9 @@ static class CampaignServerTests
         f.Save(run with { Shop = run.Shop with { Offers = run.Shop.Offers.Select(o => o.Id == machine.Id ? o with { Sold = true, FeatureId = "" } : o).ToArray() } });
         var state = await State(f.Service, f.Token);
         var catalog = state.GetProperty("catalog").EnumerateArray().ToArray();
-        Assert(catalog.Count(f => f.GetProperty("category").GetString() == "Gumball") == 8, "Only eight active gumball bids should be projected.");
+        var gumballs = catalog.Where(f => f.GetProperty("category").GetString() == "Gumball")
+            .Select(f => f.GetProperty("key").GetString()).ToHashSet();
+        Assert(gumballs.SetEquals(Enum.GetNames<GumballId>()), "The catalogue must project exactly the active gumballs.");
         Assert(catalog.All(f => f.GetProperty("key").GetString() != "PanicButton"), "The retired bid must not appear in the catalogue.");
         void Sold(JsonElement current)
         {

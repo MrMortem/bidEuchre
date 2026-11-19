@@ -97,6 +97,8 @@ var tests = new List<(string Name, Func<Task> Run)>
     ("Free-play bot FullBotTablesComplete", () => Run(FreePlayBotPolicyTests.FullBotTablesComplete)),
 
     ("Settled bidding AllSeatsRespectBidUnlocks", () => Run(SettledBiddingTests.AllSeatsRespectBidUnlocks)),
+    ("Over Achiever passes the lead and scores overtricks", () => Run(SettledBiddingTests.OverAchieverPassesTheLeadAndScoresOvertricks)),
+    ("Roller Coaster gumball requires High/Low and scores both ways", () => Run(SettledBiddingTests.RollerCoasterGumballRequiresHighLowAndScoresBothWays)),
     ("Settled bidding AllSeatsRespectContractUnlocks", () => Run(SettledBiddingTests.AllSeatsRespectContractUnlocks)),
     ("Settled bidding SafetyNetAndHumanVariantSeats", () => Run(SettledBiddingTests.SafetyNetAndHumanVariantSeats)),
     ("Settled bidding AlphaMatchesPartnerSpecialBids", () => Run(SettledBiddingTests.AlphaMatchesPartnerSpecialBids)),

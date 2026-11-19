@@ -197,13 +197,14 @@ public sealed record TeamScoreBreakdown(int Team, int ContractPoints, int CardPo
     int TrickModifierPoints, int HandMultiplier, int OpponentBidBonus)
 {
     public int PokerPoints { get; init; }
+    public GumballHandEffect? GumballEffect { get; init; }
     private readonly IReadOnlyList<GumballBidBonus> _gumballBonuses = Array.Empty<GumballBidBonus>();
     public IReadOnlyList<GumballBidBonus> GumballBonuses
     {
         get => _gumballBonuses;
         init => _gumballBonuses = Array.AsReadOnly(value.ToArray());
     }
-    public int FinalDelta => checked((ContractPoints + CardPoints + JokerPoints + TrickModifierPoints)
+    public int FinalDelta => checked((ContractPoints + CardPoints + JokerPoints + TrickModifierPoints + (GumballEffect?.Points ?? 0))
         * HandMultiplier + OpponentBidBonus + PokerPoints + GumballBonuses.Sum(bonus => bonus.Points));
 }
 

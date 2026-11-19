@@ -1,4 +1,5 @@
 using BidEuchre.Core;
+using BidEuchre.App;
 
 internal static class SettledBiddingTests
 {
@@ -109,12 +110,108 @@ internal static class SettledBiddingTests
             Assert.Equal(expected, game.CreateCampaignView(seat).LegalActions.Contains(low));
             if (seat != 0)
             {
-                Assert.False(game.CreateCampaignView(seat).LegalActions.OfType<CampaignCommand.Bid>().Any(b => b.Variant is not null));
+                Assert.False(game.CreateCampaignView(seat).LegalActions.OfType<CampaignCommand.Bid>()
+                    .Any(b => b.Variant is GumballId.Chaos or GumballId.Poker or GumballId.Duelist or GumballId.Telepath));
                 foreach (var (variant, bid) in new[] { (GumballId.Chaos, BidLevel.Four), (GumballId.Poker, BidLevel.Four), (GumballId.Duelist, BidLevel.Four), (GumballId.Telepath, BidLevel.Five) })
                     Assert.Throws<GameRuleException>(() => game.ExecuteCampaignAction(seat, new CampaignCommand.Bid(bid, variant)));
             }
             if (expected) game.ExecuteCampaignAction(seat, low);
             else Assert.Throws<GameRuleException>(() => game.ExecuteCampaignAction(seat, low));
+        }
+    }
+
+    public static void OverAchieverPassesTheLeadAndScoresOvertricks()
+    {
+        var id = GumballId.OverAchiever;
+        var bid = new CampaignCommand.Bid(BidLevel.Three, id);
+        foreach (var seat in Enumerable.Range(0, 4))
+        {
+            var dealer = (seat + 3) % 4;
+            var locked = Game(Resources(), dealer);
+            Assert.Throws<GameRuleException>(() => locked.ExecuteCampaignAction(seat, bid));
+
+            var deck = GameRules.CreateDeck().ToArray();
+            var resources = Resources([id]);
+            for (var i = 0; i < resources.Deck.Length; i++)
+                resources.Deck[i] = resources.Deck[i] with { Face = new(Suit.Clubs, i / 6 == seat ? Rank.Jack : Rank.Nine) };
+            var game = GameEngine.CreateFixture(new FixtureStart(["You", "West", "Partner", "East"],
+                Enumerable.Range(0, 4).Select(s => deck.Skip(s * 6).Take(6).ToArray()).ToArray(), dealer, [0, 0],
+                Campaign: resources, Options: new MatchOptions(1000)));
+            Assert.Throws<GameRuleException>(() => game.ExecuteCampaignAction(seat, new CampaignCommand.Bid(BidLevel.Four, id)));
+            game.ExecuteCampaignAction(seat, bid);
+            FinishAuction(game);
+            game.ExecuteCampaignAction(seat, new CampaignCommand.ChooseContract(ContractMode.Trump, Suit.Clubs));
+
+            int leader = GameRules.NextSeat(seat);
+            for (var trick = 1; trick <= 6; trick++)
+            {
+                Assert.Equal(leader, game.CurrentSeat!.Value);
+                for (var play = 0; play < 4; play++)
+                {
+                    var actor = game.CurrentSeat!.Value;
+                    game.ExecuteCampaignAction(actor, game.CreateCampaignView(actor).LegalActions.OfType<CampaignCommand.Play>().First());
+                }
+                Assert.Equal(seat, game.CompletedTricks[^1].Winner);
+                if (trick < 6)
+                {
+                    Assert.Equal(Math.Max(0, trick - 3), game.Scores[seat % 2]);
+                    game = GameEngine.RestoreCampaignMatch(game.ExportCampaignMatchSnapshot());
+                }
+            }
+            Assert.Equal(9, game.Scores[seat % 2]);
+            Assert.Equal(0, game.Scores[1 - seat % 2]);
+            Assert.Equal(3, game.HandHistory.Single().ScoreBreakdowns[seat % 2].GumballEffect!.Points);
+            Assert.True(game.ExportCampaignMatchSnapshot().IsValid());
+        }
+    }
+
+    public static void RollerCoasterGumballRequiresHighLowAndScoresBothWays()
+    {
+        var id = GumballId.RollerCoaster;
+        var bid = new CampaignCommand.Bid(BidLevel.Four, id);
+        Assert.Throws<GameRuleException>(() => Game(Resources([id])).ExecuteCampaignAction(0, bid));
+        Assert.Throws<GameRuleException>(() => Game(Resources([GumballId.HighLow])).ExecuteCampaignAction(0, bid));
+        foreach (var (bidder, mode, wins, hasJoker) in new[]
+        {
+            (0, ContractMode.High, false, false), (0, ContractMode.High, true, false), (1, ContractMode.Low, true, true)
+        })
+        {
+            var team = bidder % 2;
+            var deck = GameRules.CreateDeck().ToArray();
+            var resources = Resources([id, GumballId.HighLow], hasJoker ? [JokerId.RollerCoaster] : []);
+            for (var i = 0; i < resources.Deck.Length; i++)
+            {
+                var strong = (i / 6 % 2 == team) == wins;
+                resources.Deck[i] = resources.Deck[i] with { Face = new(Suit.Clubs, strong == (mode == ContractMode.High) ? Rank.Ace : Rank.Nine) };
+            }
+            var game = GameEngine.CreateFixture(new FixtureStart(["You", "West", "Partner", "East"],
+                Enumerable.Range(0, 4).Select(s => deck.Skip(s * 6).Take(6).ToArray()).ToArray(), (bidder + 3) % 4, [0, 0],
+                Campaign: resources, Options: new MatchOptions(1000)));
+            game.ExecuteCampaignAction(bidder, bid);
+            FinishAuction(game);
+            Assert.False(game.CreateCampaignView(bidder).LegalActions.OfType<CampaignCommand.ChooseContract>().Any(c => c.Mode == ContractMode.Trump));
+            Assert.Throws<GameRuleException>(() => game.ChooseContract(bidder, ContractMode.Trump, Suit.Clubs));
+            game.ExecuteCampaignAction(bidder, new CampaignCommand.ChooseContract(mode));
+            while (game.CompletedTricks.Count == 0)
+            {
+                var actor = game.CurrentSeat!.Value;
+                game.ExecuteCampaignAction(actor, game.CreateCampaignView(actor).LegalActions.OfType<CampaignCommand.Play>().First());
+            }
+            Assert.Equal(wins ? 1 : -1, game.Scores[team]);
+            Assert.Equal(hasJoker ? -1 : 0, game.Scores[1 - team]);
+            var save = Path.Combine(Path.GetTempPath(), $"roller-coaster-{Guid.NewGuid():N}.json");
+            try
+            {
+                var run = new CampaignRun(Phase: CampaignPhase.InMatch).WithCheckpoint(new(game.ExportCampaignMatchSnapshot()));
+                Assert.True(CampaignStore.Save(run, save));
+                game = GameEngine.RestoreCampaignMatch(CampaignStore.Load(save)!.LiveMatch!);
+            }
+            finally { File.Delete(save); }
+            FinishHand(game);
+            Assert.Equal(wins ? 12 : -10, game.Scores[team]);
+            Assert.Equal(wins ? 6 : -6, game.HandHistory.Single().ScoreBreakdowns[team].GumballEffect!.Points);
+            Assert.Equal(hasJoker ? -6 : 0, game.HandHistory.Single().ScoreBreakdowns[1 - team].JokerPoints);
+            Assert.True(game.ExportCampaignMatchSnapshot().IsValid());
         }
     }
 

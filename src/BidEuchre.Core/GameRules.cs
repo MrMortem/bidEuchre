@@ -93,6 +93,9 @@ public static class GameRules
 
     public static int NextSeat(int seat) => (seat + 1) % 4;
 
+    internal static int CampaignLeader(GumballId? variant, int? bidder, int intended) =>
+        variant == GumballId.OverAchiever && bidder == intended ? NextSeat(intended) : intended;
+
     public static void ValidateSeat(int seat)
     {
         if (seat is < 0 or > 3)

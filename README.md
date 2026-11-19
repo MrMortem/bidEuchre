@@ -275,7 +275,7 @@ Between matches the shop offers two $4 Jokers, a Fortune Teller, and a
 gumball machine with one $3 pull. Hold up to five distinct Jokers. Tarots and Sigils share one inventory of
 four slots; discard one to free space. Sell Jokers for $2. Each pull is blind: a
 gumball rolls out and permanently unlocks a random bidding option you do not
-have yet. After all eight unique bids are unlocked, pulls grant random duplicates.
+have yet. After all ten unique gumballs are unlocked, pulls grant random duplicates.
 Sweet Tooth uses the same rule and grants its gumball immediately, without a held
 Planet card. Each extra copy awards +1 fixed point after hand multipliers when
 you successfully make its matching bid; matching types such as Alone and High/Low

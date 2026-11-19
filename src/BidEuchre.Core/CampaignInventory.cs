@@ -23,7 +23,7 @@ public static class SodaRules
         _ => null
     };
 }
-public enum GumballId { Lowballer = 0, Chaos = 1, Poker = 2, Duelist = 3, Telepath = 4, PartnersBest = 5, Alone = 6, HighLow = 8 }
+public enum GumballId { Lowballer = 0, Chaos = 1, Poker = 2, Duelist = 3, Telepath = 4, PartnersBest = 5, Alone = 6, HighLow = 8, OverAchiever = 9, RollerCoaster = 10 }
 public enum SigilId { Bear = 1, Eagle = 2, Fish = 3, Spider = 4, Frog = 6, Duck = 8, Vulture = 9, Chameleon = 10 }
 public enum TarotId { Chameleon = 4, Grindstone = 5, Prospector = 6, DevilishDeal = 7, Gambler = 8, Traitor = 11, Astronomer = 12, SpringLoaded = 14, TaxCollector = 15 }
 

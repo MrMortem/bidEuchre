@@ -364,8 +364,14 @@ Stored consumables cannot otherwise be used in the shop or pre-match screen.
 ## 12. Campaign Bidding
 
 - Every seat shares the campaign inventory's unlock gates for Safety Net (bid 2),
-  Partner's Best, Alone, and High/Low. Other special variants retain their human-only
+  Partner's Best, Alone, High/Low, Over Achiever, and Roller Coaster. The other special variants retain their human-only
   targeting. Free-play bids and contracts use the normal rules above.
+- With **Over Achiever**, bid exactly 3. Your team earns +1 point for each trick it wins
+  beyond 3. Whenever the bidder would lead a trick, the lead passes to the seat on
+  their left. The bidder still plays every trick.
+- With the **Roller Coaster gumball**, bid 4, 5, or 6 with High/Low unlocked, then choose High
+  or Low. The bidding team earns +1 per trick won and loses 1 per trick lost. The
+  Roller Coaster Joker can also score in the same round.
 - **Alpha:** You may outbid your partner by matching any eligible unlocked bid,
   including Safety Net, numeric bids, Partner's Best, and Alone. Alpha never
   permits matching an opponent or bypassing a bid's restrictions.

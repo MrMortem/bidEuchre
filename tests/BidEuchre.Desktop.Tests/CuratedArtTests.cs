@@ -89,13 +89,15 @@ internal static class CuratedArtTests
                 throw new Exception("Curated darker substrates need a contrasting halo behind the original face sprite.");
         }
         foreach (var gumball in new[] { GumballId.HighLow, GumballId.Chaos, GumballId.Alone, GumballId.Lowballer,
-            GumballId.Poker, GumballId.Duelist, GumballId.Telepath, GumballId.PartnersBest })
+            GumballId.Poker, GumballId.Duelist, GumballId.Telepath, GumballId.PartnersBest, GumballId.OverAchiever })
         {
             var definition = FeatureCatalog.Get(FeatureCategory.Gumball, gumball.ToString());
             var expected = ((Image)((Grid)PixelArt.CardContent(face, "curated-" + definition.Id.Replace(':', '-'))).Children[0]).Source;
             if (!ReferenceEquals(PixelArt.Gumball(gumball, 64)?.Source, expected) || !ReferenceEquals(PixelArt.CampaignIcon(definition).Source, expected))
                 throw new Exception($"Machine, inventory and shop must share curated {gumball} art.");
         }
+        if (PixelArt.Gumball(GumballId.RollerCoaster, 64) is not null || GumballMachine.Ball(GumballId.RollerCoaster, 64) is Image)
+            throw new Exception("Roller Coaster must use the plain gumball while it has no sprite.");
         ContainsSigil(PixelArt.CardContent(face, null, SigilId.Bear), SigilId.Bear);
         var plain = (Grid)PixelArt.CardContent(face);
         if (plain.Children.Count != 2 || ((Image)plain.Children[1]).Effect is not null)

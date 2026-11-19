@@ -95,14 +95,31 @@ public sealed partial class GameEngine
             if (bid == BidLevel.PartnersBest && !_resources.Inventory.Unlocks.Contains(GumballId.PartnersBest)) continue;
             if (bid == BidLevel.Alone && !_resources.Inventory.Unlocks.Contains(GumballId.Alone)) continue;
             yield return new(bid);
-            if (seat == 0 && bid <= BidLevel.Six)
+            if (bid <= BidLevel.Six)
                 foreach (var variant in _resources.Inventory.Unlocks)
-                    if (variant is GumballId.Chaos && bid >= BidLevel.Four || variant is GumballId.Poker && bid == BidLevel.Four
-                        || variant is GumballId.Duelist && !_duelistUsedThisMatch && (bid is BidLevel.Four or BidLevel.Five) || variant is GumballId.Telepath && bid >= BidLevel.Five)
+                    if (CampaignBidVariantAvailable(seat, bid, variant))
                         yield return new(bid, variant);
         }
         if (_resources.Inventory.Unlocks.Contains(GumballId.Lowballer) && CanRaiseCampaignBid(seat, (BidLevel)2))
             yield return new((BidLevel)2);
+    }
+
+    private bool CampaignBidVariantAvailable(int seat, BidLevel bid, GumballId variant) => variant switch
+    {
+        GumballId.OverAchiever => bid == BidLevel.Three,
+        GumballId.RollerCoaster => bid >= BidLevel.Four && _resources.Inventory.Unlocks.Contains(GumballId.HighLow),
+        GumballId.Chaos => seat == 0 && bid >= BidLevel.Four,
+        GumballId.Poker => seat == 0 && bid == BidLevel.Four,
+        GumballId.Duelist => seat == 0 && !_duelistUsedThisMatch && bid is BidLevel.Four or BidLevel.Five,
+        GumballId.Telepath => seat == 0 && bid >= BidLevel.Five,
+        _ => false
+    };
+
+    private int CampaignLeader(int intended)
+    {
+        var leader = GameRules.CampaignLeader(_variant, Bidder, intended);
+        if (leader != intended) _events.Add($"Over Achiever: the lead passes left to {_playerNames[leader]}.");
+        return leader;
     }
     private List<CampaignCommand> CampaignLegal(int seat)
     {

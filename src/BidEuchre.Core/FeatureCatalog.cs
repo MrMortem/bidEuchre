@@ -54,6 +54,8 @@ public static class FeatureCatalog
         new("gumball:partners-best", FeatureCategory.Gumball, "PartnersBest", "Partner's Best", "Existing card exchange and solo play; sweep six tricks for +12, otherwise -12.", 3),
         new("gumball:alone", FeatureCategory.Gumball, "Alone", "Alone", "Existing solo play; sweep six tricks for +24, otherwise -24.", 3),
         new("gumball:high-low", FeatureCategory.Gumball, "HighLow", "High/Low", "Unlock High or Low for every seat when winning a bid of 4 or more; special contracts keep their mode restrictions.", 3),
+        new("gumball:over-achiever", FeatureCategory.Gumball, "OverAchiever", "Over Achiever", "Bid exactly 3. Your team earns +1 per trick beyond the bid. Whenever you would lead, the lead passes left.", 3),
+        new("gumball:roller-coaster", FeatureCategory.Gumball, "RollerCoaster", "Roller Coaster", "Bid 4–6 and choose High or Low. Your team earns +1 for each trick won and loses 1 for each trick lost. Requires the High/Low gumball.", 3),
         new("sigil:bear", FeatureCategory.Sigil, "Bear", "Bear", "Count as one printed rank higher; Ace wraps to 9.", 3),
         new("sigil:eagle", FeatureCategory.Sigil, "Eagle", "Eagle", "Return to the player's hand if played in a losing trick.", 3),
         new("sigil:fish", FeatureCategory.Sigil, "Fish", "Fish", "When played, earn +2 points.", 3),
@@ -68,7 +70,7 @@ public static class FeatureCatalog
         new("tarot:devilish-deal", FeatureCategory.Tarot, "DevilishDeal", "Devilish Deal", "Give two selected cards random enhancements. One other eligible card becomes Cursed at random.", 3),
         new("tarot:gambler", FeatureCategory.Tarot, "Gambler", "Gambler", "Make one random eligible card Lucky.", 3),
         new("tarot:traitor", FeatureCategory.Tarot, "Traitor", "Traitor", "Make one card Silver.", 3),
-        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Sweet Tooth", "Immediately grant a random locked Gumball bid; after all eight unlocks, grant a duplicate. Each extra copy earns +1 point on your successful matching bid, after hand multipliers.", 3),
+        new("tarot:astronomer", FeatureCategory.Tarot, "Astronomer", "Sweet Tooth", "Immediately grant a random locked Gumball bid; once all are unlocked, grant a duplicate. Each extra copy earns +1 point on your successful matching bid, after hand multipliers.", 3),
         new("tarot:spring-loaded", FeatureCategory.Tarot, "SpringLoaded", "Ectoplasm", "Make one card Bouncy.", 3),
         new("tarot:tax-collector", FeatureCategory.Tarot, "TaxCollector", "Taxes", "Double money, capped at $20 gained.", 3),
     });
