@@ -63,7 +63,7 @@ internal static class ScreenArtwork
         }
         foreach (var name in Inventory(run.Resources.Inventory)) yield return name;
         yield return "machine-soda";
-        if (shop.SodaPurchased) yield return "open-soda-lid";
+        if (shop.SodaPurchased) yield return "open-soda-top";
         foreach (var soda in CampaignShop.EligibleSodas(run.Resources.Inventory).Take(9)) yield return "soda-" + SodaCatalog.Get(soda).Art;
         foreach (var offer in shop.Offers.Where(offer => !offer.IsArcadePrize))
         {

@@ -96,7 +96,7 @@ internal static class FortuneTellerScreen
             detail.Child = chosen is { } ticket ? TicketDetail(ticket) : PickDetail();
         }
         Control PickDetail() => Detail("YOUR TICKETS", TicketInk, "Pick one",
-            "Press a ticket to read it. Keep one for a match, or use it now on six offered cards. Use Now commits that ticket; apply it before leaving. The other printed tickets are lost.", null);
+            "Keep one for a match, or use it now on six offered cards. Use Now commits that ticket; apply it before leaving. The other printed tickets are lost.", null);
         Control TicketDetail(string ticket)
         {
             var definition = CampaignShop.PrintedCard(ticket)!;
@@ -104,7 +104,7 @@ internal static class FortuneTellerScreen
             var keep = MenuParts.Button("Keep", false, motion, "TellerKeep", () => actions.Keep(ticket), true, 264);
             keep.IsEnabled = room;
             var use = MenuParts.Button("Use Now", true, motion, "TellerUse", () => actions.Use(ticket), true, 264);
-            return Detail(definition.Category == FeatureCategory.Sigil ? "SPECTRAL" : "TICKET", TicketInk, definition.Name, definition.Description,
+            return Detail(definition.Category == FeatureCategory.Sigil ? "SPECTRAL" : "TICKET", TicketInk, definition.Name, null,
                 room ? "Use Now opens six offered cards and commits this ticket. Apply it before leaving; inventory tickets can share the same cards." : "Your card slots are full. Use Now needs no slot and commits this ticket: apply it before leaving. Inventory tickets can share its six cards.",
                 [keep, use], !room);
         }
@@ -120,7 +120,7 @@ internal static class FortuneTellerScreen
             AutomationProperties.SetName(button, card.Category == FeatureCategory.Sigil ? $"Spectral: {card.Name} Sigil" : $"Ticket: {card.Name}");
             button.Click += (_, _) => Choose(id);
             tickets.Add((id, button, face));
-            return button;
+            return CampaignCardExplanation.Attach(button, card);
         }
         static double RowX(int index, int count) => (StageWidth - (count * TicketWidth + (count - 1) * Gap)) / 2 + index * (TicketWidth + Gap);
 
@@ -339,14 +339,15 @@ internal static class FortuneTellerScreen
         StrokeDashArray = [2, 1.5], IsHitTestVisible = false
     };
 
-    private static Control Detail(string kind, IBrush ink, string name, string description, string? hint, Control[]? buttons = null, bool warning = false)
+    private static Control Detail(string kind, IBrush ink, string name, string? description, string? hint, Control[]? buttons = null, bool warning = false)
     {
         var stack = new StackPanel { Spacing = 10 };
         stack.Children.Add(CampaignShopScreen.Label(kind, ink, 11));
         var title = CampaignShopScreen.Label(name, Gold, 20);
         title.Name = "TellerHeading";
         stack.Children.Add(title);
-        stack.Children.Add(new TextBlock { Text = description, Foreground = MainWindow.Ink, FontSize = 14, TextWrapping = TextWrapping.Wrap, LineHeight = 20 });
+        if (description is not null)
+            stack.Children.Add(new TextBlock { Text = description, Foreground = MainWindow.Ink, FontSize = 14, TextWrapping = TextWrapping.Wrap, LineHeight = 20 });
         if (hint is not null) stack.Children.Add(new TextBlock { Text = hint, Foreground = warning ? Danger : Muted, FontSize = 12, TextWrapping = TextWrapping.Wrap });
         foreach (var button in buttons ?? []) { button.Margin = new Thickness(0, 4, 0, 0); stack.Children.Add(button); }
         return stack;

@@ -33,14 +33,12 @@ internal static class CampaignAnteScreen
         foreach (var (category, slot, definition) in CampaignTableControls.Items(inventory))
         {
             var flyout = new Flyout { Placement = PlacementMode.Bottom };
-            var description = CampaignShopScreen.Label(definition.Description, Ink, 12);
-            description.FontFamily = FontFamily.Default;
             flyout.Content = new StackPanel
             {
                 Spacing = 8, Width = ButtonWidth,
                 Children =
                 {
-                    CampaignShopScreen.Label(definition.Name, Gold, 14), description,
+                    CampaignShopScreen.Label(definition.Name, Gold, 14),
                     CampaignShopScreen.Label("Use during a match on cards in your hand.", Muted, 10),
                     MenuParts.Button("Discard", false, motion, $"AnteDiscard{category}{slot}", () => { flyout.Hide(); discardItem?.Invoke(category, slot); }, true, ButtonWidth)
                 }
@@ -52,8 +50,7 @@ internal static class CampaignAnteScreen
             };
             CampaignCardFocus.Apply(card, face);
             Avalonia.Automation.AutomationProperties.SetName(card, $"Your {category}: {definition.Name}");
-            ToolTip.SetTip(card, $"{definition.Name}: {definition.Description}");
-            items.Add(card);
+            items.Add(CampaignCardExplanation.Attach(card, definition));
         }
         var matches = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 18, HorizontalAlignment = HorizontalAlignment.Center };
         var options = run.NextMatch();

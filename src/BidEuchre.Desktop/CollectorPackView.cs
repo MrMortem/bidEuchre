@@ -21,7 +21,7 @@ internal static class CollectorPackView
         ? "Legendary — " + LegendaryText(freeSlots)
         : $"{FeatureCatalog.CollectorTitle(Enum.Parse<SigilId>(key))} — {key} Sigil";
 
-    public static Control Build(ArcadeResult result, Action<int> pick, int freeJokerSlots, PixelMotion motion, TextBlock caption, out Image[] targets)
+    public static Control Build(ArcadeResult result, Action<int> pick, int freeJokerSlots, PixelMotion motion, out Image[] targets)
     {
         var row = new StackPanel { Name = "CollectorPack", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
         var width = result.PackCards!.Length > CampaignArcade.PackSize ? 102 : CardWidth;
@@ -41,12 +41,12 @@ internal static class CollectorPackView
                 Effect = legendary ? new DropShadowEffect { Color = Color.Parse("#F4C95D"), BlurRadius = 18, OffsetX = 0, OffsetY = 0 } : null
             };
             AutomationProperties.SetName(button, AccessibleName(key, freeJokerSlots));
-            var effect = legendary
-                ? $"Legendary — {LegendaryText(freeJokerSlots)} with random Jokers."
-                : $"{AccessibleName(key, freeJokerSlots)} — {FeatureCatalog.Get(FeatureCategory.Sigil, key).Description}";
-            BoosterOpening.ShowEffectOnHover(button, button, caption, effect);
+            if (legendary)
+                CampaignCardExplanation.Attach(button, "Legendary", $"Fills {freeJokerSlots} empty Joker slot{(freeJokerSlots == 1 ? "" : "s")} with random Jokers.");
+            else
+                CampaignCardExplanation.Attach(button, FeatureCatalog.CollectorTitle(Enum.Parse<SigilId>(key)), FeatureCatalog.Get(FeatureCategory.Sigil, key).Description);
             button.Click += (_, _) => { if (button.IsEffectivelyEnabled) pick(chosen); };
-            BoosterOpening.EnableHoverLift(button, motion);
+            BoosterOpening.AnimateChoice(button, motion, index);
             row.Children.Add(button);
         }
         return row;

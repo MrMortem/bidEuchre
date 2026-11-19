@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -16,33 +15,44 @@ internal static class CampaignTableControls
 
     internal static string CategoryName(FeatureCategory category) => category == FeatureCategory.Tarot ? "Ticket" : category.ToString();
 
-    /// <summary>Replaces a strip row with <paramref name="cards"/>, padded to its slot count with empty outlines.</summary>
+    /// <summary>Places floating cards over fixed slot outlines and pads the row with empty slots.</summary>
     public static void Fill(Panel row, int slots, PixelMotion motion, int firstPhase, IEnumerable<Control> cards)
     {
         row.Children.Clear();
         foreach (var card in cards)
         {
-            var face = new Viewbox { Width = CardWidth, Height = CardHeight, Child = card };
+            const double inset = 5;
+            var face = new Viewbox
+            {
+                Width = CardWidth - 2 * inset, Height = CardHeight - 2 * inset,
+                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+                Child = card
+            };
             var shadow = CardShadow.Glow(face, CardShadow.Drop(.3), radius: 6);
-            // Keep the shadow on the strip while the artwork moves above it.
+            shadow.ZIndex = 0;
             row.Children.Add(new Grid
             {
                 Width = CardWidth, Height = CardHeight,
-                Children = { shadow, motion.Float(face, firstPhase + row.Children.Count) }
+                Children = { SlotOutline(), shadow, motion.Float(face, firstPhase + row.Children.Count) }
             });
         }
-        while (row.Children.Count < slots) row.Children.Add(EmptySlot());
+        while (row.Children.Count < slots) row.Children.Add(SlotOutline());
     }
 
     public static Control Joker(JokerState joker)
     {
         var definition = FeatureCatalog.Get(FeatureCategory.Joker, joker.Id.ToString());
+        return CampaignCardExplanation.Attach(CardFace(definition), definition, JokerDescription(joker, definition));
+    }
+
+    internal static string JokerDescription(JokerState joker, FeatureDefinition definition)
+    {
         var value = joker.DisplayValue();
-        return Named(CardFace(definition), definition.Name, value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {value}");
+        return value == 0 ? definition.Description : $"{definition.Description}\nCurrent value: {value}";
     }
 
     internal static Control StoredItem(FeatureDefinition definition) =>
-        Named(CardFace(definition), definition.Name, definition.Description);
+        CampaignCardExplanation.Attach(CardFace(definition), definition);
 
     /// <summary>The Tarots and Sigils held, in the order they are shown: one shared inventory.</summary>
     public static IEnumerable<(FeatureCategory Category, int Slot, FeatureDefinition Definition)> Items(CampaignInventory inventory) =>
@@ -59,18 +69,18 @@ internal static class CampaignTableControls
     {
         var definition = Definition(view.Inventory, category, slot);
         var face = CardFace(definition);
-        if (!usable) return Named(face, definition.Name, definition.Description);
+        if (!usable) return CampaignCardExplanation.Attach(face, definition);
 
         face.BorderBrush = active ? MainWindow.Green : MainWindow.Gold;
         face.BorderThickness = new Thickness(active ? 3 : 2);
         var button = new Button
         {
-            Name = $"Item{category}{slot}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand),
-            Template = new FuncControlTemplate<Button>((_, _) => face)
+            Name = $"Item{category}{slot}", Padding = new Thickness(0), Cursor = new Cursor(StandardCursorType.Hand)
         };
+        CampaignCardFocus.Apply(button, face);
         button.Click += (_, _) => toggle();
         Avalonia.Automation.AutomationProperties.SetName(button, $"{(active ? "Cancel " : "Use ")}{CategoryName(category)}: {definition.Name}");
-        return Named(button, definition.Name, definition.Description);
+        return CampaignCardExplanation.Attach(button, definition);
     }
 
     /// <summary>The catalog entry for the Tarot or Sigil held in <paramref name="slot"/>.</summary>
@@ -127,22 +137,12 @@ internal static class CampaignTableControls
         return face;
     }
 
-    private static Border EmptySlot() => new()
+    private static Border SlotOutline() => new()
     {
         Width = CardWidth, Height = CardHeight, CornerRadius = new CornerRadius(6), Opacity = .55,
-        Background = Brush.Parse("#33100B28"), BorderBrush = MainWindow.Line, BorderThickness = new Thickness(1)
+        Background = Brush.Parse("#33100B28"), BorderBrush = MainWindow.Line, BorderThickness = new Thickness(1),
+        IsHitTestVisible = false
     };
-
-    private static T Named<T>(T card, string title, string description) where T : Control
-    {
-        ToolTip.SetTip(card, new StackPanel
-        {
-            Spacing = 4, MaxWidth = 260,
-            Children = { Label(title, MainWindow.Gold), Label(description, MainWindow.Ink) }
-        });
-        ToolTip.SetShowDelay(card, 120);
-        return card;
-    }
 
     private static TextBlock Label(string text, IBrush brush) => new()
     {

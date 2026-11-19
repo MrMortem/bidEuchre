@@ -8,11 +8,11 @@ internal static class SettledEffectTests
     private const JokerId DoubleDown = (JokerId)31;
     private static CampaignSnapshot Resources(ulong seed = 17, params JokerId[] jokers) => CampaignSnapshot.Create(seed) with
     { Inventory = new(jokers.Select(j => new JokerState(j)).ToArray(), [], [GumballId.HighLow]) };
-    private static GameEngine Fixture(CampaignSnapshot resources, int dealer = 3)
+    private static GameEngine Fixture(CampaignSnapshot resources, int dealer = 3, int target = 1000)
     {
         var deck = GameRules.CreateDeck().ToArray();
         return GameEngine.CreateFixture(new FixtureStart(["You", "W", "P", "E"], Enumerable.Range(0, 4).Select(s => deck.Skip(s * 6).Take(6).ToArray()).ToArray(), dealer, [0, 0], Campaign: resources,
-            Options: new MatchOptions(1000) { HandLimit = 8, NegativeThreshold = -1000 }));
+            Options: new MatchOptions(target) { HandLimit = 8, NegativeThreshold = -1000 }));
     }
     private static void Auction(GameEngine g, int bidder = 0, ContractMode mode = ContractMode.Trump, Suit? trump = Suit.Clubs)
     {
@@ -28,6 +28,37 @@ internal static class SettledEffectTests
     private static void Finish(GameEngine g)
     { var guard = 0; while (g.Phase == GamePhase.Playing && guard++ < 100) Play(g); Assert.True(guard < 100); }
     private static int Effects(GameEngine g, string source) => g.CreateCampaignView(0).Events.Count(e => e.Contains(": " + source + " "));
+
+    public static void LivePointsSurviveResumeAndSettleOnce()
+    {
+        var resources = Resources(17, JokerId.Clubhouse);
+        for (var seat = 0; seat < 4; seat++)
+            resources.Deck[seat * 6] = resources.Deck[seat * 6] with { Face = new(Suit.Clubs, Rank.Nine) };
+        resources.Deck[0] = resources.Deck[0] with { Face = new(Suit.Clubs, Rank.Jack), Sigil = SigilId.Fish };
+        resources.Deck[6] = resources.Deck[6] with { Enhancement = EnhancementId.Glass };
+        var game = Fixture(resources, target: 2);
+        Auction(game);
+        var motion = new TableMotionTracker();
+        motion.Update(game.CreateView(0), "campaign");
+        Play(game, new(0));
+        Assert.Equal(2, game.Scores[0], "Fish scores on play, before the trick ends.");
+        Assert.Equal(0, game.Scores[1]);
+        Assert.True(motion.Update(game.CreateView(0), "campaign").ScoreTeams.SetEquals([0]));
+        Assert.Equal(GamePhase.Playing, game.Phase, "Reaching the target mid-hand does not end the game.");
+
+        var resumed = GameEngine.RestoreCampaignMatch(game.ExportCampaignMatchSnapshot());
+        Assert.Equal(2, resumed.CreateView(0).Scores[0]);
+        foreach (var engine in new[] { game, resumed })
+        {
+            for (var id = 6; id <= 18; id += 6) Play(engine, new(id));
+            Assert.Equal(5, engine.Scores[0], "Glass doubles Fish and Clubhouse scores when the trick is won.");
+            Finish(engine);
+            var hand = engine.HandHistory.Single();
+            Assert.Equal(hand.ScoreBreakdowns[0].FinalDelta, engine.Scores[0]);
+            Assert.Equal(hand.ScoreBreakdowns[1].FinalDelta, engine.Scores[1]);
+        }
+        Assert.True(game.Scores.SequenceEqual(resumed.Scores));
+    }
 
     public static void DuckTrialsAndReplay()
     {

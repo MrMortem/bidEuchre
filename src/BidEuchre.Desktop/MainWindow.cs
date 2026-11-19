@@ -76,6 +76,7 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel _sodaRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private readonly StackPanel _tarotRow = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
     private string? _inventoryKey;
+    private CampaignInventory _renderedInventory = CampaignInventory.Empty;
     // A stored Tarot or Sigil whose targets are being chosen by pressing cards in hand.
     private sealed record ItemTargeting(long DealSerial, FeatureCategory Category, int Slot, FeatureDefinition Definition, int Required, List<CardId> Chosen);
     private ItemTargeting? _targeting;
@@ -421,12 +422,18 @@ public sealed partial class MainWindow : Window
         var key = campaign is null ? "" : JsonSerializer.Serialize(campaign.Inventory) + (usable ? $":{campaign.Revision}" : "")
             + $":{_targeting?.Category}{_targeting?.Slot}";
         if (key == _inventoryKey) return;
+        var inventory = campaign?.Inventory ?? CampaignInventory.Empty;
+        if (_inventoryKey is null || !inventory.Sodas.SequenceEqual(_renderedInventory.Sodas))
+        {
+            _sodaRow.Children.Clear();
+            foreach (var soda in inventory.Sodas) _sodaRow.Children.Add(SodaArtwork.Can(soda, 38));
+        }
+        if (_inventoryKey is null || inventory.JokerCapacity != _renderedInventory.JokerCapacity ||
+            !inventory.Jokers.SequenceEqual(_renderedInventory.Jokers))
+            CampaignTableControls.Fill(_jokerRow, inventory.JokerCapacity, _motion, 0, inventory.Jokers.Select(CampaignTableControls.Joker));
+        _renderedInventory = inventory;
         _inventoryKey = key;
-        _sodaRow.Children.Clear();
-        foreach (var soda in campaign?.Inventory.Sodas ?? []) _sodaRow.Children.Add(SodaArtwork.Can(soda, 38));
-        CampaignTableControls.Fill(_jokerRow, campaign?.Inventory.JokerCapacity ?? CampaignTableControls.JokerSlots, _motion, 0,
-            campaign?.Inventory.Jokers.Select(CampaignTableControls.Joker) ?? []);
-        CampaignTableControls.Fill(_tarotRow, campaign?.Inventory.ItemCapacity ?? CampaignTableControls.ItemSlots, _motion, 7,
+        CampaignTableControls.Fill(_tarotRow, inventory.ItemCapacity, _motion, 7,
             campaign is null ? [] : CampaignTableControls.Items(campaign.Inventory).Select(item =>
                 CampaignTableControls.Item(campaign, item.Category, item.Slot, usable,
                     _targeting is { } active && active.Category == item.Category && active.Slot == item.Slot,

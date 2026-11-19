@@ -23,8 +23,9 @@ internal static class SodaArtwork
     private static readonly Rect Glass = new(14, 55, 99, 130);
     private static readonly Rect TrayOpening = new(34, 231, 94, 31);
     private static readonly Rect Sign = new(12, 16, 138, 26);
-    private static readonly Point TrayRest = new(73.5, 233);
-    private static readonly double[] ButtonTops = [113, 127, 141, 155];
+    private static readonly Point TrayRest = new(80.5, 247);
+    private static readonly Rect TopButton = new(142, 113, 9, 8);
+    private const double ShelfWidth = 17, ShelfHeight = 34, TrayWidth = 14, TrayHeight = 26;
 
     public static Control Machine(IEnumerable<SodaId> stock, SodaId? dispensed, string tag, PixelMotion motion,
         bool animate, Action select, Action<SodaId, Button, Image> inspect)
@@ -39,12 +40,11 @@ internal static class SodaArtwork
         front.Click += (_, _) => select();
 
         var index = 0;
-        var slot = 0;
-        var start = new Point(59, 66);
+        var start = new Point(59 + ShelfWidth / 2, 66 + ShelfHeight / 2);
         foreach (var id in stock.Take(9))
         {
             var position = new Point(23 + index % 3 * 29, 66 + index / 3 * 39);
-            if (id == dispensed) (start, slot) = (position, index);
+            if (id == dispensed) start = position + new Point(ShelfWidth / 2, ShelfHeight / 2);
             else
             {
                 var can = Can(id, 34);
@@ -105,25 +105,29 @@ internal static class SodaArtwork
         if (dispensed is not { } awarded) return face;
 
         var soda = SodaCatalog.Get(awarded);
+        var direction = start.X <= TrayRest.X ? 1 : -1;
+        var restAngle = direction * 93d;
         var tray = new Button { Name = "SodaTrayCan", Width = 45, Height = 32, Padding = new Thickness(0) };
-        var trayArt = PixelArt.Machine("soda-" + soda.Art, 14, 26);
+        var trayArt = PixelArt.Machine("soda-" + soda.Art, TrayWidth, TrayHeight);
+        trayArt.RenderTransformOrigin = RelativePoint.Center;
+        trayArt.RenderTransform = new RotateTransform(restAngle);
         CampaignCardFocus.Apply(tray, new Border { Background = Brushes.Transparent, Child = trayArt });
         AutomationProperties.SetName(tray, $"Inspect {soda.Name}");
         tray.Click += (_, _) => inspect(awarded, tray, trayArt);
-        Canvas.SetLeft(tray, 58);
-        Canvas.SetTop(tray, 230);
+        Canvas.SetLeft(tray, TrayRest.X - tray.Width / 2);
+        Canvas.SetTop(tray, TrayRest.Y - tray.Height / 2);
         cabinet.Children.Add(tray);
         if (!animate || !motion.Lively) return face;
 
         tray.IsVisible = false;
         prompt.Opacity = 0;
         // The can is only seen through the glass and the tray opening; the panel between hides its turn toward the tray.
-        var falling = PixelArt.Machine("soda-" + soda.Art, 17, 34);
+        var falling = PixelArt.Machine("soda-" + soda.Art, ShelfWidth, ShelfHeight);
         falling.Name = "DispensingSoda";
         var squash = new ScaleTransform();
         var spin = new RotateTransform();
         falling.RenderTransform = new TransformGroup { Children = { squash, spin } };
-        falling.RenderTransformOrigin = new RelativePoint(.5, 1, RelativeUnit.Relative);
+        falling.RenderTransformOrigin = RelativePoint.Center;
         var dispenseLayer = new Canvas
         {
             Width = 162, Height = 290, IsHitTestVisible = false, Children = { falling },
@@ -133,16 +137,21 @@ internal static class SodaArtwork
         var coin = new Border { Width = 8, Height = 8, CornerRadius = new CornerRadius(4), Background = MainWindow.Gold,
             BorderBrush = Brush.Parse("#8A5A12"), BorderThickness = new Thickness(1), IsHitTestVisible = false,
             RenderTransform = new ScaleTransform(), RenderTransformOrigin = RelativePoint.Center };
-        var button = Overlay(new Rect(142, ButtonTops[slot % ButtonTops.Length], 9, 8), "#6FF6F0");
+        var button = Overlay(TopButton, "#6FF6F0");
+        button.Name = "SodaTopButtonPress";
+        button.BorderBrush = Brush.Parse("#145C68");
+        button.BorderThickness = new Thickness(1, 2, 1, 1);
+        var buttonTravel = new TranslateTransform();
+        button.RenderTransform = buttonTravel;
         cabinet.Children.Add(dispenseLayer);
         cabinet.Children.Add(coin);
         cabinet.Children.Add(button);
         Canvas.SetLeft(coin, 131.5);
 
-        const double gravity = 1500, restitution = .3, fallAt = .95;
+        // The first rebound stays below the tray lip.
+        const double gravity = 1500, restitution = .21, fallAt = .95;
         var landAfter = Math.Sqrt(2 * (TrayRest.Y - start.Y) / gravity);
         var impactSpeed = gravity * landAfter;
-        var lean = start.X < TrayRest.X ? 1 : -1;
         IDisposable? frames = null;
         face.AttachedToVisualTree += Start;
         void Start(object? sender, VisualTreeAttachmentEventArgs e)
@@ -161,9 +170,11 @@ internal static class SodaArtwork
                 coin.Opacity = coinT < .75 ? 1 : (1 - coinT) * 4;
                 signBoost = elapsed is > .1 and < 2 ? .28 * Math.Exp(-(elapsed - .1) * 3.5) : 0;
 
-                // 2. The selection button blinks twice.
+                // 2. The top selection button depresses, lights up, then springs back.
                 var press = (elapsed - .28) / .34;
-                button.Opacity = press is > 0 and < 1 ? Math.Max(0, Math.Sin(press * Math.PI * 2)) * .85 : 0;
+                var pressed = Ease(press / .2) * (1 - Ease((press - .6) / .4));
+                button.Opacity = pressed;
+                buttonTravel.Y = 1.1 * pressed;
 
                 // 3. The motor hums: the coil nudges the can forward while the cabinet buzzes.
                 var turn = Math.Clamp((elapsed - .5) / (fallAt - .5), 0, 1);
@@ -175,38 +186,40 @@ internal static class SodaArtwork
                 var forward = 1 + .1 * Ease(turn);
                 var angle = 4 * buzz * Math.Sin(elapsed * 31);
 
-                // 4. It falls straight down its column, then rattles into the tray.
+                // 4. It falls down its column and turns onto its side behind the front panel.
                 var fall = elapsed - fallAt;
                 var settled = false;
+                var toTray = 0d;
                 if (fall > 0 && fall < landAfter)
                 {
                     y = start.Y + .5 * gravity * fall * fall;
-                    var turnToTray = Math.Clamp((y - Glass.Bottom - 1) / 11, 0, 1);
-                    x = start.X + (TrayRest.X - start.X) * turnToTray;
+                    toTray = Ease((y - Glass.Bottom - ShelfHeight / 2) / (TrayRest.Y - 6 - Glass.Bottom - ShelfHeight / 2));
+                    x = start.X + (TrayRest.X - start.X) * toTray;
                     forward = 1.1 - .1 * Math.Clamp(fall * 4, 0, 1);
-                    angle = lean * 12 * Math.Clamp(fall * 3, 0, 1) * (1 - Math.Clamp((y - Glass.Bottom) / (TrayRest.Y - Glass.Bottom), 0, 1));
-                    Resize(turnToTray);
+                    angle = restAngle * toTray;
                 }
                 else if (fall >= landAfter)
                 {
                     var landed = fall - landAfter;
                     var (height, sinceImpact, strength, resting) = Bounce(landed, impactSpeed * restitution, gravity, restitution);
                     x = TrayRest.X;
-                    y = TrayRest.Y - height;
-                    forward = 1;
-                    Resize(1);
-                    var press2 = strength * Math.Exp(-sinceImpact * 16);
-                    squash.ScaleY = 1 - .2 * press2;
-                    squash.ScaleX = 1 + .14 * press2;
-                    angle = -lean * 9 * Math.Exp(-landed * 5) * Math.Sin(landed * 16);
+                    var compression = strength * Math.Exp(-sinceImpact * 16);
+                    y = TrayRest.Y - height + .9 * compression;
+                    toTray = 1;
+                    // The can's local X axis is now almost vertical.
+                    squash.ScaleX = 1 - .14 * compression;
+                    squash.ScaleY = 1 + .09 * compression;
+                    angle = restAngle + direction * 2 * Math.Exp(-landed * 6) * Math.Sin(landed * 23);
                     shakeX += 1.4 * Math.Exp(-landed * 10) * Math.Sin(landed * 42);
                     shakeY += 2.4 * Math.Exp(-landed * 12) * Math.Cos(landed * 26);
                     settled = resting && landed > .6;
                 }
                 if (fall <= 0 || fall < landAfter) squash.ScaleX = squash.ScaleY = forward;
+                falling.Width = ShelfWidth + (TrayWidth - ShelfWidth) * toTray;
+                falling.Height = ShelfHeight + (TrayHeight - ShelfHeight) * toTray;
                 spin.Angle = angle;
-                Canvas.SetLeft(falling, x);
-                Canvas.SetTop(falling, y);
+                Canvas.SetLeft(falling, x - falling.Width / 2);
+                Canvas.SetTop(falling, y - falling.Height / 2);
                 shake.X = shakeX;
                 shake.Y = shakeY;
                 if (!settled && !double.IsPositiveInfinity(elapsed)) return;
@@ -221,14 +234,9 @@ internal static class SodaArtwork
                 Reveal(prompt, motion);
             });
         }
-        void Resize(double toTray)
-        {
-            falling.Width = 17 - 3 * toTray;
-            falling.Height = 34 - 8 * toTray;
-        }
         face.DetachedFromVisualTree += (_, _) => frames?.Dispose();
-        Canvas.SetLeft(falling, start.X);
-        Canvas.SetTop(falling, start.Y);
+        Canvas.SetLeft(falling, start.X - ShelfWidth / 2);
+        Canvas.SetTop(falling, start.Y - ShelfHeight / 2);
         return face;
     }
 
@@ -321,16 +329,18 @@ internal static class SodaArtwork
         close.Focus();
         if (!firstOpen || !motion.Lively) return;
         opening.SetTime(0);
-        effect.IsVisible = false;
-        var effectShift = new TranslateTransform();
+        // Keep the hidden text in layout so the heading and close button stay anchored.
+        effect.Opacity = 0;
+        var effectShift = new TranslateTransform(0, 12);
         effect.RenderTransform = effectShift;
         var landing = new ScaleTransform();
         opening.RenderTransform = landing;
         opening.RenderTransformOrigin = new RelativePoint(.5, 1, RelativeUnit.Relative);
 
-        var flying = PixelArt.Machine("soda-" + soda.Art, 14, 26);
+        var flying = PixelArt.Machine("soda-" + soda.Art, TrayWidth, TrayHeight);
         flying.Name = "SodaPopOut";
-        var spin = new RotateTransform();
+        var trayAngle = ((RotateTransform)trayArt.RenderTransform!).Angle;
+        var spin = new RotateTransform(trayAngle);
         flying.RenderTransform = spin;
         flying.RenderTransformOrigin = RelativePoint.Center;
         flight.Children.Add(flying);
@@ -346,10 +356,11 @@ internal static class SodaArtwork
             overlay.Opacity = Ease(elapsed / .2);
             var t = Math.Clamp((elapsed - hop) / fly, 0, 1);
             var start = trayArt.TranslatePoint(default, flight);
-            var startEnd = trayArt.TranslatePoint(new Point(trayArt.Bounds.Width, trayArt.Bounds.Height), flight);
+            var startEdge = trayArt.TranslatePoint(new Point(trayArt.Bounds.Width, 0), flight);
+            var startCenter = trayArt.TranslatePoint(new Point(trayArt.Bounds.Width / 2, trayArt.Bounds.Height / 2), flight);
             var end = art.TranslatePoint(default, flight);
             var endEdge = art.TranslatePoint(new Point(art.Bounds.Width, art.Bounds.Height), flight);
-            if (t >= 1 || start is null || startEnd is null || end is null || endEdge is null)
+            if (t >= 1 || start is null || startEdge is null || startCenter is null || end is null || endEdge is null)
             {
                 if (flight.Children.Count > 0) flight.Children.Clear();
                 var after = elapsed - hop - fly;
@@ -361,25 +372,26 @@ internal static class SodaArtwork
                 if (after < SodaOpening.Duration) return;
                 // The effect slides up once the pour has finished.
                 var reveal = Ease((after - SodaOpening.Duration) / .3);
-                effect.IsVisible = true;
                 effect.Opacity = reveal;
                 effectShift.Y = 12 * (1 - reveal);
                 if (reveal >= 1) frames?.Dispose();
                 return;
             }
-            var center = start.Value + (startEnd.Value - start.Value) * .5;
-            var fromSize = startEnd.Value - start.Value;
+            var center = startCenter.Value;
+            var trayAxis = startEdge.Value - start.Value;
+            var trayScale = double.Hypot(trayAxis.X, trayAxis.Y) / trayArt.Bounds.Width;
+            var fromSize = new Point(trayArt.Bounds.Width * trayScale, trayArt.Bounds.Height * trayScale);
             flying.Opacity = 1;
             if (elapsed < hop)
             {
                 // Anticipation: squash down, then stretch upward out of the tray.
                 var p = elapsed / hop;
                 var stretch = Math.Sin(2 * Math.PI * p);
-                var squashed = new Point(fromSize.X * (1 + .14 * stretch), fromSize.Y * (1 - .2 * stretch));
+                var squashed = new Point(fromSize.X * (1 - .2 * stretch), fromSize.Y * (1 + .14 * stretch));
                 flying.Width = squashed.X;
                 flying.Height = squashed.Y;
                 Canvas.SetLeft(flying, center.X - squashed.X / 2);
-                Canvas.SetTop(flying, center.Y + fromSize.Y / 2 - squashed.Y - 6 * Ease(2 * p - 1));
+                Canvas.SetTop(flying, center.Y - squashed.Y / 2 + fromSize.X * .1 * stretch - 6 * Ease(2 * p - 1));
                 return;
             }
             var ease = 1 - Math.Pow(1 - t, 3);
@@ -390,7 +402,7 @@ internal static class SodaArtwork
             var position = center + new Point(0, -6) + (destination - center - new Point(0, -6)) * ease;
             flying.Width = size.X;
             flying.Height = size.Y;
-            spin.Angle = 360 * Ease(t);
+            spin.Angle = trayAngle + (Math.Sign(trayAngle) * 360 - trayAngle) * Ease(t);
             Canvas.SetLeft(flying, position.X - size.X / 2);
             Canvas.SetTop(flying, position.Y - size.Y / 2 - 70 * arc);
             card.Opacity = Math.Clamp((t - .25) / .65, 0, 1);

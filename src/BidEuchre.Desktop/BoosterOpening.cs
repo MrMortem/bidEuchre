@@ -15,17 +15,18 @@ internal static class BoosterOpening
 {
     private const double Height = 340, PackY = 12, PackWidth = 192, PackHeight = 288, PortraitSize = 104;
 
-    public static void EnableHoverLift(Button button, PixelMotion motion)
+    public static void AnimateChoice(Button button, PixelMotion motion, int phase)
     {
-        const double lift = 12;
+        const double lift = 12, shadowRoom = 14;
         var translate = new TranslateTransform();
         button.Template = new FuncControlTemplate<Button>((_, _) =>
         {
             var face = new Border
             {
                 Background = button.Background, BorderBrush = button.BorderBrush, BorderThickness = button.BorderThickness,
-                CornerRadius = button.CornerRadius, Padding = button.Padding, Margin = new Thickness(0, lift, 0, 0),
-                RenderTransform = translate, Child = new ContentPresenter { Content = button.Content }
+                CornerRadius = button.CornerRadius, Padding = button.Padding, Margin = new Thickness(0, lift, 0, shadowRoom),
+                BoxShadow = CardShadow.Drop(.5), RenderTransform = translate,
+                Child = new ContentPresenter { Content = button.Content }
             };
             var idleBorder = face.BorderBrush;
             void Highlight() => face.BorderBrush = button.IsPointerOver || button.IsFocused ? Brushes.White : idleBorder;
@@ -35,23 +36,11 @@ internal static class BoosterOpening
             button.LostFocus += (_, _) => Highlight();
             if (motion.Lively)
                 translate.Transitions = [new DoubleTransition { Property = TranslateTransform.YProperty, Duration = TimeSpan.FromMilliseconds(110), Easing = new CubicEaseOut() }];
-            // The transparent hit area stays still as the visible face rises inside it.
-            return new Grid { Background = Brushes.Transparent, Children = { face } };
+            // Keep the button's hit area fixed while the face floats and lifts on hover.
+            var floatingFace = motion.Float(face, phase);
+            floatingFace.IsHitTestVisible = false;
+            return new Grid { Background = Brushes.Transparent, Children = { floatingFace } };
         });
-    }
-
-    public static void ShowEffectOnHover(Control hitArea, Button card, TextBlock caption, string description)
-    {
-        AutomationProperties.SetHelpText(card, description);
-        void Show() => caption.Text = description;
-        void Clear()
-        {
-            if (caption.Text == description && !hitArea.IsPointerOver && !card.IsFocused) caption.Text = "";
-        }
-        hitArea.PointerEntered += (_, _) => Show();
-        hitArea.PointerExited += (_, _) => Clear();
-        card.GotFocus += (_, _) => Show();
-        card.LostFocus += (_, _) => Clear();
     }
 
     private static Control Fit(Canvas stage) =>
@@ -107,6 +96,7 @@ internal static class BoosterOpening
         {
             Name = target.Name!.Replace("Target", "Reveal"), Width = PortraitSize, Height = PortraitSize,
             Source = target.Source, Stretch = Stretch.Uniform, Opacity = 0,
+            Effect = new DropShadowEffect { Color = Colors.Black, Opacity = .45, OffsetX = 3, OffsetY = 6, BlurRadius = 9 },
             RenderTransform = new ScaleTransform(), RenderTransformOrigin = RelativePoint.Center
         }).ToArray();
         foreach (var portrait in portraits) stage.Children.Add(portrait);

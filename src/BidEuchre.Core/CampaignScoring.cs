@@ -2,6 +2,34 @@ namespace BidEuchre.Core;
 
 public sealed partial class GameEngine
 {
+    private int[] LiveCampaignScores()
+    {
+        // Saves and hand settlement use the settled base score. The trick ledgers already
+        // persist everything needed to reconstruct the score shown during play.
+        var team0 = (long)_scores[0] + _cardPoints[0] + _jokerPoints[0] + RoundJokerPoints();
+        var team1 = (long)_scores[1] + _cardPoints[1] + _jokerPoints[1];
+        foreach (var point in _trickPoints)
+        {
+            if (point.Team == 0) team0 += point.Amount;
+            else team1 += point.Amount;
+        }
+        return [(int)Math.Clamp(team0, int.MinValue, int.MaxValue), (int)Math.Clamp(team1, int.MinValue, int.MaxValue)];
+    }
+
+    private int RoundJokerPoints()
+    {
+        var contract = Contract!;
+        var points = 0;
+        if (Bidder % 2 == 0 && _tricksByTeam[0] >= contract.RequiredTricks)
+        {
+            if (Has(JokerId.ThreesCompany) && contract.Bid == BidLevel.Three) points++;
+            if (Has(JokerId.HighRoller) && contract.Bid >= BidLevel.Five) points += 3;
+        }
+        if (_repeatsPreviousTrump && Has(JokerId.DejaVu)) points += _tricksByTeam[0];
+        if (Has(JokerId.RollerCoaster) && contract.Mode is ContractMode.High or ContractMode.Low) points += _rollerValue;
+        return points;
+    }
+
     private void ScoreCampaignTrick(int winner, IReadOnlyList<CardPlay> plays, int lastLaugh)
     {
         var team = winner % 2;
@@ -73,14 +101,7 @@ public sealed partial class GameEngine
             normal[bidderTeam] -= 2;
         }
 
-        if (success && bidderTeam == 0)
-        {
-            if (Has(JokerId.ThreesCompany) && Contract.Bid == BidLevel.Three) _jokerPoints[0]++;
-            if (Has(JokerId.HighRoller) && Contract.Bid >= BidLevel.Five) _jokerPoints[0] += 3;
-        }
-
-        if (_repeatsPreviousTrump && Has(JokerId.DejaVu)) _jokerPoints[0] += _tricksByTeam[0];
-        if (Has(JokerId.RollerCoaster) && Contract.Mode is ContractMode.High or ContractMode.Low) _jokerPoints[0] += _rollerValue;
+        _jokerPoints[0] += RoundJokerPoints();
         if (Contract.Bid <= BidLevel.Six) _matchOvertricks[bidderTeam] += Math.Max(0, _tricksByTeam[bidderTeam] - Contract.RequiredTricks);
 
         var factor = _variant == GumballId.Chaos ? 2 : 1;

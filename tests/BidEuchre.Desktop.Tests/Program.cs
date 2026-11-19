@@ -56,6 +56,7 @@ if (args.Contains("--booster-only")) { CampaignShopUiTests.BoosterAndResume(); r
 if (args.Contains("--soda-only")) { CampaignShopUiTests.BuySoda(); return; }
 
 if (args.Contains("--shop-only")) { CampaignShopUiTests.Run(); return; }
+if (args.Contains("--card-explanations-only")) { CampaignShopUiTests.CardExplanations(); return; }
 
 if (args.Contains("--arcade-only")) { CampaignArcadeUiTests.Run(); return; }
 
@@ -74,6 +75,7 @@ if (args.Contains("--engine-setup-only")) { EngineSetupUiTests.Run(); return; }
 if (args.Contains("--live-settings-only")) { SessionPauseTests.Run(); LiveSettingsTests.Run(); return; }
 
 CampaignShopUiTests.Run();
+CampaignShopUiTests.CardExplanations();
 CampaignArcadeUiTests.Run();
 CampaignGamblerUiTests.Run();
 ScoreHistoryUiTests.Run();

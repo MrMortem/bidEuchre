@@ -63,7 +63,7 @@ public sealed partial class GameEngine
     public Contract? Contract { get; private set; }
     public int? GameWinner { get; private set; }
     public string? CompletionReason { get; private set; }
-    public IReadOnlyList<int> Scores => _scores;
+    public IReadOnlyList<int> Scores => IsCampaign && Phase == GamePhase.Playing ? LiveCampaignScores() : _scores;
     public IReadOnlyList<int> TricksByTeam => _tricksByTeam;
     public IReadOnlyList<AuctionAction> Auction => _auction;
     public IReadOnlyList<CardPlay> CurrentTrick => _currentTrick;
@@ -363,7 +363,7 @@ public sealed partial class GameEngine
             HandNumber,
             Dealer,
             CurrentSeat,
-            _scores.ToArray(),
+            Scores.ToArray(),
             players,
             _auction.ToArray(),
             HighBid,

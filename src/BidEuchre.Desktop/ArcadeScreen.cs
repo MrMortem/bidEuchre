@@ -206,11 +206,7 @@ internal static class ArcadeScreen
                 var prompt = Text("Choose one spectral card. Apply a Sigil to one of six offered cards.", MainWindow.Ink, 13);
                 body.Children.Add(prompt);
                 var reward = new Border { Height = 254 };
-                var hint = Text("", MainWindow.Ink, 15);
-                hint.Name = "SpectralEffect";
-                hint.MinHeight = 64;
                 body.Children.Add(reward);
-                body.Children.Add(hint);
                 var skip = MenuParts.Button("Skip pack", false, motion, "SkipSpectral", () => actions.SkipPack?.Invoke(result.PlayId), true, 260);
                 skip.Opacity = 0;
                 skip.IsEnabled = false;
@@ -219,7 +215,7 @@ internal static class ArcadeScreen
                 {
                     prompt.Opacity = 1;
                     var cards = CollectorPackView.Build(result, index => actions.Pick?.Invoke(result.PlayId, index),
-                        run.Resources.Inventory.JokerCapacity - run.Resources.Inventory.Jokers.Length, motion, hint, out var targets);
+                        run.Resources.Inventory.JokerCapacity - run.Resources.Inventory.Jokers.Length, motion, out var targets);
                     cards.VerticalAlignment = VerticalAlignment.Center;
                     void Ready()
                     {
