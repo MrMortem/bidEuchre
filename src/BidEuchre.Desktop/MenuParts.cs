@@ -3,7 +3,11 @@ using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -22,6 +26,13 @@ internal static class MenuParts
     private static readonly Color GlintColor = Color.Parse("#FFFBEA");
     private static readonly IBrush TitleShadow = Brush.Parse("#5B2A86");
     private static readonly IBrush PrimaryHover = Brush.Parse("#86D0FF");
+
+    /// <summary>The edge colours a raised button stands on, darker than each button's face.</summary>
+    public static readonly Color PrimaryEdge = Color.Parse("#1D5FA8");
+    public static readonly Color QuietEdge = Color.Parse("#5E3590");
+    public static readonly Color ActionEdge = Color.Parse("#0A1C4E");
+    private const double Corner = 8;
+    private static readonly TimeSpan PressTime = TimeSpan.FromMilliseconds(70);
 
     /// <summary>Places <paramref name="content"/> over the table art. Up and Down move between its
     /// menu buttons, the first of which starts focused. <paramref name="host"/> is the control that
@@ -144,7 +155,7 @@ internal static class MenuParts
             Name = name, Width = width, Padding = new Thickness(16, 14),
             Background = primary ? Green : MainWindow.Panel, Foreground = foreground,
             BorderBrush = primary ? Green : MainWindow.Line, BorderThickness = new Thickness(2),
-            CornerRadius = new CornerRadius(2), FocusAdorner = null, RenderTransform = slide,
+            FocusAdorner = null, RenderTransform = slide,
             HorizontalAlignment = HorizontalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Stretch,
             Content = new Grid
             {
@@ -160,6 +171,7 @@ internal static class MenuParts
                 }
             }
         };
+        Raise(button, motion, primary ? PrimaryEdge : QuietEdge, liftOnFocus: true);
         button.Classes.Add(ButtonClass);
         AutomationProperties.SetName(button, text);
         // The theme's own hover and press colours would otherwise replace the palette.
@@ -196,6 +208,75 @@ internal static class MenuParts
             if (!content.IsHitTestVisible) return;
             if (button.Parent is Border wrapper) motion.Pulse(wrapper, .96);
             motion.Leave(content, click);
+        };
+        return button;
+    }
+
+    /// <summary>Rounds <paramref name="button"/> and stands it on a hard pixel edge of
+    /// <paramref name="depth"/> in <paramref name="edge"/>. Hovering lifts the face a pixel and
+    /// pressing sinks it onto the edge; with motion on both ease, with it off they snap. The edge is
+    /// part of the button, whose whole area stays clickable wherever the face has moved.</summary>
+    public static T Raise<T>(T button, PixelMotion motion, Color edge, double depth = 4, bool liftOnFocus = false)
+        where T : Button
+    {
+        button.CornerRadius = new CornerRadius(Corner);
+        var sink = new TranslateTransform();
+        Transitions eased =
+        [
+            new DoubleTransition { Property = TranslateTransform.YProperty, Duration = PressTime, Easing = new CubicEaseOut() }
+        ];
+        Transitions shadowEased =
+        [
+            new BoxShadowsTransition { Property = ContentPresenter.BoxShadowProperty, Duration = PressTime, Easing = new CubicEaseOut() }
+        ];
+        BoxShadows Edge(double height) => new(new BoxShadow { OffsetY = height, Color = edge });
+        ContentPresenter? face = null;
+
+        void Update()
+        {
+            if (face is null) return;
+            sink.Transitions = motion.Enabled ? eased : null;
+            face.Transitions = motion.Enabled ? shadowEased : null;
+            var lifted = motion.Enabled && button.IsEffectivelyEnabled &&
+                (button.IsPointerOver || liftOnFocus && button.IsFocused);
+            var sunk = button.IsPressed ? depth : lifted ? -1 : 0;
+            sink.Y = sunk;
+            face.BoxShadow = Edge(depth - sunk);
+        }
+
+        // The theme's template is the face alone. Named as the theme names it, the face still takes
+        // the theme's hover and press colours; the transparent root keeps the edge clickable.
+        button.Template = new FuncControlTemplate<Button>((owner, scope) =>
+        {
+            var presenter = new ContentPresenter
+            {
+                Name = "PART_ContentPresenter", RecognizesAccessKey = true, RenderTransform = sink,
+                Margin = new Thickness(0, 0, 0, depth)
+            };
+            void From<TValue>(StyledProperty<TValue> target, AvaloniaProperty<TValue> source) =>
+                presenter.Bind(target, owner.GetObservable(source), BindingPriority.Template);
+            From(ContentPresenter.BackgroundProperty, TemplatedControl.BackgroundProperty);
+            From(ContentPresenter.BorderBrushProperty, TemplatedControl.BorderBrushProperty);
+            From(ContentPresenter.BorderThicknessProperty, TemplatedControl.BorderThicknessProperty);
+            From(ContentPresenter.CornerRadiusProperty, TemplatedControl.CornerRadiusProperty);
+            From(ContentPresenter.PaddingProperty, TemplatedControl.PaddingProperty);
+            From(ContentPresenter.ForegroundProperty, TemplatedControl.ForegroundProperty);
+            From(ContentPresenter.ContentProperty, ContentControl.ContentProperty);
+            From(ContentPresenter.ContentTemplateProperty, ContentControl.ContentTemplateProperty);
+            From(ContentPresenter.HorizontalContentAlignmentProperty, ContentControl.HorizontalContentAlignmentProperty);
+            From(ContentPresenter.VerticalContentAlignmentProperty, ContentControl.VerticalContentAlignmentProperty);
+            return new Panel { Background = Brushes.Transparent, Children = { presenter.RegisterInNameScope(scope) } };
+        });
+        button.TemplateApplied += (_, args) =>
+        {
+            face = args.NameScope.Find<ContentPresenter>("PART_ContentPresenter");
+            Update();
+        };
+        button.PropertyChanged += (_, args) =>
+        {
+            if (args.Property == Avalonia.Controls.Button.IsPressedProperty || args.Property == InputElement.IsPointerOverProperty ||
+                args.Property == InputElement.IsFocusedProperty || args.Property == InputElement.IsEffectivelyEnabledProperty)
+                Update();
         };
         return button;
     }

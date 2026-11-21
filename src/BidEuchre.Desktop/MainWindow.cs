@@ -51,7 +51,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock _contractText = new() { Foreground = Ink, FontSize = 17, FontFamily = PixelArt.Font };
     private readonly TextBlock _dealerText = new() { Foreground = Muted, FontSize = 10 };
     private readonly ComboBox _viewerSeat = new() { MinWidth = 150, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button _startButton = PrimaryButton("Start session");
+    private readonly Button _startButton;
     private readonly ContentControl _tableHost = new();
     // The one-line turn status in the top strip; the centre prompt repeats it above its buttons.
     private readonly TextBlock _actionTitle = new() { Foreground = Muted, FontSize = 11, FontFamily = PixelArt.Font, TextTrimming = TextTrimming.CharacterEllipsis };
@@ -108,7 +108,7 @@ public sealed class MainWindow : Window
     private GamePreferences _preferences = new();
     private readonly string _campaignPath = Path.Combine(DataDirectory, "BidEuchre", "campaign.json");
     private readonly CampaignFlow _campaign;
-    private readonly Button _menuButton = QuietButton(MenuLabel);
+    private readonly Button _menuButton;
     // The live session when it is a campaign match; free-play tables leave this null.
     private GameSession? _campaignSession;
     private TextBlock _scoreEyebrow = Eyebrow("TEAMS · TO 40");
@@ -118,6 +118,8 @@ public sealed class MainWindow : Window
 
     public MainWindow()
     {
+        _startButton = PrimaryButton("Start session");
+        _menuButton = QuietButton(MenuLabel);
         Title = "Bid Euchre";
         Width = 1320;
         Height = 860;
@@ -1814,29 +1816,27 @@ public sealed class MainWindow : Window
         FontWeight = FontWeight.Bold
     };
 
-    internal static Button PrimaryButton(string text) => new()
+    private Button PrimaryButton(string text) => MenuParts.Raise(new Button
     {
         Content = text,
         Background = Green,
         Foreground = Paper,
         Padding = new Thickness(16, 9),
-        CornerRadius = new CornerRadius(2),
         BorderThickness = new Thickness(0),
         FontWeight = FontWeight.Bold
-    };
+    }, _motion, MenuParts.PrimaryEdge);
 
-    internal static Button QuietButton(string text) => new()
+    private Button QuietButton(string text) => MenuParts.Raise(new Button
     {
         Content = text,
         Background = Panel,
         Foreground = Ink,
         BorderBrush = Line,
         BorderThickness = new Thickness(1),
-        Padding = new Thickness(13, 8),
-        CornerRadius = new CornerRadius(2)
-    };
+        Padding = new Thickness(13, 8)
+    }, _motion, MenuParts.QuietEdge, depth: 3);
 
-    private static Button ActionButton(string text) => new()
+    private Button ActionButton(string text) => MenuParts.Raise(new Button
     {
         Content = text,
         Margin = new Thickness(4, 0, 4, 8),
@@ -1845,10 +1845,9 @@ public sealed class MainWindow : Window
         Foreground = Brush.Parse("#FFF5DC"),
         BorderBrush = Brush.Parse("#65BFFF"),
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(2),
         FontWeight = FontWeight.Bold,
         FontSize = 14
-    };
+    }, _motion, MenuParts.ActionEdge);
 
     internal static T Place<T>(T control, int row = 0, int column = 0) where T : Control
     {
